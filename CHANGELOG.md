@@ -79,3 +79,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - edge case observed while testing
 - double-check docs example behavior
 - follow up on cleanup logic
+- follow up on the retry path
