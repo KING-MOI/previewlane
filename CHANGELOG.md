@@ -56,3 +56,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - double-check link checker behavior
 - double-check release checklist behavior
 - follow up on docs example
+- double-check error messages behavior
