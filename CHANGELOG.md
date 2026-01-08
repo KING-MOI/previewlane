@@ -124,3 +124,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - edge case observed while testing
 - double-check type narrowing behavior
 - follow up on release checklist
+- follow up on the macOS build
