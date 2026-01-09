@@ -64,3 +64,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - considered cleanup logic; parked for now
 - considered config defaults; parked for now
 - follow up on cleanup logic
+- considered error messages; parked for now
