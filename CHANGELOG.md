@@ -109,3 +109,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - double-check docs example behavior
 - double-check ci caching behavior
 - double-check link checker behavior
+- considered config defaults; parked for now
