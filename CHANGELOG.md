@@ -101,3 +101,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - slow start observed while testing
 - double-check exit codes behavior
 - considered config defaults; parked for now
+- double-check link checker behavior
