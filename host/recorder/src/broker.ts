@@ -20,7 +20,7 @@ import type { Upstream } from './proxy.ts';
 
 // The browser and what the recorder does with it. The broker launches one
 // Chromium for the run with the origin guard (guard.ts) on every target it
-// makes, opens a point's context on koid's request with service workers
+// makes, opens a point's context on previewlaned's request with service workers
 // blocked and downloads refused, keeps the context's console and network
 // observations, takes captures from it into the capture store, and reads
 // the app's state from inside it. The verifier drives the same pages over
@@ -73,7 +73,7 @@ export interface CaptureResult {
 	url?: string;
 	eventRange: { first: number; last: number };
 	capturedAt: string;
-	// What the recorder itself could not promise about this capture. koid
+	// What the recorder itself could not promise about this capture. previewlaned
 	// copies it into the artifact's limitations, after the policy's own. No
 	// kind sets it today: a screenshot whose frames would not hold still is
 	// a failed capture, not one with a caveat.
@@ -90,7 +90,7 @@ interface NetworkRecord {
 	redirectedFrom?: number | undefined;
 	startedAt: string;
 	status?: number | undefined;
-	// The response's headers, every one. koid keeps an allowlist of them.
+	// The response's headers, every one. previewlaned keeps an allowlist of them.
 	headers?: Record<string, string> | undefined;
 	endedAt?: string | undefined;
 	failed?: string | undefined;
@@ -260,8 +260,8 @@ export class Broker {
 		);
 	}
 
-	// Marks the broker failed and puts recorder-failed in the event feed. koid
-	// records that event as a problem, so the run cannot pass. koid also knows
+	// Marks the broker failed and puts recorder-failed in the event feed. previewlaned
+	// records that event as a problem, so the run cannot pass. previewlaned also knows
 	// the reason's first words (RecorderSession.start). The browser's death
 	// closes the guard's connection too, so only the first loss is reported.
 	private fail(reason: string): void {
@@ -630,7 +630,7 @@ export class Broker {
 			records.push(record as ConsoleRecord & NetworkRecord);
 			return;
 		}
-		// The first drop is an event, so koid records the gap; the capture
+		// The first drop is an event, so previewlaned records the gap; the capture
 		// carries the final count.
 		const dropped = kind === 'console' ? ++ctx.droppedConsole : ++ctx.droppedNetwork;
 		if (dropped === 1) {

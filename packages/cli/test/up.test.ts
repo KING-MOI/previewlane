@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { deploymentIdentity, type PreviewRecord, type UpRequest } from '@koi/shared';
+import { deploymentIdentity, type PreviewRecord, type UpRequest } from '@previewlane/shared';
 import { type BuildLog, BuildLogs } from '../../daemon/src/buildlog.ts';
 import { awsBox, type Box, BoxUnavailableError, type CtlResult } from '../src/box.ts';
 import { exec, OutputTooLargeError } from '../src/exec.ts';
@@ -10,7 +10,7 @@ import { cliGit, type Git } from '../src/git.ts';
 import type { GitHub } from '../src/github.ts';
 import { ghCli, ownerRepoFor } from '../src/github.ts';
 import { builtFrom, type UpDeps, type UpResult, up } from '../src/up.ts';
-import { koidClients, koidDeps, previewRecord, s3Stub, settings } from './koid.ts';
+import { previewlanedClients, previewlanedDeps, previewRecord, s3Stub, settings } from './previewlaned.ts';
 import { asGitHub, pullRequestOrigin, shallowCheckout } from './pulls.ts';
 
 const COMMIT = 'c'.repeat(40);
@@ -23,16 +23,16 @@ const PR_MERGE = 'f'.repeat(40);
 async function fakeGit(
 	overrides: Partial<Git> = {},
 ): Promise<Git & { root: () => Promise<string> }> {
-	const root = await mkdtemp(join(tmpdir(), 'koi-up-'));
+	const root = await mkdtemp(join(tmpdir(), 'previewlane-up-'));
 	await writeFile(join(root, 'Dockerfile'), 'FROM scratch\n');
-	await writeFile(join(root, 'koi.yaml'), 'port: 8080\nbuild:\n  kind: dockerfile\n');
+	await writeFile(join(root, 'previewlane.yaml'), 'port: 8080\nbuild:\n  kind: dockerfile\n');
 	return {
 		root: async () => root,
 		remote: async () => 'https://github.com/acme/hello.git',
 		head: async () => COMMIT,
 		branch: async () => 'feature/x',
 		dirty: async () => true,
-		files: async () => ['Dockerfile', 'koi.yaml'],
+		files: async () => ['Dockerfile', 'previewlane.yaml'],
 		fetchPullRequest: async () => ({
 			head: PR_HEAD,
 			merge: { commit: PR_MERGE, parents: [PR_BASE, PR_HEAD] },
@@ -45,7 +45,7 @@ async function fakeGit(
 		diffFiles: async () => ['src/payments/stripe.py'],
 		mergeFiles: async () => ['src/payments/stripe.py'],
 		show: async (_commit, path) =>
-			path === 'koi.yaml' ? 'port: 9000\nbuild:\n  kind: dockerfile\n' : undefined,
+			path === 'previewlane.yaml' ? 'port: 9000\nbuild:\n  kind: dockerfile\n' : undefined,
 		...overrides,
 	};
 }
@@ -70,8 +70,8 @@ function record(over: Partial<PreviewRecord>): PreviewRecord {
 
 // A box whose status answers come from a script: per poll, the record and the
 // whole build log of the record's attempt at that moment. Replies page the log
-// as koid does, at most 200 lines from `since`, and only for the record's
-// attempt. koid's `next` is a byte offset; koi only passes it back, so a line
+// as previewlaned does, at most 200 lines from `since`, and only for the record's
+// attempt. previewlaned's `next` is a byte offset; previewlane only passes it back, so a line
 // count stands in for it here.
 function fakeBox(statuses: Array<{ record: PreviewRecord; log: string[] }>, upReply?: CtlResult) {
 	const uploads: UpRequest[] = [];
@@ -88,7 +88,7 @@ function fakeBox(statuses: Array<{ record: PreviewRecord; log: string[] }>, upRe
 					.filter((l) => l !== '')
 					.sort(),
 			);
-			const changed = await exec(['tar', '-xzOf', tarball, '.koi-runtime/changed-files.txt']);
+			const changed = await exec(['tar', '-xzOf', tarball, '.previewlane-runtime/changed-files.txt']);
 			tarballs.push([`changed:${changed.stdout.trim()}`]);
 		},
 		ensureAwake: async () => {
@@ -146,10 +146,10 @@ function deps(git: Git, box: Box, extra: Partial<UpDeps> = {}) {
 	return { d, lines, progress, clock: () => clock };
 }
 
-// koid as koi up meets it on the box, while it builds one request.
-interface Koid {
+// previewlaned as previewlane up meets it on the box, while it builds one request.
+interface Previewlaned {
 	logs: BuildLogs;
-	// The request's label and id, once koi up has uploaded it.
+	// The request's label and id, once previewlane up has uploaded it.
 	label: string;
 	id: string;
 	record: PreviewRecord | undefined;
@@ -157,46 +157,46 @@ interface Koid {
 	write(attempt: string, lines: string[]): Promise<void>;
 }
 
-// Runs koi up through awsBox against the real koid ctl, control API and
-// build logs behind a mocked SSM client. `accept` runs when koid accepts the
-// request, and `beforeRead` before koid reads a build log for a status reply,
+// Runs previewlane up through awsBox against the real previewlaned ctl, control API and
+// build logs behind a mocked SSM client. `accept` runs when previewlaned accepts the
+// request, and `beforeRead` before previewlaned reads a build log for a status reply,
 // with the number of that read.
-async function upThroughKoid(
-	accept: (koid: Koid) => Promise<void>,
-	beforeRead: (koid: Koid, read: number) => Promise<void> = async () => {},
+async function upThroughPreviewlaned(
+	accept: (previewlaned: Previewlaned) => Promise<void>,
+	beforeRead: (previewlaned: Previewlaned, read: number) => Promise<void> = async () => {},
 ) {
-	const logs = new BuildLogs(await mkdtemp(join(tmpdir(), 'koi-state-')));
-	const koid: Koid = {
+	const logs = new BuildLogs(await mkdtemp(join(tmpdir(), 'previewlane-state-')));
+	const previewlaned: Previewlaned = {
 		logs,
 		label: '',
 		id: '',
 		record: undefined,
 		async write(attempt, lines) {
-			const log = await logs.open(koid.label, attempt);
+			const log = await logs.open(previewlaned.label, attempt);
 			for (const line of lines) log.line(line);
 			await log.close();
 		},
 	};
 	let reads = 0;
 	let touches = 0;
-	const clients = koidClients(
-		koidDeps({
+	const clients = previewlanedClients(
+		previewlanedDeps({
 			keepAwake: async () => {
 				touches += 1;
 			},
 			deployer: {
-				...koidDeps({}).deployer,
+				...previewlanedDeps({}).deployer,
 				up: async () => {
-					await accept(koid);
-					return { label: koid.label, queued: false };
+					await accept(previewlaned);
+					return { label: previewlaned.label, queued: false };
 				},
 				down: async () => false,
 			},
-			store: { get: async () => koid.record, list: async () => [] },
+			store: { get: async () => previewlaned.record, list: async () => [] },
 			buildLogs: {
 				read: async (...args) => {
 					reads += 1;
-					await beforeRead(koid, reads);
+					await beforeRead(previewlaned, reads);
 					return logs.read(...args);
 				},
 				tail: (...args) => logs.tail(...args),
@@ -206,8 +206,8 @@ async function upThroughKoid(
 	const box: Box = {
 		...awsBox(settings, clients, async () => {}),
 		upload: async (request) => {
-			koid.label = request.label;
-			koid.id = request.id;
+			previewlaned.label = request.label;
+			previewlaned.id = request.id;
 		},
 	};
 	const { d, lines, progress } = deps(await fakeGit(), box);
@@ -221,13 +221,13 @@ async function upThroughKoid(
 	return {
 		result,
 		error,
-		label: koid.label,
-		// Without the timestamp koid writes before each line.
+		label: previewlaned.label,
+		// Without the timestamp previewlaned writes before each line.
 		lines: lines.map((line) => line.replace(/^\S+ /, '')),
 		progress,
 		polls: clients.commands.filter((c) => c[0] === 'status'),
 		commands: clients.commands.length,
-		// Times koid refreshed the activity stamp.
+		// Times previewlaned refreshed the activity stamp.
 		touches,
 	};
 }
@@ -256,10 +256,10 @@ describe('up from the working tree', () => {
 		expect(fb.woke()).toBe(1);
 		expect(fb.calls[0]).toEqual(['up', 'r'.repeat(16)]);
 		expect(fb.tarballs[0]).toEqual([
-			'.koi-runtime/',
-			'.koi-runtime/changed-files.txt',
+			'.previewlane-runtime/',
+			'.previewlane-runtime/changed-files.txt',
 			'Dockerfile',
-			'koi.yaml',
+			'previewlane.yaml',
 		]);
 		expect(fb.tarballs[1]).toEqual(['changed:src/payments/stripe.py\nREADME.md']);
 		// The first poll learns the attempt. Its log is read from where the last
@@ -287,8 +287,8 @@ describe('up from the working tree', () => {
 			deploymentId: 't'.repeat(20),
 			imageDigest: `sha256:${'1'.repeat(64)}`,
 			commit: COMMIT,
-			image: 'koi-preview/hello:r',
-			container: 'koi-hello-r',
+			image: 'previewlane-preview/hello:r',
+			container: 'previewlane-hello-r',
 			port: 8080,
 			healthPath: '/',
 			healthTimeoutSeconds: 60,
@@ -328,12 +328,12 @@ describe('up from the working tree', () => {
 		const git = await fakeGit();
 		const fb = fakeBox([
 			{
-				record: record({ status: 'running', loginKey: 'koi-abcdefghijklmnopqrstuvwx' }),
+				record: record({ status: 'running', loginKey: 'previewlane-abcdefghijklmnopqrstuvwx' }),
 				log: [],
 			},
 		]);
 		const result = await up({ comment: false }, deps(git, fb.box).d);
-		expect(result.loginKey).toBe('koi-abcdefghijklmnopqrstuvwx');
+		expect(result.loginKey).toBe('previewlane-abcdefghijklmnopqrstuvwx');
 	});
 
 	test('reports a failed build with its reason', async () => {
@@ -372,7 +372,7 @@ describe('up from the working tree', () => {
 		expect(lines).toEqual(['a', 'b', 'c', 'b', 'd']);
 	});
 
-	test('stops at once when a newer koi up for the label replaces the request', async () => {
+	test('stops at once when a newer previewlane up for the label replaces the request', async () => {
 		const git = await fakeGit();
 		const newer = 'n'.repeat(16);
 		const fb = fakeBox([
@@ -387,18 +387,18 @@ describe('up from the working tree', () => {
 		const { d, lines } = deps(git, fb.box);
 		const err = (await up({ comment: false }, d).catch((e: unknown) => e)) as Error;
 		expect(err).toBeInstanceOf(Error);
-		expect(err.message).toMatch(/^superseded by a newer koi up for hello-feature-x-[a-z]{8}$/);
+		expect(err.message).toMatch(/^superseded by a newer previewlane up for hello-feature-x-[a-z]{8}$/);
 		expect(lines).toEqual(['a']);
 		expect(fb.calls.filter((c) => c[0] === 'status')).toHaveLength(3);
 	});
 
 	test("never shows a newer request's lines, even when it finishes mid-reply", async () => {
-		// As on the box: koid loads this request's record for a status reply,
+		// As on the box: previewlaned loads this request's record for a status reply,
 		// then a newer request for the label is accepted, builds and finishes
-		// before koid reads the log.
+		// before previewlaned reads the log.
 		const mine = 'm'.repeat(20);
 		const newer = 'w'.repeat(20);
-		const r = await upThroughKoid(
+		const r = await upThroughPreviewlaned(
 			async (k) => {
 				k.record = previewRecord({
 					label: k.label,
@@ -414,9 +414,9 @@ describe('up from the working tree', () => {
 				k.record = { ...k.record, requestId: 'n'.repeat(16), attempt: newer, status: 'running' };
 			},
 		);
-		expect(r.error?.message).toMatch(/^superseded by a newer koi up for hello-feature-x-[a-z]{8}$/);
+		expect(r.error?.message).toMatch(/^superseded by a newer previewlane up for hello-feature-x-[a-z]{8}$/);
 		expect(r.lines).toEqual(['mine 1', 'mine 2']);
-		// The reply koid was making when the newer request finished still has
+		// The reply previewlaned was making when the newer request finished still has
 		// this request's record; the one after shows the newer request.
 		expect(r.polls.map((c) => c.slice(0, 3))).toEqual([
 			['status', r.label],
@@ -427,7 +427,7 @@ describe('up from the working tree', () => {
 	});
 
 	test("follows its own request built again from the start of the new attempt's log", async () => {
-		// koid accepts a failed request again, and the new attempt writes a log
+		// previewlaned accepts a failed request again, and the new attempt writes a log
 		// shorter than the old offset, or one where that offset falls inside a
 		// character.
 		const cases = [
@@ -438,7 +438,7 @@ describe('up from the working tree', () => {
 			{ first: ['old'], second: ['ab😀', 'ready'] },
 		];
 		for (const { first, second } of cases) {
-			const r = await upThroughKoid(
+			const r = await upThroughPreviewlaned(
 				async (k) => {
 					k.record = previewRecord({
 						label: k.label,
@@ -458,7 +458,7 @@ describe('up from the working tree', () => {
 			expect(r.result?.status).toBe('running');
 			expect(r.lines).toEqual([...first, ...second]);
 			expect(r.progress).toContain(
-				'koid is building this request again; showing its new build log from the start',
+				'previewlaned is building this request again; showing its new build log from the start',
 			);
 			const firstEnd = String(
 				Buffer.byteLength(first.map((l) => `${'t'.repeat(24)} ${l}\n`).join('')),
@@ -485,7 +485,7 @@ describe('up from the working tree', () => {
 		const batches = [all.slice(0, 10), all.slice(10, 400), all.slice(400, 450), all.slice(450)];
 		const attempt = 'p'.repeat(20);
 		let log: BuildLog | undefined;
-		const r = await upThroughKoid(
+		const r = await upThroughPreviewlaned(
 			async (k) => {
 				k.record = previewRecord({ label: k.label, requestId: k.id, attempt, status: 'building' });
 				log = await k.logs.open(k.label, attempt);
@@ -514,15 +514,15 @@ describe('up from the working tree', () => {
 		expect(r.commands).toBe(r.polls.length + 2);
 	});
 
-	test("keeps the project's .koi/ files in the upload", async () => {
+	test("keeps the project's .previewlane/ files in the upload", async () => {
 		const git = await fakeGit({
-			files: async () => ['.koi/koi.yaml', '.koi/verify.yaml', 'Dockerfile'],
+			files: async () => ['.previewlane/previewlane.yaml', '.previewlane/verify.yaml', 'Dockerfile'],
 		});
 		const root = await git.root();
-		await mkdir(join(root, '.koi'));
-		await writeFile(join(root, '.koi', 'koi.yaml'), 'port: 8080\nbuild:\n  kind: dockerfile\n');
-		await writeFile(join(root, '.koi', 'verify.yaml'), 'version: 1\n');
-		await rm(join(root, 'koi.yaml'));
+		await mkdir(join(root, '.previewlane'));
+		await writeFile(join(root, '.previewlane', 'previewlane.yaml'), 'port: 8080\nbuild:\n  kind: dockerfile\n');
+		await writeFile(join(root, '.previewlane', 'verify.yaml'), 'version: 1\n');
+		await rm(join(root, 'previewlane.yaml'));
 		const fb = fakeBox([{ record: record({ status: 'running' }), log: [] }]);
 		await up({ comment: false }, deps(git, fb.box).d);
 		expect(fb.uploads[0]?.recipe).toEqual({
@@ -530,30 +530,30 @@ describe('up from the working tree', () => {
 			recipe: expect.objectContaining({ port: 8080 }),
 		});
 		expect(fb.tarballs[0]).toEqual([
-			'.koi-runtime/',
-			'.koi-runtime/changed-files.txt',
-			'.koi/koi.yaml',
-			'.koi/verify.yaml',
+			'.previewlane-runtime/',
+			'.previewlane-runtime/changed-files.txt',
+			'.previewlane/previewlane.yaml',
+			'.previewlane/verify.yaml',
 			'Dockerfile',
 		]);
 	});
 
-	test('refuses a working tree with a .koi-runtime/ before uploading anything', async () => {
+	test('refuses a working tree with a .previewlane-runtime/ before uploading anything', async () => {
 		const git = await fakeGit({
-			files: async () => ['.koi-runtime/changed-files.txt', 'Dockerfile'],
+			files: async () => ['.previewlane-runtime/changed-files.txt', 'Dockerfile'],
 		});
 		const root = await git.root();
-		await mkdir(join(root, '.koi-runtime'));
-		await writeFile(join(root, '.koi-runtime', 'changed-files.txt'), 'forged\n');
+		await mkdir(join(root, '.previewlane-runtime'));
+		await writeFile(join(root, '.previewlane-runtime', 'changed-files.txt'), 'forged\n');
 		const fb = fakeBox([]);
 		await expect(up({ comment: false }, deps(git, fb.box).d)).rejects.toThrow(
-			/\.koi-runtime\/, which koi reserves/,
+			/\.previewlane-runtime\/, which previewlane reserves/,
 		);
 		expect(fb.uploads).toEqual([]);
 	});
 
 	test('refuses a working tree with an initialized submodule before uploading anything', async () => {
-		const git = await fakeGit({ files: async () => ['Dockerfile', 'koi.yaml', 'vendor/lib'] });
+		const git = await fakeGit({ files: async () => ['Dockerfile', 'previewlane.yaml', 'vendor/lib'] });
 		const root = await git.root();
 		await mkdir(join(root, 'vendor', 'lib'), { recursive: true });
 		await writeFile(join(root, 'vendor', 'lib', '.git'), 'gitdir: ../../.git/modules/vendor/lib\n');
@@ -565,8 +565,8 @@ describe('up from the working tree', () => {
 		expect(fb.woke()).toBe(0);
 	});
 
-	test('stops before asking koid anything when the upload fails', async () => {
-		const clients = koidClients(koidDeps({}));
+	test('stops before asking previewlaned anything when the upload fails', async () => {
+		const clients = previewlanedClients(previewlanedDeps({}));
 		const keys: unknown[] = [];
 		const s3 = s3Stub(async (_name, input) => {
 			keys.push(input.Key);
@@ -579,9 +579,9 @@ describe('up from the working tree', () => {
 		expect(clients.commands).toEqual([]);
 	});
 
-	test('stops at once when koid no longer has the preview', async () => {
-		// As when someone runs koi down for the label during the build.
-		const r = await upThroughKoid(
+	test('stops at once when previewlaned no longer has the preview', async () => {
+		// As when someone runs previewlane down for the label during the build.
+		const r = await upThroughPreviewlaned(
 			async (k) => {
 				k.record = previewRecord({
 					label: k.label,
@@ -596,18 +596,18 @@ describe('up from the working tree', () => {
 			},
 		);
 		expect(r.error?.message).toMatch(
-			/^koid no longer has hello-feature-x-[a-z]{8}; someone may have removed it with koi down$/,
+			/^previewlaned no longer has hello-feature-x-[a-z]{8}; someone may have removed it with previewlane down$/,
 		);
 		expect(r.lines).toEqual(['step 1']);
 		expect(r.polls).toHaveLength(4);
 	});
 
-	test('stops at once on any other error koid gives', async () => {
+	test('stops at once on any other error previewlaned gives', async () => {
 		const git = await fakeGit();
 		for (const reply of [
 			{ code: 1, stdout: '', stderr: '{"error":"bad request","detail":"x"}\n' },
-			{ code: 2, stdout: '', stderr: 'koid ctl: lines must be a positive integer\n' },
-			{ code: 127, stdout: '', stderr: 'koid: not found\n' },
+			{ code: 2, stdout: '', stderr: 'previewlaned ctl: lines must be a positive integer\n' },
+			{ code: 127, stdout: '', stderr: 'previewlaned: not found\n' },
 		]) {
 			const fb = fakeBox([{ record: record({ status: 'building' }), log: [] }]);
 			const box: Box = {
@@ -622,7 +622,7 @@ describe('up from the working tree', () => {
 		}
 	});
 
-	test('reads the status again while SSM or koid cannot answer for a while', async () => {
+	test('reads the status again while SSM or previewlaned cannot answer for a while', async () => {
 		const git = await fakeGit();
 		const fb = fakeBox([
 			{ record: record({ status: 'building' }), log: ['a'] },
@@ -636,7 +636,7 @@ describe('up from the working tree', () => {
 				if (args[0] !== 'status') return fb.box.ctl(args);
 				reads += 1;
 				if (reads === 2) throw new BoxUnavailableError('Rate exceeded');
-				if (reads === 3) return { code: 3, stdout: '', stderr: 'koid ctl: cannot reach koid' };
+				if (reads === 3) return { code: 3, stdout: '', stderr: 'previewlaned ctl: cannot reach previewlaned' };
 				return fb.box.ctl(args);
 			},
 		};
@@ -653,12 +653,12 @@ describe('up from the working tree', () => {
 			...fb.box,
 			ctl: async (args) =>
 				args[0] === 'status'
-					? { code: 3, stdout: '', stderr: 'koid ctl: cannot reach koid: ENOENT\n' }
+					? { code: 3, stdout: '', stderr: 'previewlaned ctl: cannot reach previewlaned: ENOENT\n' }
 					: fb.box.ctl(args),
 		};
 		const { d, clock } = deps(git, box);
 		await expect(up({ comment: false }, d)).rejects.toThrow(
-			/^could not read the status of hello-feature-x-[a-z]{8} for 5 minutes: koid ctl: cannot reach koid: ENOENT$/,
+			/^could not read the status of hello-feature-x-[a-z]{8} for 5 minutes: previewlaned ctl: cannot reach previewlaned: ENOENT$/,
 		);
 		expect(clock()).toBeGreaterThan(5 * 60_000);
 		expect(clock()).toBeLessThan(5 * 60_000 + 10_000);
@@ -676,7 +676,7 @@ describe('up from the working tree', () => {
 		);
 	});
 
-	test("refuses an up reply that is not koid's", async () => {
+	test("refuses an up reply that is not previewlaned's", async () => {
 		const git = await fakeGit();
 		for (const stdout of ['{"label":"Not A Label","queued":false}', '{"label":"x"}', '[]']) {
 			const fb = fakeBox([], { code: 0, stdout, stderr: '' });
@@ -707,7 +707,7 @@ describe('up from the working tree', () => {
 			{ record: failed, log: ['failed: boom'] },
 			{ record: retried, log: [] },
 		]);
-		// Without the limits koi up would poll forever; 63 minutes is about
+		// Without the limits previewlane up would poll forever; 63 minutes is about
 		// 1,300 polls.
 		const ctl = fb.box.ctl;
 		fb.box.ctl = async (args) => {
@@ -724,7 +724,7 @@ describe('up from the working tree', () => {
 	test('waits for a long build its recipe allows, not counting time in the queue', async () => {
 		const git = await fakeGit();
 		await writeFile(
-			join(await git.root(), 'koi.yaml'),
+			join(await git.root(), 'previewlane.yaml'),
 			'port: 8080\nbuildTimeoutMinutes: 180\nbuild:\n  kind: dockerfile\n',
 		);
 		// Polls are 3 seconds apart: 5 hours in the queue, then 170 minutes of
@@ -744,7 +744,7 @@ describe('up from the working tree', () => {
 		// Longer than the queue wait, and the build alone longer than 90 minutes.
 		expect(clock()).toBeGreaterThan(7 * 3_600_000);
 		expect(progress).toContain(
-			'waiting for another build on the box to finish; koi waits up to 6 hours for its turn',
+			'waiting for another build on the box to finish; previewlane waits up to 6 hours for its turn',
 		);
 	});
 
@@ -775,12 +775,12 @@ describe('up from the working tree', () => {
 		expect(clock).toBeGreaterThan(63 * 60_000 + 60_000);
 	});
 
-	test('gives up on a queue that does not move, and says koid keeps the request', async () => {
+	test('gives up on a queue that does not move, and says previewlaned keeps the request', async () => {
 		const git = await fakeGit();
 		const fb = fakeBox([{ record: record({ status: 'queued' }), log: [] }]);
 		const { d, clock } = deps(git, fb.box);
 		await expect(up({ comment: false }, d)).rejects.toThrow(
-			/^gave up after 6 hours waiting for hello-feature-x-[a-z]{8} to start building behind other builds on the box\. koid keeps it queued/,
+			/^gave up after 6 hours waiting for hello-feature-x-[a-z]{8} to start building behind other builds on the box\. previewlaned keeps it queued/,
 		);
 		expect(clock()).toBeGreaterThan(6 * 3_600_000);
 		expect(clock()).toBeLessThan(6 * 3_600_000 + 10_000);
@@ -806,7 +806,7 @@ describe('builtFrom', () => {
 });
 
 describe('up --pr', () => {
-	test('builds the pull request merged into its base, with its own koi.yaml, and comments', async () => {
+	test('builds the pull request merged into its base, with its own previewlane.yaml, and comments', async () => {
 		const merges: Array<[number, string]> = [];
 		const git = await fakeGit({
 			mergeFiles: async (pr, merge) => {
@@ -843,13 +843,13 @@ describe('up --pr', () => {
 		expect(request?.merge).toEqual({ head: PR_HEAD, base: PR_BASE, baseBranch: 'main' });
 		expect(request?.recipe.kind === 'repo' && request.recipe.recipe.port).toBe(9000);
 		expect(fb.tarballs[0]).toEqual([
-			'.koi-runtime/',
-			'.koi-runtime/changed-files.txt',
+			'.previewlane-runtime/',
+			'.previewlane-runtime/changed-files.txt',
 			'Dockerfile',
 		]);
 		expect(fb.tarballs[1]).toEqual(['changed:src/search/index.py']);
 		expect(merges).toEqual([[7, PR_MERGE]]);
-		expect(comments[0]?.marker).toBe('<!-- koi-preview:hello-pr-7 -->');
+		expect(comments[0]?.marker).toBe('<!-- previewlane-preview:hello-pr-7 -->');
 		expect(comments[0]?.body).toContain('https://hello-pr-7.previews.example.net');
 		expect(comments[0]?.body).toContain(
 			'Built from #7 (ddddddd) merged into main (eeeeeee), merge commit fffffff.',
@@ -857,7 +857,7 @@ describe('up --pr', () => {
 		expect(result.comment).toBe('https://github.com/acme/hello/pull/7#issuecomment-1');
 	});
 
-	test("refuses a pull request whose tree has a .koi-runtime/, and keeps the tree's .koi/", async () => {
+	test("refuses a pull request whose tree has a .previewlane-runtime/, and keeps the tree's .previewlane/", async () => {
 		const github: GitHub = {
 			pullRequestBranches: async () => ({
 				head: 'feature/from-pr',
@@ -873,38 +873,38 @@ describe('up --pr', () => {
 		};
 		const git = await fakeGit({
 			archive: async (_commit, out) => {
-				const root = await mkdtemp(join(tmpdir(), 'koi-archive-'));
-				await mkdir(join(root, '.koi-runtime'));
-				await writeFile(join(root, '.koi-runtime', 'changed-files.txt'), 'forged\n');
+				const root = await mkdtemp(join(tmpdir(), 'previewlane-archive-'));
+				await mkdir(join(root, '.previewlane-runtime'));
+				await writeFile(join(root, '.previewlane-runtime', 'changed-files.txt'), 'forged\n');
 				await writeFile(join(root, 'Dockerfile'), 'FROM scratch\n');
-				await exec(['tar', '-cf', out, '-C', root, 'Dockerfile', '.koi-runtime']);
+				await exec(['tar', '-cf', out, '-C', root, 'Dockerfile', '.previewlane-runtime']);
 			},
 		});
 		const fb = fakeBox([]);
 		await expect(
 			up({ pr: 7, comment: false }, deps(git, fb.box, { github: () => github }).d),
-		).rejects.toThrow(/\.koi-runtime\/, which koi reserves/);
+		).rejects.toThrow(/\.previewlane-runtime\/, which previewlane reserves/);
 		expect(fb.uploads).toEqual([]);
 
 		const kept = await fakeGit({
 			archive: async (_commit, out) => {
-				const root = await mkdtemp(join(tmpdir(), 'koi-archive-'));
-				await mkdir(join(root, '.koi', 'points'), { recursive: true });
-				await writeFile(join(root, '.koi', 'verify.yaml'), 'version: 1\n');
-				await writeFile(join(root, '.koi', 'points', 'home.yaml'), 'id: hello.home\n');
+				const root = await mkdtemp(join(tmpdir(), 'previewlane-archive-'));
+				await mkdir(join(root, '.previewlane', 'points'), { recursive: true });
+				await writeFile(join(root, '.previewlane', 'verify.yaml'), 'version: 1\n');
+				await writeFile(join(root, '.previewlane', 'points', 'home.yaml'), 'id: hello.home\n');
 				await writeFile(join(root, 'Dockerfile'), 'FROM scratch\n');
-				await exec(['tar', '-cf', out, '-C', root, 'Dockerfile', '.koi']);
+				await exec(['tar', '-cf', out, '-C', root, 'Dockerfile', '.previewlane']);
 			},
 		});
 		const ok = fakeBox([{ record: record({ status: 'running', commit: PR_MERGE }), log: [] }]);
 		await up({ pr: 7, comment: false }, deps(kept, ok.box, { github: () => github }).d);
 		expect(ok.tarballs[0]).toEqual([
-			'.koi-runtime/',
-			'.koi-runtime/changed-files.txt',
-			'.koi/',
-			'.koi/points/',
-			'.koi/points/home.yaml',
-			'.koi/verify.yaml',
+			'.previewlane-runtime/',
+			'.previewlane-runtime/changed-files.txt',
+			'.previewlane/',
+			'.previewlane/points/',
+			'.previewlane/points/home.yaml',
+			'.previewlane/verify.yaml',
 			'Dockerfile',
 		]);
 	});
@@ -990,7 +990,7 @@ describe('up --pr', () => {
 		expect(fb.tarballs[1]).toEqual(['changed:src/search/index.py']);
 	});
 
-	test('--head stops before uploading when the pull request moved since koi fetched it', async () => {
+	test('--head stops before uploading when the pull request moved since previewlane fetched it', async () => {
 		const git = await fakeGit();
 		const fb = fakeBox([]);
 		const github: GitHub = {
@@ -1004,7 +1004,7 @@ describe('up --pr', () => {
 		};
 		await expect(
 			up({ pr: 7, comment: false, head: true }, deps(git, fb.box, { github: () => github }).d),
-		).rejects.toThrow(/^pull request 7 moved while koi was fetching it/);
+		).rejects.toThrow(/^pull request 7 moved while previewlane was fetching it/);
 		expect(fb.uploads).toEqual([]);
 		expect(fb.woke()).toBe(0);
 	});
@@ -1093,7 +1093,7 @@ describe('up --pr without gh installed', () => {
 	});
 });
 
-// koi up --pr with the real git client, against a bare repository holding
+// previewlane up --pr with the real git client, against a bare repository holding
 // pull requests as GitHub does (see pulls.ts).
 describe('up --pr against a real origin', () => {
 	// gh as it answers for that origin's pull requests: each is opened from
@@ -1127,10 +1127,10 @@ describe('up --pr against a real origin', () => {
 		// The merge's tree: the pull request's file, and what main gained after
 		// the pull request branched from it.
 		expect(fb.tarballs[0]).toEqual([
-			'.koi-runtime/',
-			'.koi-runtime/changed-files.txt',
+			'.previewlane-runtime/',
+			'.previewlane-runtime/changed-files.txt',
 			'base.txt',
-			'koi.yaml',
+			'previewlane.yaml',
 			'pr.txt',
 		]);
 		// Seeding reads what the pull request changed, not what the merge holds.
@@ -1149,9 +1149,9 @@ describe('up --pr against a real origin', () => {
 		expect(seven.uploads[0]?.pr).toBe(7);
 		expect(seven.uploads[0]?.merge).toBeUndefined();
 		expect(seven.tarballs[0]).toEqual([
-			'.koi-runtime/',
-			'.koi-runtime/changed-files.txt',
-			'koi.yaml',
+			'.previewlane-runtime/',
+			'.previewlane-runtime/changed-files.txt',
+			'previewlane.yaml',
 			'pr.txt',
 		]);
 		expect(result.commit).toBe(o.head7);
@@ -1162,10 +1162,10 @@ describe('up --pr against a real origin', () => {
 		expect(eight.uploads[0]?.commit).toBe(o.head8);
 		expect(eight.uploads[0]?.merge).toBeUndefined();
 		expect(eight.tarballs[0]).toEqual([
-			'.koi-runtime/',
-			'.koi-runtime/changed-files.txt',
+			'.previewlane-runtime/',
+			'.previewlane-runtime/changed-files.txt',
 			'base.txt',
-			'koi.yaml',
+			'previewlane.yaml',
 		]);
 	});
 
@@ -1178,22 +1178,22 @@ describe('up --pr against a real origin', () => {
 		expect(merged.uploads[0]?.commit).toBe(o.merge7);
 		expect(merged.uploads[0]?.merge).toEqual({ head: o.head7, base: o.base, baseBranch: 'main' });
 		expect(merged.tarballs[0]).toEqual([
-			'.koi-runtime/',
-			'.koi-runtime/changed-files.txt',
+			'.previewlane-runtime/',
+			'.previewlane-runtime/changed-files.txt',
 			'base.txt',
-			'koi.yaml',
+			'previewlane.yaml',
 			'pr.txt',
 		]);
 		// The list comes from the merge against its base parent, which the
-		// shallow checkout lacked until koi deepened it by one.
+		// shallow checkout lacked until previewlane deepened it by one.
 		expect(merged.tarballs[1]).toEqual(['changed:pr.txt']);
 		const head = running(o.head7);
 		await up({ pr: 7, comment: false, head: true }, at(head.box));
 		expect(head.uploads[0]?.commit).toBe(o.head7);
 		expect(head.tarballs[0]).toEqual([
-			'.koi-runtime/',
-			'.koi-runtime/changed-files.txt',
-			'koi.yaml',
+			'.previewlane-runtime/',
+			'.previewlane-runtime/changed-files.txt',
+			'previewlane.yaml',
 			'pr.txt',
 		]);
 	});
@@ -1215,7 +1215,7 @@ describe('up --pr against a real origin', () => {
 		const o = await pullRequestOrigin();
 		const fb = fakeBox([]);
 		await expect(up({ pr: 8, comment: false }, run(o, fb.box))).rejects.toThrow(
-			"GitHub has no merge of pull request 8 into main (no refs/pull/8/merge on origin). Either the pull request conflicts with main, or GitHub has not finished checking it. Rebase onto main or merge it in and push, or try again in a minute. To build the head as pushed instead, without main's later changes, run koi up --pr 8 --head.",
+			"GitHub has no merge of pull request 8 into main (no refs/pull/8/merge on origin). Either the pull request conflicts with main, or GitHub has not finished checking it. Rebase onto main or merge it in and push, or try again in a minute. To build the head as pushed instead, without main's later changes, run previewlane up --pr 8 --head.",
 		);
 		expect(fb.uploads).toEqual([]);
 		expect(fb.woke()).toBe(0);
@@ -1225,7 +1225,7 @@ describe('up --pr against a real origin', () => {
 		const o = await pullRequestOrigin();
 		const fb = fakeBox([]);
 		await expect(up({ pr: 8, comment: false }, run(o, fb.box, noGh))).rejects.toThrow(
-			"GitHub has no merge of pull request 8 into its base branch (no refs/pull/8/merge on origin). Either the pull request conflicts with its base branch, or GitHub has not finished checking it. Rebase onto the base branch or merge it in and push, or try again in a minute. To build the head as pushed instead, without the base branch's later changes, run koi up --pr 8 --head.",
+			"GitHub has no merge of pull request 8 into its base branch (no refs/pull/8/merge on origin). Either the pull request conflicts with its base branch, or GitHub has not finished checking it. Rebase onto the base branch or merge it in and push, or try again in a minute. To build the head as pushed instead, without the base branch's later changes, run previewlane up --pr 8 --head.",
 		);
 		expect(fb.uploads).toEqual([]);
 	});
@@ -1239,7 +1239,7 @@ describe('up --pr against a real origin', () => {
 		await o.author('push', '-q', o.origin, `${pushed}:refs/pull/7/head`);
 		const fb = fakeBox([]);
 		await expect(up({ pr: 7, comment: false }, run(o, fb.box))).rejects.toThrow(
-			`GitHub's merge of pull request 7 into main (refs/pull/7/merge on origin) is out of date. Its head ${short(o.head7)} is an earlier push, and the pull request is now at ${short(pushed)}. GitHub has not recomputed the merge yet. Try again in a minute, or build the head as pushed with koi up --pr 7 --head.`,
+			`GitHub's merge of pull request 7 into main (refs/pull/7/merge on origin) is out of date. Its head ${short(o.head7)} is an earlier push, and the pull request is now at ${short(pushed)}. GitHub has not recomputed the merge yet. Try again in a minute, or build the head as pushed with previewlane up --pr 7 --head.`,
 		);
 		expect(fb.uploads).toEqual([]);
 		expect(fb.woke()).toBe(0);
@@ -1259,7 +1259,7 @@ describe('up --pr against a real origin', () => {
 		await o.author('push', '-q', o.origin, `${moved}:refs/heads/main`);
 		const fb = fakeBox([]);
 		await expect(up({ pr: 7, comment: false }, run(o, fb.box))).rejects.toThrow(
-			`GitHub's merge of pull request 7 into main (refs/pull/7/merge on origin) is out of date. Its base ${short(o.base)} is behind main, now at ${short(moved)}. GitHub has not recomputed the merge yet. Try again in a minute, or build the head as pushed with koi up --pr 7 --head.`,
+			`GitHub's merge of pull request 7 into main (refs/pull/7/merge on origin) is out of date. Its base ${short(o.base)} is behind main, now at ${short(moved)}. GitHub has not recomputed the merge yet. Try again in a minute, or build the head as pushed with previewlane up --pr 7 --head.`,
 		);
 		expect(fb.uploads).toEqual([]);
 		expect(fb.woke()).toBe(0);
@@ -1281,7 +1281,7 @@ describe('up --pr against a real origin', () => {
 		const o = await pullRequestOrigin();
 		// release stays at the old base while main moves on, and GitHub keeps
 		// the old merge. That a branch sits at the old base says nothing
-		// about main, so without the base's name koi cannot check the merge.
+		// about main, so without the base's name previewlane cannot check the merge.
 		await o.author('push', '-q', o.origin, `${o.base}:refs/heads/release`);
 		await o.author('checkout', '-q', '--detach', o.base);
 		await o.author('commit', '-q', '--allow-empty', '-m', 'main moved on');
@@ -1290,7 +1290,7 @@ describe('up --pr against a real origin', () => {
 		// gh not installed.
 		const missing = fakeBox([]);
 		await expect(up({ pr: 7, comment: false }, run(o, missing.box, noGh))).rejects.toThrow(
-			/^checking GitHub's merge of pull request 7 against its base branch needs gh, and the GitHub CLI \(gh\) is not installed or cannot be started \(.*\); install it from https:\/\/cli\.github\.com and sign in with gh auth login, or build the head as pushed with koi up --pr 7 --head\.$/,
+			/^checking GitHub's merge of pull request 7 against its base branch needs gh, and the GitHub CLI \(gh\) is not installed or cannot be started \(.*\); install it from https:\/\/cli\.github\.com and sign in with gh auth login, or build the head as pushed with previewlane up --pr 7 --head\.$/,
 		);
 		expect(missing.uploads).toEqual([]);
 		expect(missing.woke()).toBe(0);
@@ -1304,7 +1304,7 @@ describe('up --pr against a real origin', () => {
 			}));
 		const failing = fakeBox([]);
 		await expect(up({ pr: 7, comment: false }, run(o, failing.box, signedOut))).rejects.toThrow(
-			"checking GitHub's merge of pull request 7 against its base branch needs gh, and gh could not describe the pull request (gh pr view exited 1: To get started with GitHub CLI, please run:  gh auth login). Sign in with gh auth login and check that it can see acme/hello, or build the head as pushed with koi up --pr 7 --head.",
+			"checking GitHub's merge of pull request 7 against its base branch needs gh, and gh could not describe the pull request (gh pr view exited 1: To get started with GitHub CLI, please run:  gh auth login). Sign in with gh auth login and check that it can see acme/hello, or build the head as pushed with previewlane up --pr 7 --head.",
 		);
 		expect(failing.uploads).toEqual([]);
 		// gh answering, but naming no base.
@@ -1318,7 +1318,7 @@ describe('up --pr against a real origin', () => {
 				run(o, fakeBox([]).box, () => unnamed),
 			),
 		).rejects.toThrow(
-			"checking GitHub's merge of pull request 7 against its base branch needs gh, and gh pr view 7 did not name one. Check the pull request on GitHub, or build the head as pushed with koi up --pr 7 --head.",
+			"checking GitHub's merge of pull request 7 against its base branch needs gh, and gh pr view 7 did not name one. Check the pull request on GitHub, or build the head as pushed with previewlane up --pr 7 --head.",
 		);
 		// With gh naming main, the merge is seen to be behind it.
 		await expect(up({ pr: 7, comment: false }, run(o, fakeBox([]).box))).rejects.toThrow(
@@ -1395,7 +1395,7 @@ describe('up without a list of changed files', () => {
 		const fb = fakeBox([]);
 		await expect(
 			up({ pr: 7, comment: false, head: true }, deps(git, fb.box, { github: noGh }).d),
-		).rejects.toThrow(/^koi could not tell which files pull request 7 changes/);
+		).rejects.toThrow(/^previewlane could not tell which files pull request 7 changes/);
 		expect(fb.uploads).toEqual([]);
 		expect(fb.woke()).toBe(0);
 	});
@@ -1404,7 +1404,7 @@ describe('up without a list of changed files', () => {
 		const git = await fakeGit({ changedFiles: async () => undefined });
 		const fb = fakeBox([]);
 		await expect(up({ comment: false }, deps(git, fb.box).d)).rejects.toThrow(
-			/^koi could not tell which files this working tree changes/,
+			/^previewlane could not tell which files this working tree changes/,
 		);
 		expect(fb.uploads).toEqual([]);
 		expect(fb.woke()).toBe(0);

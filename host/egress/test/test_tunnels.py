@@ -12,7 +12,7 @@ def issuer(sock):
     return dict(x[0] for x in sock.getpeercert()["issuer"])["organizationName"]
 
 
-def test_a_tunnel_reaches_the_host_it_named_through_koi_tls(proxy, upstream):
+def test_a_tunnel_reaches_the_host_it_named_through_previewlane_tls(proxy, upstream):
     sock = proxy.https("pypi.org")
     assert issuer(sock) == "mitmproxy"
     assert request(sock, "pypi.org", "/simple/") == (200, b"upstream saw pypi.org and 0 bytes\n")

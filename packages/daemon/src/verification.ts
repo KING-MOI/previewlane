@@ -24,7 +24,7 @@ import {
 	type GlobWorkOptions,
 	type InputSnapshot,
 	InputSnapshotSchema,
-	KOI_DIR,
+	PREVIEWLANE_DIR,
 	LEASE_MAX_SECONDS,
 	type LoadedPoint,
 	loadVerifyConfig,
@@ -70,7 +70,7 @@ import {
 	type VerifyConfig,
 	VerifyConfigError,
 	VerifyIdSchema,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { fitJson } from './buildlog.ts';
 import { type Deployer, LeaseError, NoSuchLeaseError, NoSuchPreviewError } from './deployer.ts';
 import type { Docker } from './docker.ts';
@@ -184,11 +184,11 @@ export interface VerificationDeps {
 		| 'exitState'
 		| 'imageInfo'
 	>;
-	// KOI_RECORDER_IMAGE and KOI_RECORDER_SECCOMP (config.ts).
+	// PREVIEWLANE_RECORDER_IMAGE and PREVIEWLANE_RECORDER_SECCOMP (config.ts).
 	recorderImage: string | undefined;
 	recorderSeccomp: string | undefined;
 	// Runner images a manifest may name besides the default
-	// (KOI_VERIFIER_IMAGES).
+	// (PREVIEWLANE_VERIFIER_IMAGES).
 	verifierImages: readonly string[];
 	// How often the verifier's watchdog looks at the budget and for a stop
 	// request; tests shorten it.
@@ -207,7 +207,7 @@ export interface VerificationDeps {
 	// one.
 	teardownAllowanceMs?: number | undefined;
 	// A test sets these: a plan's step budget, and a call each time matching gives the rest
-	// of koid a turn.
+	// of previewlaned a turn.
 	planGlobs?: Pick<GlobWorkOptions, 'budget' | 'onTurn'> | undefined;
 	now: () => Date;
 	sleep: (ms: number) => Promise<void>;
@@ -223,7 +223,7 @@ const POINT_OPEN_PATH = '/';
 // Docker or the helper said at startup.
 const UNAVAILABLE_REASON = 'verification_unavailable: ';
 
-// What every plan says. These are koid's own words, so a word someone registered must not
+// What every plan says. These are previewlaned's own words, so a word someone registered must not
 // mask them. Any note after them is an error from reading a project's file.
 const PLAN_NOTES = [
 	'a run executes each point\'s setup, run and cleanup commands in a verifier made from the manifest\'s runner image, under the runner protocol (docs/verify.md, "Writing a runner"); agent actions (verify act), the pull request comment and proof verification are later work',
@@ -236,7 +236,7 @@ const STATUS_PROBLEMS = 20;
 // What the manifest's limitations say in every bundle.
 const BUNDLE_LIMITATIONS = [
 	'Text and declared secret fields were filtered. Pixels, encoded secrets, and unknown application data cannot be certified secret-free.',
-	'Project text is kept as the project declared it. Text a run produced before koid learned a secret stays in these files until retention ends; replies mask it.',
+	'Project text is kept as the project declared it. Text a run produced before previewlaned learned a secret stays in these files until retention ends; replies mask it.',
 ];
 
 // How often a run touches the host activity stamp and checks its lease.
@@ -355,7 +355,7 @@ interface ActiveRun {
 // What a point's observations.json says besides its identity and verdict. The
 // verifier's account is there when one ran. A field's name says how the sanitizer
 // treats it, so what a runner chose is in fields that name it as such: `cited` and
-// not `evidence`, which holds koid's artifact ids elsewhere, and a list and not a
+// not `evidence`, which holds previewlaned's artifact ids elsewhere, and a list and not a
 // map keyed by a capture's label, since the sanitizer keeps a record's keys. The
 // verifier takes a report only for a declared assertion and with one of the
 // protocol's outcomes, so `assertion` and `outcome` stay as they are.
@@ -445,7 +445,7 @@ export class Verification {
 		return this.deps.now().toISOString();
 	}
 
-	// The function a record with runtime text passes through to leave koid.
+	// The function a record with runtime text passes through to leave previewlaned.
 	private readonly clean: Sanitize = (record) =>
 		sanitizeRunData(record, { redact: (text) => this.deps.secrets.redact(text) });
 
@@ -474,7 +474,7 @@ export class Verification {
 			throw new VerificationError(
 				409,
 				'no_deployment',
-				`${request.label} has no serving deployment to plan against; run koi up first`,
+				`${request.label} has no serving deployment to plan against; run previewlane up first`,
 			);
 		}
 		if (
@@ -493,7 +493,7 @@ export class Verification {
 			new VerificationError(
 				409,
 				'plan_too_large',
-				`${why}. koid made no plan and wrote nothing. Split the change or list fewer globs.`,
+				`${why}. previewlaned made no plan and wrote nothing. Split the change or list fewer globs.`,
 			);
 		const work = new GlobWork({
 			...this.deps.planGlobs,
@@ -502,7 +502,7 @@ export class Verification {
 		});
 		const inputs = await this.loadInputs(deployment.deploymentId, work);
 		const { config, snapshot, changed } = inputs;
-		// Before any glob of the plan runs, so a project over a limit costs koid nothing.
+		// Before any glob of the plan runs, so a project over a limit costs previewlaned nothing.
 		const over = overPlanLimit(config, changed);
 		if (over !== undefined) throw tooLarge(over);
 		const declaredPolicy = await readAdvisoryPolicy(inputs.source);
@@ -518,7 +518,7 @@ export class Verification {
 			throw new VerificationError(
 				409,
 				'declared_credential',
-				`what looks like a real credential is declared in ${KOI_DIR}/ at ${credential}. koid made no plan and wrote nothing. Take it out of the project's files and run koi up again.`,
+				`what looks like a real credential is declared in ${PREVIEWLANE_DIR}/ at ${credential}. previewlaned made no plan and wrote nothing. Take it out of the project's files and run previewlane up again.`,
 			);
 		}
 		const profile = config.manifest.profiles[request.profile];
@@ -526,7 +526,7 @@ export class Verification {
 			throw new VerificationError(
 				400,
 				'no_such_profile',
-				`${KOI_DIR}/verify.yaml has no profile ${request.profile}; it has ${Object.keys(config.manifest.profiles).join(', ') || 'none'}`,
+				`${PREVIEWLANE_DIR}/verify.yaml has no profile ${request.profile}; it has ${Object.keys(config.manifest.profiles).join(', ') || 'none'}`,
 			);
 		}
 		const byId = new Map(config.points.map((p) => [p.point.id, p]));
@@ -565,12 +565,12 @@ export class Verification {
 		// Docker's answer comes ahead of the scrub below, which nothing may wait behind.
 		const image = await this.runnerImage(config);
 
-		// All a plan holds that is not project text or koid's own: why the box cannot verify,
+		// All a plan holds that is not project text or previewlaned's own: why the box cannot verify,
 		// why its runner image cannot run, and an error from reading the policy or a proof,
 		// which can name more than the file. Scrubbed here and not sooner, for two reasons.
 		// The credential check above needs them as they were. And matching gives other work
-		// turns, during which koid can learn a secret. From here to the digest there is no
-		// await, so what the digest covers is what koid knew when it was made. The plan is
+		// turns, during which previewlaned can learn a secret. From here to the digest there is no
+		// await, so what the digest covers is what previewlaned knew when it was made. The plan is
 		// then written as it says.
 		const policy = this.clean(declaredPolicy);
 		const proofErrors = this.clean(proofs.errors);
@@ -623,7 +623,7 @@ export class Verification {
 		const notes = [
 			...PLAN_NOTES,
 			...(policy.advisory?.error !== undefined
-				? [`${KOI_DIR}/${REQUIRED_POLICY}: ${policy.advisory.error}`]
+				? [`${PREVIEWLANE_DIR}/${REQUIRED_POLICY}: ${policy.advisory.error}`]
 				: []),
 			...proofErrors,
 		]
@@ -722,7 +722,7 @@ export class Verification {
 			);
 		}
 		for (const fixture of r?.fixtures ?? []) {
-			const path = `${KOI_DIR}/${fixture}`;
+			const path = `${PREVIEWLANE_DIR}/${fixture}`;
 			if (!fixtures.has(path))
 				reasons.push(`fixture_missing: ${path} is not in the input snapshot`);
 		}
@@ -737,7 +737,7 @@ export class Verification {
 			throw new VerificationError(
 				409,
 				'inputs_missing',
-				`the verification inputs of deployment ${deploymentId} were not kept; run koi up again to deploy with them`,
+				`the verification inputs of deployment ${deploymentId} were not kept; run previewlane up again to deploy with them`,
 			);
 		}
 		const parsed = InputSnapshotSchema.safeParse(JSON.parse(text));
@@ -745,7 +745,7 @@ export class Verification {
 			throw new VerificationError(
 				409,
 				'inputs_invalid',
-				`the input snapshot of deployment ${deploymentId} is not one koid can read`,
+				`the input snapshot of deployment ${deploymentId} is not one previewlaned can read`,
 			);
 		}
 		const snapshot = parsed.data;
@@ -753,7 +753,7 @@ export class Verification {
 			throw new VerificationError(
 				409,
 				'verify_absent',
-				`the project has no ${KOI_DIR}/verify.yaml; see docs/verify.md`,
+				`the project has no ${PREVIEWLANE_DIR}/verify.yaml; see docs/verify.md`,
 			);
 		}
 		if (snapshot.verify.status === 'invalid') {
@@ -785,7 +785,7 @@ export class Verification {
 			throw changedSince('the verification files the loader reads');
 		}
 		// Every other file the snapshot recorded a digest for is read back and
-		// checked too: the fixtures a point requires, the skills, koi.yaml, the
+		// checked too: the fixtures a point requires, the skills, previewlane.yaml, the
 		// advisory policy and the proof records, and the changed-file list.
 		// The loader does not read these, so the check above says nothing
 		// about them, and each one changes what a plan selects or shows: a
@@ -1065,8 +1065,8 @@ export class Verification {
 	// app, or undefined when nothing did: a run of the label still
 	// finishing here, a run network record naming the app's container, a
 	// run network the container is still attached to, or a helper of a run
-	// of the label. The startup cleanup removes leftovers of a koid that
-	// died; this is for the ones of a run under this koid whose teardown is
+	// of the label. The startup cleanup removes leftovers of a previewlaned that
+	// died; this is for the ones of a run under this previewlaned whose teardown is
 	// not done, or failed and left the network in `destroying`.
 	private async leftoversOn(label: string, container: string): Promise<string | undefined> {
 		for (const run of this.active.values()) {
@@ -1580,7 +1580,7 @@ export class Verification {
 			// The session records a capture it could not keep as a problem on
 			// the run; a recorder that no longer answers ends the run; and the
 			// run's time running out ends the points. A recorder that refuses an
-			// open because it holds a context koid could not close would refuse
+			// open because it holds a context previewlaned could not close would refuse
 			// every later point too, so that ends the run as well, rather than
 			// blocking each of them with nothing captured.
 			if (err instanceof VerifierStuckError) {
@@ -1864,7 +1864,7 @@ export class Verification {
 		}
 	}
 
-	// Project text and koid's own values only, written as they are, so the digest holds.
+	// Project text and previewlaned's own values only, written as they are, so the digest holds.
 	// The recorder's versions are the one thing it reports here, read once before any
 	// page opens, and the schema holds each to a version's form.
 	private descriptor(
@@ -1921,7 +1921,7 @@ export class Verification {
 	// finalized. A bundle whose manifest could not be written is
 	// `finalize-failed`, incomplete, whatever was judged; one whose
 	// finalize-failed record could not be written either stays in `active`,
-	// so its status stays the truth until koid restarts. A disk that stopped
+	// so its status stays the truth until previewlaned restarts. A disk that stopped
 	// answering takes the same way out from wherever the run has got to, with the
 	// teardown done first and the lease released last: nothing here waits on the
 	// disk past RunWriter.onDisk.
@@ -1947,7 +1947,7 @@ export class Verification {
 			deps.log(`run ${runId}: renewing the lease for the teardown: ${message(err)}`),
 		);
 		// A teardown step that did not finish, or did not finish in time,
-		// leaves the run on the box as far as koid knows: the cleanup is
+		// leaves the run on the box as far as previewlaned knows: the cleanup is
 		// failed and the lease stays, so no new run is admitted on the app
 		// while the step may still be going.
 		const failedTeardown = async (err: unknown) => {
@@ -2030,7 +2030,7 @@ export class Verification {
 			const finishedAt = this.iso();
 			const state = ended === 'cancelled' ? 'cancelled' : 'completed';
 			// The final records, from the live record as it is now. Each is written once:
-			// what koid learns after this stays out of replies, and the files stay as the
+			// what previewlaned learns after this stays out of replies, and the files stay as the
 			// manifest hashes them.
 			const verdicts: PointVerdict[] = controller.points
 				.filter((p) => p.state === 'done' && p.outcome !== undefined)
@@ -2078,7 +2078,7 @@ export class Verification {
 			if (run.result !== null) await writer.writeRecord('result.json', run.result);
 			const limitations = [...BUNDLE_LIMITATIONS, ...(session?.limitations ?? [])].slice(0, 50);
 			// One record, scrubbed as the file is written. `final` was made before the writes
-			// above, and koid may have learned a secret during them.
+			// above, and previewlaned may have learned a secret during them.
 			await writer.writeReport((clean) => {
 				const report = clean({
 					input: this.reportInput(active, final, session),
@@ -2187,14 +2187,14 @@ export class Verification {
 		active.ended = true;
 		// With its final record not on disk, this entry is the only place that
 		// holds how the run ended; dropped, a reader would get the earlier
-		// record, which says running or claims a verdict. It stays until koid
+		// record, which says running or claims a verdict. It stays until previewlaned
 		// restarts and recovery settles the record. It takes a run that passed
 		// its first writes and then lost the disk, so these stay few, and
 		// evicting one would bring back the stale read this entry prevents.
 		if (recordSaved) this.active.delete(runId);
 		else {
 			deps.log(
-				`run ${runId}: its final record is not on disk; its state is kept in memory until koid restarts`,
+				`run ${runId}: its final record is not on disk; its state is kept in memory until previewlaned restarts`,
 			);
 		}
 	}
@@ -2271,7 +2271,7 @@ export class Verification {
 
 	// A run as every reply reads it: through the sanitizer, with the secrets known now, so
 	// no reply can say more than this. A read writes nothing: a record is written once, and
-	// what it holds from before koid learned a secret is masked here, on the way out.
+	// what it holds from before previewlaned learned a secret is masked here, on the way out.
 	private async readRun(runId: string) {
 		VerifyIdSchema.parse(runId);
 		const { evidence } = this.deps;
@@ -2293,7 +2293,7 @@ export class Verification {
 		const { controller: stored, status, manifest } = await this.readRun(runId);
 		const finalized = manifest !== undefined;
 		// A record that says the run ended is believed only with the manifest
-		// that ends a run, or when koid wrote it as the end of a run that has
+		// that ends a run, or when previewlaned wrote it as the end of a run that has
 		// none. Any other such record is the end of a run whose finalize did
 		// not complete, however it came to be on disk, and is reported as that.
 		const distrusted = stored.state !== 'running' && !finalized && !endsWithoutManifest(stored);
@@ -2603,11 +2603,11 @@ export class Verification {
 	// -- Restart ----------------------------------------------------------------
 
 	// At startup, before the control socket listens: every run left running
-	// by the last koid is marked interrupted, outcome incomplete, and never
+	// by the last previewlaned is marked interrupted, outcome incomplete, and never
 	// becomes passed. Its network and helpers were removed by the startup
 	// cleanup (verification-network.ts); its lease is released only when
 	// that cleanup is known to have run, else it stays until it expires. A
-	// run the last koid judged but whose manifest it did not write is
+	// run the last previewlaned judged but whose manifest it did not write is
 	// treated the same: a bundle without a manifest counts for nothing, so
 	// it becomes finalize-failed, outcome incomplete, and keeps the points
 	// it had judged. Every run's idempotency key is loaded back, finished runs
@@ -2643,8 +2643,8 @@ export class Verification {
 				const at = this.iso();
 				const dir = this.deps.evidence.runDir(runId);
 				const detail = running
-					? 'koid_restarted: koid restarted while the run was running'
-					: 'koid_restarted: koid restarted before the run was finalized; its manifest was not written';
+					? 'previewlaned_restarted: previewlaned restarted while the run was running'
+					: 'previewlaned_restarted: previewlaned restarted before the run was finalized; its manifest was not written';
 				const updated = RunControllerRecordSchema.parse(
 					this.clean({
 						...controller,
@@ -2659,7 +2659,7 @@ export class Verification {
 							eligibleForMergeGate: false,
 							reasons: [
 								running
-									? 'the run was interrupted: koid restarted'
+									? 'the run was interrupted: previewlaned restarted'
 									: 'the run was not finalized: its manifest was not written',
 							],
 						},
@@ -2677,7 +2677,7 @@ export class Verification {
 				const status = await evidence.readStatus(runId);
 				if (status !== undefined) {
 					const problems = status.problems.slice(0, MAX_PROBLEMS - 1);
-					const code = running ? 'koid_restarted' : 'finalize_failed';
+					const code = running ? 'previewlaned_restarted' : 'finalize_failed';
 					await evidence.writeRecord(
 						dir,
 						'status.json',
@@ -2836,7 +2836,7 @@ async function firstMatch(
 	changed: string[],
 	work: GlobWork,
 ): Promise<{ glob: string; file: string } | undefined> {
-	// With no file to match, no match would give koid a turn between the compiles.
+	// With no file to match, no match would give previewlaned a turn between the compiles.
 	if (changed.length === 0) return undefined;
 	for (const glob of globs) {
 		const compiled = work.compile(glob);
@@ -2870,7 +2870,7 @@ function changedWhy(file: string, glob: string): string {
 // result stays well-formed text.
 function cutMiddle(text: string, max: number): string {
 	if (text.length <= max) return text;
-	const marker = ' [cut by koid] ';
+	const marker = ' [cut by previewlaned] ';
 	const room = max - marker.length;
 	let head = Math.ceil(room / 2);
 	let tail = text.length - Math.floor(room / 2);
@@ -2884,7 +2884,7 @@ function cutMiddle(text: string, max: number): string {
 // The most uncovered paths a plan lists by name; past that, a count.
 const UNCOVERED_MAX = 100;
 
-// Changed files no point's select.paths match, koi's own directories
+// Changed files no point's select.paths match, previewlane's own directories
 // aside, bounded.
 async function uncoveredFiles(
 	config: VerifyConfig,
@@ -2892,7 +2892,7 @@ async function uncoveredFiles(
 	work: GlobWork,
 ): Promise<string[]> {
 	let uncovered = changed.filter(
-		(file) => !file.startsWith(`${KOI_DIR}/`) && !file.startsWith('.koi-runtime/'),
+		(file) => !file.startsWith(`${PREVIEWLANE_DIR}/`) && !file.startsWith('.previewlane-runtime/'),
 	);
 	// One glob at a time, so only one compiled glob is in memory: 5,000 of them could be
 	// over a gigabyte.
@@ -2918,8 +2918,8 @@ async function uncoveredFiles(
 // The tree's own required.yaml, as advisory. The trusted source is the
 // protected base branch, which is later work, so `source` is none.
 async function readAdvisoryPolicy(source: string): Promise<PlanReply['policy']> {
-	const path = `${KOI_DIR}/${REQUIRED_POLICY}`;
-	const file = join(source, KOI_DIR, REQUIRED_POLICY);
+	const path = `${PREVIEWLANE_DIR}/${REQUIRED_POLICY}`;
+	const file = join(source, PREVIEWLANE_DIR, REQUIRED_POLICY);
 	if ((await stat(file).catch(() => undefined)) === undefined) return { source: 'none' };
 	try {
 		const bytes = await readVerifyFile(file, path);
@@ -2949,15 +2949,15 @@ async function readAdvisoryPolicy(source: string): Promise<PlanReply['policy']> 
 	}
 }
 
-// The proof records under .koi/proofs/, by point id and revision, with what
-// could not be read. Each is a claim: koid does not resolve the runs it
+// The proof records under .previewlane/proofs/, by point id and revision, with what
+// could not be read. Each is a claim: previewlaned does not resolve the runs it
 // names.
 async function readProofs(
 	source: string,
 ): Promise<{ records: Map<string, ProofRecord>; errors: string[] }> {
 	const records = new Map<string, ProofRecord>();
 	const errors: string[] = [];
-	const dir = join(source, KOI_DIR, PROOFS_DIR);
+	const dir = join(source, PREVIEWLANE_DIR, PROOFS_DIR);
 	let names: string[];
 	try {
 		names = await proofFiles(dir);
@@ -2965,7 +2965,7 @@ async function readProofs(
 		return { records, errors: [message(err)] };
 	}
 	for (const name of names) {
-		const path = `${KOI_DIR}/${PROOFS_DIR}/${name}`;
+		const path = `${PREVIEWLANE_DIR}/${PROOFS_DIR}/${name}`;
 		try {
 			const bytes = await readVerifyFile(join(dir, name), path);
 			const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -2996,8 +2996,8 @@ function planPage(planning: PlanRecord, after: string | undefined, clean: Saniti
 		['uncovered', planning.uncovered],
 	] as const;
 	const start = after === undefined ? { list: 'points', index: 0 } : parseCursor(after);
-	// The plan's runtime text, scrubbed again: koid may have learned a secret since it was
-	// written. Project text and koid's own words stay as the plan says them.
+	// The plan's runtime text, scrubbed again: previewlaned may have learned a secret since it was
+	// written. Project text and previewlaned's own words stay as the plan says them.
 	const base: PlanReply = {
 		...planning,
 		policy: clean(planning.policy),
@@ -3133,13 +3133,13 @@ function acceptanceOf(controller: RunControllerRecord): RunAccepted {
 	});
 }
 
-// Whether koid wrote this record as the end of a run that has no manifest: a
+// Whether previewlaned wrote this record as the end of a run that has no manifest: a
 // finalize that failed, or a restart (`recover`). Those are the truth about
 // the run. Any other terminal record without a manifest is not.
 function endsWithoutManifest(controller: RunControllerRecord): boolean {
 	return (
 		controller.completion === 'finalize-failed' ||
-		controller.interruption?.startsWith('koid_restarted:') === true ||
+		controller.interruption?.startsWith('previewlaned_restarted:') === true ||
 		controller.interruption?.startsWith(`${EVIDENCE_UNWRITABLE}:`) === true
 	);
 }

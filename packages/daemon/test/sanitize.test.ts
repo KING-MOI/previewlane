@@ -275,7 +275,7 @@ describe('sanitizeHttpResponse', () => {
 		);
 		expect(result.removedFields).toEqual(['body', 'header:[redacted]', 'header:set-cookie']);
 		expect(JSON.stringify(result)).not.toContain(secret);
-		// The method is koid's own, GET or HEAD; anything else is not a
+		// The method is previewlaned's own, GET or HEAD; anything else is not a
 		// state read the recorder made, and the reason names the field, not
 		// the value.
 		const odd = encode(
@@ -376,7 +376,7 @@ describe('scrubUrl', () => {
 				registry(),
 			),
 		).toBe('http://app.x.invalid/?key=[redacted]');
-		expect(scrubUrl('not a url with koi_0123456789abcdefghijklmnopqrstuv', registry())).toBe(
+		expect(scrubUrl('not a url with previewlane_0123456789abcdefghijklmnopqrstuv', registry())).toBe(
 			'not a url with [redacted]',
 		);
 	});

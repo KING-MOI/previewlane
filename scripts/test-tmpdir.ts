@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const root = mkdtempSync(join(tmpdir(), 'koi-test-run-'));
+const root = mkdtempSync(join(tmpdir(), 'previewlane-test-run-'));
 process.env.TMPDIR = root;
 
 // In a preload, afterAll runs once after the last test file. A process exit

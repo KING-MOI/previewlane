@@ -1,6 +1,6 @@
 // An HTTP/1.1 client over a plain byte relay: the SSH transport speaks to
-// koid's upload API through `tunnel-v1`, where the gateway on the host copies
-// bytes between the session and koid's control socket (host/ssh). No URL, no
+// previewlaned's upload API through `tunnel-v1`, where the gateway on the host copies
+// bytes between the session and previewlaned's control socket (host/ssh). No URL, no
 // socket, no fetch: the request is written as bytes and the reply parsed
 // from bytes, one request at a time, with keep-alive so one tunnel carries
 // the whole upload sequence.
@@ -66,7 +66,7 @@ export class HttpRelayClient {
 
 	constructor(
 		private readonly relay: ByteRelay,
-		// The most body bytes a reply may carry; koid's are small JSON.
+		// The most body bytes a reply may carry; previewlaned's are small JSON.
 		private readonly maxReplyBytes = 1024 ** 2,
 		// How long a read waits with nothing crossing the relay either way
 		// before the request fails with RelayIdleError. Without it a read
@@ -253,7 +253,7 @@ export class HttpRelayClient {
 	}
 
 	private tooLarge(bytes: number): Error {
-		return new Error(`an HTTP reply of ${bytes} bytes; koi takes at most ${this.maxReplyBytes}`);
+		return new Error(`an HTTP reply of ${bytes} bytes; previewlane takes at most ${this.maxReplyBytes}`);
 	}
 
 	// Starts the idle clock over, while a read is waiting on it.
@@ -341,7 +341,7 @@ export class HttpRelayClient {
 }
 
 function head(req: RelayRequest): string {
-	const lines = [`${req.method} ${req.path} HTTP/1.1`, 'Host: koid', 'Connection: keep-alive'];
+	const lines = [`${req.method} ${req.path} HTTP/1.1`, 'Host: previewlaned', 'Connection: keep-alive'];
 	for (const [name, value] of Object.entries(req.headers ?? {})) {
 		if (/[\r\n]/.test(name) || /[\r\n]/.test(value)) throw new Error('a header with a line break');
 		lines.push(`${name}: ${value}`);

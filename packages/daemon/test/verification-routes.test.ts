@@ -10,7 +10,7 @@ import {
 	VERIFICATION_ERROR_MESSAGE_MAX,
 	VERIFICATION_REPLY_MAX_BYTES,
 	VerificationErrorReplySchema,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { type ControlDeps, control, type VerificationApi } from '../src/control.ts';
 import { VerificationError } from '../src/verification.ts';
 
@@ -198,7 +198,7 @@ function deps(verification: VerificationApi | undefined): ControlDeps {
 
 async function call(d: ControlDeps, method: string, path: string, body?: unknown) {
 	return control(
-		new Request(`http://koid${path}`, {
+		new Request(`http://previewlaned${path}`, {
 			method,
 			...(body === undefined
 				? {}
@@ -363,7 +363,7 @@ describe('verification routes', () => {
 		}
 	});
 
-	test('answers 404 with a versioned error when the koid has no controller', async () => {
+	test('answers 404 with a versioned error when the previewlaned has no controller', async () => {
 		const res = await call(deps(undefined), 'POST', '/v1/verification-plans', {
 			version: 1,
 			label: 'hello-pr-7',
@@ -406,7 +406,7 @@ describe('verification routes', () => {
 		const hugeText = await huge.text();
 		expect(Buffer.byteLength(hugeText)).toBeLessThanOrEqual(VERIFICATION_REPLY_MAX_BYTES);
 		const cut = VerificationErrorReplySchema.parse(JSON.parse(hugeText));
-		expect(cut.error.message).toEndWith(' [cut by koid]');
+		expect(cut.error.message).toEndWith(' [cut by previewlaned]');
 		expect(Buffer.byteLength(JSON.stringify(cut.error.message))).toBeLessThanOrEqual(
 			VERIFICATION_ERROR_MESSAGE_MAX,
 		);

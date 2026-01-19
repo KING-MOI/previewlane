@@ -4,7 +4,7 @@ import { closeSync, constants, openSync, read as readFd } from 'node:fs';
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Artifact, Point, RunNetworkRecord } from '@koi/shared';
+import type { Artifact, Point, RunNetworkRecord } from '@previewlane/shared';
 import { exec } from '../src/exec.ts';
 import { RecorderDeadlineError } from '../src/recorder.ts';
 import { SecretRegistry } from '../src/redact.ts';
@@ -54,29 +54,29 @@ const sha = (bytes: Uint8Array | string) =>
 const record: RunNetworkRecord = {
 	version: 1,
 	runId: RUN,
-	network: `koi-v-${RUN}`,
+	network: `previewlane-v-${RUN}`,
 	bridge: 'kv0123456789ab',
 	subnet: '10.213.0.0/28',
 	gateway: '10.213.0.1',
-	appContainer: 'koi-hello-pr-7-aaaaaaaaaaaaaaaa1',
+	appContainer: 'previewlane-hello-pr-7-aaaaaaaaaaaaaaaa1',
 	appPort: 8080,
 	state: 'ready',
 	endpoints: [
 		{
 			role: 'app',
-			container: 'koi-hello-pr-7-aaaaaaaaaaaaaaaa1',
+			container: 'previewlane-hello-pr-7-aaaaaaaaaaaaaaaa1',
 			ip: '10.213.0.2',
 			mac: '02:42:0a:d5:00:02',
 		},
 		{
 			role: 'recorder',
-			container: `koi-verify-${RUN}-recorder`,
+			container: `previewlane-verify-${RUN}-recorder`,
 			ip: '10.213.0.3',
 			mac: '02:4b:0a:d5:00:03',
 		},
 		{
 			role: 'verifier',
-			container: `koi-verify-${RUN}-verifier`,
+			container: `previewlane-verify-${RUN}-verifier`,
 			ip: '10.213.0.4',
 			mac: '02:4b:0a:d5:00:04',
 		},
@@ -91,8 +91,8 @@ const POINT: Point = {
 	select: { paths: ['Dockerfile'] },
 	requires: { fixtures: ['fixtures/probe.txt'] },
 	setup: { command: ['sh', '-c', 'true'] },
-	run: { command: ['python3', '.koi/runners/home.py'] },
-	cleanup: { command: ['sh', '.koi/runners/clean.sh'] },
+	run: { command: ['python3', '.previewlane/runners/home.py'] },
+	cleanup: { command: ['sh', '.previewlane/runners/clean.sh'] },
 	assertions: [
 		{ name: 'home-says-hello', description: 'GET / says hello.', evidence: ['screenshot'] },
 	],
@@ -110,10 +110,10 @@ describe('image policy', () => {
 
 	test('the default image resolves by its name, whatever the allowlist says', async () => {
 		expect(
-			await resolveRunnerImage(docker, 'koi-verifier', { defaultImageId: DEFAULT, allowed: [] }),
+			await resolveRunnerImage(docker, 'previewlane-verifier', { defaultImageId: DEFAULT, allowed: [] }),
 		).toEqual({ ok: true, digest: DEFAULT });
 		expect(
-			await resolveRunnerImage(docker, 'koi-verifier', {
+			await resolveRunnerImage(docker, 'previewlane-verifier', {
 				defaultImageId: `sha256:${'0'.repeat(64)}`,
 				allowed: [],
 			}),
@@ -127,7 +127,7 @@ describe('image policy', () => {
 		const policy = { defaultImageId: DEFAULT, allowed: [] as string[] };
 		expect(await resolveRunnerImage(docker, 'curlimages/curl:8.11.1', policy)).toEqual({
 			ok: false,
-			reason: `image_not_allowed: curlimages/curl:8.11.1 (${CURL}) is not on this host's allowlist (KOI_VERIFIER_IMAGES)`,
+			reason: `image_not_allowed: curlimages/curl:8.11.1 (${CURL}) is not on this host's allowlist (PREVIEWLANE_VERIFIER_IMAGES)`,
 		});
 		for (const allowed of [
 			['curlimages/curl:8.11.1'],
@@ -148,7 +148,7 @@ describe('image policy', () => {
 		expect(await resolveRunnerImage(docker, 'nobody/runner:1', policy)).toEqual({
 			ok: false,
 			reason:
-				'image_missing: nobody/runner:1 is not on the box; koid never pulls an image a pull request names',
+				'image_missing: nobody/runner:1 is not on the box; previewlaned never pulls an image a pull request names',
 		});
 	});
 
@@ -190,15 +190,15 @@ describe('verifierEnv', () => {
 			TMPDIR: '/tmp',
 			LANG: 'C.UTF-8',
 			TZ: 'UTC',
-			KOI_PROTOCOL_VERSION: '1',
-			KOI_RUN_ID: RUN,
-			KOI_POINT_ID: 'hello.home',
-			KOI_ATTEMPT: '1',
-			KOI_PREVIEW_URL: `http://app.${RUN}.invalid:8080`,
-			KOI_RECORDER_WS: `ws://10.213.0.3:4317/${'a'.repeat(64)}`,
-			KOI_FIXTURES: '{"fixtures/probe.txt":"/fixtures/fixtures/probe.txt"}',
-			KOI_TIMEOUT_SECONDS: '300',
-			KOI_MAX_REQUESTS: '20',
+			PREVIEWLANE_PROTOCOL_VERSION: '1',
+			PREVIEWLANE_RUN_ID: RUN,
+			PREVIEWLANE_POINT_ID: 'hello.home',
+			PREVIEWLANE_ATTEMPT: '1',
+			PREVIEWLANE_PREVIEW_URL: `http://app.${RUN}.invalid:8080`,
+			PREVIEWLANE_RECORDER_WS: `ws://10.213.0.3:4317/${'a'.repeat(64)}`,
+			PREVIEWLANE_FIXTURES: '{"fixtures/probe.txt":"/fixtures/fixtures/probe.txt"}',
+			PREVIEWLANE_TIMEOUT_SECONDS: '300',
+			PREVIEWLANE_MAX_REQUESTS: '20',
 		});
 		for (const name of Object.keys(env)) {
 			expect(name).not.toMatch(/PROXY|AWS|GITHUB|DOCKER|SSH|LEASE|SOCKET/i);
@@ -214,9 +214,9 @@ describe('verifierEnv', () => {
 				fixtures: {},
 				timeoutSeconds: 1,
 				maxRequests: 0,
-				loginKey: 'koi-abcdefghijklmnopqrstuvwx',
-			}).KOI_LOGIN_KEY,
-		).toBe('koi-abcdefghijklmnopqrstuvwx');
+				loginKey: 'previewlane-abcdefghijklmnopqrstuvwx',
+			}).PREVIEWLANE_LOGIN_KEY,
+		).toBe('previewlane-abcdefghijklmnopqrstuvwx');
 	});
 });
 
@@ -224,9 +224,9 @@ describe('the tar stream', () => {
 	test('is a ustar archive tar reads back, root-owned, with the modes given and long names', async () => {
 		const long = `workspace/${'d'.repeat(60)}/${'e'.repeat(60)}/${'f'.repeat(60)}/file.txt`;
 		const tar = tarball([
-			{ path: 'koi', type: 'dir', mode: 0o555 },
+			{ path: 'previewlane', type: 'dir', mode: 0o555 },
 			{
-				path: 'koi/point.json',
+				path: 'previewlane/point.json',
 				type: 'file',
 				mode: 0o444,
 				content: new TextEncoder().encode('{}\n'),
@@ -235,20 +235,20 @@ describe('the tar stream', () => {
 			{ path: 'workspace/empty', type: 'file', mode: 0o444 },
 		]);
 		expect(tar.length % 512).toBe(0);
-		const dir = await mkdtemp(join(tmpdir(), 'koid-tar-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlaned-tar-'));
 		await writeFile(join(dir, 'in.tar'), tar);
 		const listed = await exec(['tar', '-tvf', join(dir, 'in.tar')], { timeoutMs: 15_000 });
 		expect(listed.code).toBe(0);
 		const lines = listed.stdout.trim().split('\n');
-		expect(lines[0]).toMatch(/^dr-xr-xr-x root\/root\s+0 .* koi\/$/);
-		expect(lines[1]).toMatch(/^-r--r--r-- root\/root\s+3 .* koi\/point\.json$/);
+		expect(lines[0]).toMatch(/^dr-xr-xr-x root\/root\s+0 .* previewlane\/$/);
+		expect(lines[1]).toMatch(/^-r--r--r-- root\/root\s+3 .* previewlane\/point\.json$/);
 		expect(lines[2]).toMatch(new RegExp(`${'f'.repeat(60)}/file\\.txt$`));
 		const extracted = await exec(['tar', '-xf', join(dir, 'in.tar'), '-C', dir], {
 			timeoutMs: 15_000,
 		});
 		expect(extracted.code).toBe(0);
 		expect(await Bun.file(join(dir, long)).text()).toBe('deep');
-		expect(await Bun.file(join(dir, 'koi/point.json')).text()).toBe('{}\n');
+		expect(await Bun.file(join(dir, 'previewlane/point.json')).text()).toBe('{}\n');
 		// Deterministic: the same entries make the same bytes.
 		expect(sha(tarball([{ path: 'a', type: 'dir', mode: 0o555 }]))).toBe(
 			sha(tarball([{ path: 'a', type: 'dir', mode: 0o555 }])),
@@ -267,16 +267,16 @@ async function sourceTree(): Promise<{
 	source: string;
 	fixtures: Array<{ path: string; digest: string }>;
 }> {
-	const source = await mkdtemp(join(tmpdir(), 'koid-verifier-src-'));
+	const source = await mkdtemp(join(tmpdir(), 'previewlaned-verifier-src-'));
 	for (const dir of ['points', 'runners', 'fixtures']) {
-		await mkdir(join(source, '.koi', dir), { recursive: true });
+		await mkdir(join(source, '.previewlane', dir), { recursive: true });
 	}
-	await writeFile(join(source, '.koi/verify.yaml'), 'version: 1\n');
-	await writeFile(join(source, '.koi/points/home.yaml'), 'id: hello.home\n');
-	await writeFile(join(source, '.koi/runners/home.py'), 'print("hi")\n');
-	await writeFile(join(source, '.koi/fixtures/probe.txt'), 'probe');
-	await writeFile(join(source, 'koi.yaml'), 'port: 8080\n');
-	return { source, fixtures: [{ path: '.koi/fixtures/probe.txt', digest: sha('probe') }] };
+	await writeFile(join(source, '.previewlane/verify.yaml'), 'version: 1\n');
+	await writeFile(join(source, '.previewlane/points/home.yaml'), 'id: hello.home\n');
+	await writeFile(join(source, '.previewlane/runners/home.py'), 'print("hi")\n');
+	await writeFile(join(source, '.previewlane/fixtures/probe.txt'), 'probe');
+	await writeFile(join(source, 'previewlane.yaml'), 'port: 8080\n');
+	return { source, fixtures: [{ path: '.previewlane/fixtures/probe.txt', digest: sha('probe') }] };
 }
 
 describe('pointInputs', () => {
@@ -292,31 +292,31 @@ describe('pointInputs', () => {
 		const { tarEntries } = await import('./fakes.ts');
 		const files = tarEntries(inputs.tar);
 		expect([...files.keys()]).toEqual([
-			'koi',
-			'koi/supervisor.py',
-			'koi/point.json',
+			'previewlane',
+			'previewlane/supervisor.py',
+			'previewlane/point.json',
 			'workspace',
-			'workspace/.koi',
-			'workspace/.koi/fixtures',
-			'workspace/.koi/fixtures/probe.txt',
-			'workspace/.koi/points',
-			'workspace/.koi/points/home.yaml',
-			'workspace/.koi/runners',
-			'workspace/.koi/runners/home.py',
-			'workspace/.koi/verify.yaml',
-			'workspace/koi.yaml',
+			'workspace/.previewlane',
+			'workspace/.previewlane/fixtures',
+			'workspace/.previewlane/fixtures/probe.txt',
+			'workspace/.previewlane/points',
+			'workspace/.previewlane/points/home.yaml',
+			'workspace/.previewlane/runners',
+			'workspace/.previewlane/runners/home.py',
+			'workspace/.previewlane/verify.yaml',
+			'workspace/previewlane.yaml',
 			'fixtures',
 			'fixtures/fixtures',
 			'fixtures/fixtures/probe.txt',
 		]);
-		expect(files.get('koi/supervisor.py')?.content).toBe(SUPERVISOR_SOURCE);
-		expect(JSON.parse(files.get('koi/point.json')?.content ?? '')).toEqual({
+		expect(files.get('previewlane/supervisor.py')?.content).toBe(SUPERVISOR_SOURCE);
+		expect(JSON.parse(files.get('previewlane/point.json')?.content ?? '')).toEqual({
 			version: 1,
 			runner: ['python3'],
 			steps: {
 				setup: ['sh', '-c', 'true'],
-				run: ['python3', '.koi/runners/home.py'],
-				cleanup: ['sh', '.koi/runners/clean.sh'],
+				run: ['python3', '.previewlane/runners/home.py'],
+				cleanup: ['sh', '.previewlane/runners/clean.sh'],
 			},
 			timeoutSeconds: 300,
 		});
@@ -336,10 +336,10 @@ describe('pointInputs', () => {
 
 	test('a script executable in the snapshot is 0555 in the archive, and every other file 0444', async () => {
 		const { source, fixtures } = await sourceTree();
-		await writeFile(join(source, '.koi/runners/check.sh'), '#!/bin/sh\necho checked\n', {
+		await writeFile(join(source, '.previewlane/runners/check.sh'), '#!/bin/sh\necho checked\n', {
 			mode: 0o700,
 		});
-		await chmod(join(source, '.koi/fixtures/probe.txt'), 0o755);
+		await chmod(join(source, '.previewlane/fixtures/probe.txt'), 0o755);
 		const inputs = await pointInputs({
 			source,
 			fixtures,
@@ -349,11 +349,11 @@ describe('pointInputs', () => {
 		});
 		const { tarEntries } = await import('./fakes.ts');
 		const files = tarEntries(inputs.tar);
-		expect(files.get('workspace/.koi/runners/check.sh')?.mode).toBe(0o555);
-		expect(files.get('workspace/.koi/fixtures/probe.txt')?.mode).toBe(0o555);
+		expect(files.get('workspace/.previewlane/runners/check.sh')?.mode).toBe(0o555);
+		expect(files.get('workspace/.previewlane/fixtures/probe.txt')?.mode).toBe(0o555);
 		expect(files.get('fixtures/fixtures/probe.txt')?.mode).toBe(0o555);
-		expect(files.get('workspace/.koi/runners/home.py')?.mode).toBe(0o444);
-		expect(files.get('koi/supervisor.py')?.mode).toBe(0o444);
+		expect(files.get('workspace/.previewlane/runners/home.py')?.mode).toBe(0o444);
+		expect(files.get('previewlane/supervisor.py')?.mode).toBe(0o444);
 		// No file a runner can write, whatever it was.
 		for (const [path, entry] of files) {
 			expect([path, entry.mode & 0o222]).toEqual([path, 0]);
@@ -363,31 +363,31 @@ describe('pointInputs', () => {
 	test('a script that was executable in the tree runs by its path from the archive', async () => {
 		// What the reviewer saw: a valid command of a script by its path failed
 		// with EACCES. Through the snapshot and the archive to a real exec.
-		const root = await mkdtemp(join(tmpdir(), 'koid-verifier-exec-'));
+		const root = await mkdtemp(join(tmpdir(), 'previewlaned-verifier-exec-'));
 		try {
 			const tree = join(root, 'tree');
-			await mkdir(join(tree, '.koi/points'), { recursive: true });
-			await mkdir(join(tree, '.koi/runners'), { recursive: true });
+			await mkdir(join(tree, '.previewlane/points'), { recursive: true });
+			await mkdir(join(tree, '.previewlane/runners'), { recursive: true });
 			await writeFile(
-				join(tree, '.koi/verify.yaml'),
-				'version: 1\npoints:\n  - points/*.yaml\nprofiles:\n  pr:\n    always: [hello.check]\nrunner:\n  image: koi-verifier\n',
+				join(tree, '.previewlane/verify.yaml'),
+				'version: 1\npoints:\n  - points/*.yaml\nprofiles:\n  pr:\n    always: [hello.check]\nrunner:\n  image: previewlane-verifier\n',
 			);
 			await writeFile(
-				join(tree, '.koi/points/check.yaml'),
+				join(tree, '.previewlane/points/check.yaml'),
 				`id: hello.check
 revision: 1
 claim: The check runs.
 select:
   paths: [Dockerfile]
 run:
-  command: [.koi/runners/check.sh]
+  command: [.previewlane/runners/check.sh]
 assertions:
   - name: checked
     description: The script ran.
     evidence: [aria]
 `,
 			);
-			await writeFile(join(tree, '.koi/runners/check.sh'), '#!/bin/sh\necho checked\n', {
+			await writeFile(join(tree, '.previewlane/runners/check.sh'), '#!/bin/sh\necho checked\n', {
 				mode: 0o755,
 			});
 			await writeFile(join(root, 'source.tar.gz'), 'tarball');
@@ -409,7 +409,7 @@ assertions:
 			await mkdir(out);
 			await writeFile(join(root, 'inputs.tar'), inputs.tar);
 			await exec(['tar', '-xf', join(root, 'inputs.tar'), '-C', out]);
-			const ran = Bun.spawn(['./.koi/runners/check.sh'], {
+			const ran = Bun.spawn(['./.previewlane/runners/check.sh'], {
 				cwd: join(out, 'workspace'),
 				stdout: 'pipe',
 			});
@@ -445,8 +445,8 @@ assertions:
 			const fixtures: Array<{ path: string; digest: string }> = [];
 			for (const [i, name] of names.entries()) {
 				const body = new Uint8Array((mib[i] as number) * 1024 ** 2).fill(i + 1);
-				await writeFile(join(source, '.koi', name), body);
-				fixtures.push({ path: `.koi/${name}`, digest: sha(body) });
+				await writeFile(join(source, '.previewlane', name), body);
+				fixtures.push({ path: `.previewlane/${name}`, digest: sha(body) });
 			}
 			return { source, fixtures, names };
 		};
@@ -467,7 +467,7 @@ assertions:
 			expect(inputs.bytes).toBeGreaterThanOrEqual(unique);
 			expect(inputs.bytes).toBeLessThan(unique + 1024);
 			for (const name of names) {
-				expect(files.get(`workspace/.koi/${name}`)?.content?.length).toBe(12 * 1024 ** 2);
+				expect(files.get(`workspace/.previewlane/${name}`)?.content?.length).toBe(12 * 1024 ** 2);
 				expect(files.get(`fixtures/${name}`)?.content?.length).toBe(12 * 1024 ** 2);
 			}
 			// What the volumes take: every fixture twice, and little else.
@@ -514,7 +514,7 @@ assertions:
 				timeoutSeconds: 1,
 			}),
 		).rejects.toThrow('fixture_missing');
-		await writeFile(join(source, '.koi/fixtures/probe.txt'), 'changed');
+		await writeFile(join(source, '.previewlane/fixtures/probe.txt'), 'changed');
 		await expect(
 			pointInputs({ source, fixtures, point: POINT, runnerCommand: undefined, timeoutSeconds: 1 }),
 		).rejects.toThrow('fixture_mismatch');
@@ -720,13 +720,13 @@ async function setup(
 		pollMs?: number;
 		limits?: Record<string, number>;
 		sleep?: (ms: number) => Promise<void>;
-		// Runs as the firewall is reapplied, with the options koid gave. A test that
+		// Runs as the firewall is reapplied, with the options previewlaned gave. A test that
 		// ignores the signal is the helper holding on after the point stopped.
 		reapply?: (o?: { signal?: AbortSignal | undefined }) => Promise<void>;
 	} = {},
 ) {
 	const { source, fixtures } = await sourceTree();
-	const root = await mkdtemp(join(tmpdir(), 'koid-verifier-'));
+	const root = await mkdtemp(join(tmpdir(), 'previewlaned-verifier-'));
 	let clock = Date.parse(AT);
 	const now = () => new Date(clock);
 	const evidence = new EvidenceStore({
@@ -743,11 +743,11 @@ async function setup(
 		bridge: record.bridge,
 		subnet: record.subnet,
 		gateway: record.gateway,
-		labels: { 'koi.run': RUN },
+		labels: { 'previewlane.run': RUN },
 	});
 	// The placeholder the run network made.
 	await docker.createVerifier({
-		name: `koi-verify-${RUN}-verifier`,
+		name: `previewlane-verify-${RUN}-verifier`,
 		image: DEFAULT,
 		network: record.network,
 		ip: '10.213.0.4',
@@ -768,7 +768,7 @@ async function setup(
 				reapplied.push(runId);
 				reapplies.push({
 					bound: o?.bound,
-					running: docker.containers.get(`koi-verify-${RUN}-verifier`)?.running,
+					running: docker.containers.get(`previewlane-verify-${RUN}-verifier`)?.running,
 				});
 				await options.reapply?.(o);
 			},
@@ -828,7 +828,7 @@ async function setup(
 		run: (more: Partial<PointExecution> = {}) =>
 			runner.run({ ...execution, ...more }, recorder, writer, { stopRequested: () => cancel }),
 		events,
-		// Resolves once koid has read a log line of the runner's and kept it.
+		// Resolves once previewlaned has read a log line of the runner's and kept it.
 		logged: async (text: string) => {
 			while (!(await events()).some((e) => e.type === 'runner-log' && e.text === text)) {
 				await Bun.sleep(1);
@@ -999,7 +999,7 @@ describe('OutputReader', () => {
 		const { output, limited, budget } = reader(out.stream, { queueBytes: 4096 });
 		await stalledUntilTaken(out.seen, 64);
 		expect(limited).toEqual([
-			"the runner's output outran koid: over 4096 bytes waited to be handled",
+			"the runner's output outran previewlaned: over 4096 bytes waited to be handled",
 		]);
 		expect(output.peakBytes).toBeLessThanOrEqual(4096);
 		expect(budget.bytes).toBeLessThan(8 * 1024);
@@ -1010,7 +1010,7 @@ describe('OutputReader', () => {
 		const out = given(repeat(encode('\n'.repeat(1024)), 1024));
 		const { output, limited, budget } = reader(out.stream, {});
 		await stalledUntilTaken(out.seen, 1024);
-		expect(limited[0]).toContain('outran koid');
+		expect(limited[0]).toContain('outran previewlaned');
 		// Under the bytes bound by far: a queue that counted only bytes would have
 		// taken every one of the million lines here.
 		expect(budget.bytes).toBeLessThan(PROTOCOL_LIMITS.queueBytes / 64);
@@ -1019,7 +1019,7 @@ describe('OutputReader', () => {
 		expect(held.length * 129).toBeGreaterThan(PROTOCOL_LIMITS.queueBytes - 129);
 	});
 
-	test('what the handler takes makes room, so a runner that koid keeps up with is never stopped', async () => {
+	test('what the handler takes makes room, so a runner that previewlaned keeps up with is never stopped', async () => {
 		const line = encode(`${'x'.repeat(1023)}\n`);
 		const out = given(repeat(line, 256));
 		const { output, limited, budget } = reader(out.stream, {
@@ -1087,7 +1087,7 @@ describe('VerifierRunner', () => {
 		const v = created as FakeVerifier;
 		expect(v.options.image).toBe(CURL);
 		expect(v.options.entrypoint).toBe('python3');
-		expect(v.options.command).toEqual(['-I', '/koi/supervisor.py', '/koi/point.json']);
+		expect(v.options.command).toEqual(['-I', '/previewlane/supervisor.py', '/previewlane/point.json']);
 		expect(v.options.workdir).toBe('/workspace');
 		expect(v.options.ip).toBe('10.213.0.4');
 		expect(v.options.appHost).toEqual({ name: `app.${RUN}.invalid`, ip: '10.213.0.2' });
@@ -1104,16 +1104,16 @@ describe('VerifierRunner', () => {
 				maxRequests: 20,
 			}),
 		);
-		expect(v.files.get('koi/supervisor.py')?.content).toBe(SUPERVISOR_SOURCE);
+		expect(v.files.get('previewlane/supervisor.py')?.content).toBe(SUPERVISOR_SOURCE);
 		expect(v.files.get('fixtures/fixtures/probe.txt')?.content).toBe('probe');
 		// The inputs reached it through volumes it mounts read-only, filled
 		// through a staging container that went first. Nothing was copied into
 		// the verifier, whose root is read-only.
-		const verifier = `koi-verify-${RUN}-verifier`;
-		const staging = `koi-verify-${RUN}-staging`;
-		const volumes = ['koi', 'workspace', 'fixtures'].map((p) => `koi-verify-${RUN}-inputs-${p}`);
+		const verifier = `previewlane-verify-${RUN}-verifier`;
+		const staging = `previewlane-verify-${RUN}-staging`;
+		const volumes = ['previewlane', 'workspace', 'fixtures'].map((p) => `previewlane-verify-${RUN}-inputs-${p}`);
 		expect(v.options.volumes).toEqual([
-			{ name: volumes[0] as string, destination: '/koi' },
+			{ name: volumes[0] as string, destination: '/previewlane' },
 			{ name: volumes[1] as string, destination: '/workspace' },
 			{ name: volumes[2] as string, destination: '/fixtures' },
 		]);
@@ -1338,10 +1338,10 @@ describe('VerifierRunner', () => {
 		expect(waits).toBe(0);
 	});
 
-	describe('koid handling what the runner wrote', () => {
+	describe('previewlaned handling what the runner wrote', () => {
 		const CAPTURE = '{"type":"capture","kind":"screenshot","label":"slow"}';
 		const HANDLING =
-			'handling_timeout: the verifier exited in time, and koid ran out of time handling what it wrote';
+			'handling_timeout: the verifier exited in time, and previewlaned ran out of time handling what it wrote';
 		const NOTE = '{"type":"note","text":"n"}';
 		// Runs `hook` as the first event of a type is about to be recorded.
 		const onEvent = (
@@ -1360,7 +1360,7 @@ describe('VerifierRunner', () => {
 			};
 		};
 
-		test('4 MiB of log, a passing assertion and an exit in time pass, with koid past the watchdog on the queue', async () => {
+		test('4 MiB of log, a passing assertion and an exit in time pass, with previewlaned past the watchdog on the queue', async () => {
 			const t = await setup({ limits: { logLinesPerPoint: 10 } });
 			const exited = Promise.withResolvers<void>();
 			// Slow disk: past the point's budget and its stop grace, the time the
@@ -1413,7 +1413,7 @@ describe('VerifierRunner', () => {
 			expect(verdict.outcome).toBe('pass');
 		});
 
-		test('a signed failure koid is recording when the watchdog fires still counts', async () => {
+		test('a signed failure previewlaned is recording when the watchdog fires still counts', async () => {
 			const t = await setup();
 			const recording = new Gate();
 			onEvent(t, 'supervisor-step', () => recording.pass());
@@ -1444,7 +1444,7 @@ describe('VerifierRunner', () => {
 			onEvent(t, 'runner-log', () => logging.pass());
 			t.docker.verifierScript = async (v) => {
 				await v.nextLine();
-				v.out('a line koid is writing when the watchdog fires');
+				v.out('a line previewlaned is writing when the watchdog fires');
 				v.out(supervisorLine({ event: 'started' }));
 				v.out(
 					supervisorLine({ event: 'step', step: 'run', status: 'exited', code: 1, seconds: 1 }),
@@ -1470,7 +1470,7 @@ describe('VerifierRunner', () => {
 			});
 			t.docker.verifierScript = async (v) => {
 				await v.nextLine();
-				v.out('a line koid is writing when the watchdog fires');
+				v.out('a line previewlaned is writing when the watchdog fires');
 				v.out(supervisorLine({ event: 'started' }));
 				v.out(
 					supervisorLine({ event: 'step', step: 'run', status: 'exited', code: 1, seconds: 1 }),
@@ -1496,12 +1496,12 @@ describe('VerifierRunner', () => {
 			}) as typeof t.recorder.capture;
 			t.docker.verifierScript = async (v) => {
 				await v.nextLine();
-				// Near the end of its budget, so koid's time is what ends the point.
+				// Near the end of its budget, so previewlaned's time is what ends the point.
 				t.advance(295_000);
 				v.out(CAPTURE);
 				for (const l of supervisorExit(declaredSteps(v))) v.out(l);
 				await out.reached;
-				// Past koid's time on the queue, once the exit is noted.
+				// Past previewlaned's time on the queue, once the exit is noted.
 				void Bun.sleep(5).then(() => t.advance(61_000));
 				return 0;
 			};
@@ -1540,7 +1540,7 @@ describe('VerifierRunner', () => {
 			expect(result.failures).toEqual([]);
 		});
 
-		test('a capture the recorder refuses past the budget, asked for by a runner that exited in time, is koid running out', async () => {
+		test('a capture the recorder refuses past the budget, asked for by a runner that exited in time, is previewlaned running out', async () => {
 			const t = await setup();
 			const exited = Promise.withResolvers<void>();
 			onEvent(t, 'runner-log', async () => {
@@ -1666,7 +1666,7 @@ describe('VerifierRunner', () => {
 	});
 
 	describe('a firewall reapply that does not come back', () => {
-		const verifier = `koi-verify-${RUN}-verifier`;
+		const verifier = `previewlane-verify-${RUN}-verifier`;
 		const stuck = async () => {
 			const gate = new Gate();
 			let signal: AbortSignal | undefined;
@@ -1745,7 +1745,7 @@ describe('VerifierRunner', () => {
 		expect(result.failures).toEqual([]);
 		expect(result.cleanup).toBe('not-run');
 		expect(result.exit?.exitCode).toBe(137);
-		expect(t.docker.containers.has(`koi-verify-${RUN}-verifier`)).toBe(false);
+		expect(t.docker.containers.has(`previewlane-verify-${RUN}-verifier`)).toBe(false);
 		expect((await t.events()).at(-1)).toMatchObject({ type: 'verifier-stopped', how: 'timeout' });
 	});
 
@@ -1766,7 +1766,7 @@ describe('VerifierRunner', () => {
 			let env: string | undefined;
 			t.docker.verifierScript = async (v) => {
 				told = JSON.parse(await v.nextLine());
-				env = v.env.KOI_TIMEOUT_SECONDS;
+				env = v.env.PREVIEWLANE_TIMEOUT_SECONDS;
 				// Past what is left and its grace, and nowhere near a fresh 300
 				// seconds from here, which is what a clock started now would give.
 				t.advance(100_000 - 40_000 + 15_000 + 1);
@@ -1800,7 +1800,7 @@ describe('VerifierRunner', () => {
 			let env: string | undefined;
 			t.docker.verifierScript = async (v) => {
 				told = JSON.parse(await v.nextLine());
-				env = v.env.KOI_TIMEOUT_SECONDS;
+				env = v.env.PREVIEWLANE_TIMEOUT_SECONDS;
 				for (const line of supervisorExit(declaredSteps(v))) v.out(line);
 				return 0;
 			};
@@ -1830,7 +1830,7 @@ describe('VerifierRunner', () => {
 			);
 			expect(t.docker.stagings).toHaveLength(1);
 			expect(t.docker.verifiers).toEqual([]);
-			expect(t.docker.containers.has(`koi-verify-${RUN}-staging`)).toBe(false);
+			expect(t.docker.containers.has(`previewlane-verify-${RUN}-staging`)).toBe(false);
 			expect(t.docker.volumes.size).toBe(0);
 		});
 
@@ -1844,13 +1844,13 @@ describe('VerifierRunner', () => {
 			expect(result.stopped).toBe('timeout');
 			expect(result.blocked).toContain('point_timeout: ');
 			expect(t.docker.verifiers[0]?.key).toBeUndefined();
-			expect(t.docker.containers.has(`koi-verify-${RUN}-verifier`)).toBe(false);
+			expect(t.docker.containers.has(`previewlane-verify-${RUN}-verifier`)).toBe(false);
 		});
 	});
 
 	describe('the preparation under the signal', () => {
-		const staging = `koi-verify-${RUN}-staging`;
-		const verifierName = `koi-verify-${RUN}-verifier`;
+		const staging = `previewlane-verify-${RUN}-staging`;
+		const verifierName = `previewlane-verify-${RUN}-verifier`;
 		const inTeardown = (t: Awaited<ReturnType<typeof setup>>) => {
 			expect(t.docker.containers.has(staging)).toBe(false);
 			expect(t.docker.containers.has(verifierName)).toBe(false);
@@ -2099,16 +2099,16 @@ describe('VerifierRunner', () => {
 		const mounted = await volume.run();
 		expect(mounted.stopped).toBe('failed');
 		expect(mounted.blocked).toBe(
-			`image_mounts: koi-verify-${RUN}-verifier has mounts koi did not ask for: volume at /data`,
+			`image_mounts: previewlane-verify-${RUN}-verifier has mounts previewlane did not ask for: volume at /data`,
 		);
 		expect(volume.docker.verifiers).toEqual([]);
-		expect(volume.docker.containers.has(`koi-verify-${RUN}-verifier`)).toBe(false);
+		expect(volume.docker.containers.has(`previewlane-verify-${RUN}-verifier`)).toBe(false);
 
 		const start = await setup();
 		start.docker.attachError = 'docker start exited 125: oci runtime error';
 		const unstarted = await start.run();
 		expect(unstarted.blocked).toBe('verifier_failed: docker start exited 125: oci runtime error');
-		expect(start.docker.containers.has(`koi-verify-${RUN}-verifier`)).toBe(false);
+		expect(start.docker.containers.has(`previewlane-verify-${RUN}-verifier`)).toBe(false);
 
 		const net = await setup();
 		net.runner = new VerifierRunner({
@@ -2128,15 +2128,15 @@ describe('VerifierRunner', () => {
 			stopRequested: () => undefined,
 		});
 		expect(unpermitted.blocked).toBe('network_reapply_failed: iptables is busy');
-		expect(net.docker.containers.has(`koi-verify-${RUN}-verifier`)).toBe(false);
+		expect(net.docker.containers.has(`previewlane-verify-${RUN}-verifier`)).toBe(false);
 		// The script never got start.
 		expect(net.docker.verifiers[0]?.detached).toBe(true);
 	});
 
 	test('docker cp is refused on a read-only root and in a read-only volume, and a writable volume takes it', async () => {
 		const t = await setup();
-		const verifier = `koi-verify-${RUN}-verifier`;
-		const tar = tarball([{ path: 'koi', type: 'dir', mode: 0o555 }]);
+		const verifier = `previewlane-verify-${RUN}-verifier`;
+		const tar = tarball([{ path: 'previewlane', type: 'dir', mode: 0o555 }]);
 		// The placeholder: read-only, as every verifier is.
 		await expect(t.docker.copyIn(verifier, tar, '/')).rejects.toThrow(
 			'container rootfs is marked read-only',
@@ -2155,12 +2155,12 @@ describe('VerifierRunner', () => {
 			appHost: { name: `app.${RUN}.invalid`, ip: '10.213.0.2' },
 			dns: record.gateway,
 			env: {},
-			volumes: [{ name: 'v', destination: '/koi' }],
+			volumes: [{ name: 'v', destination: '/previewlane' }],
 		});
 		await expect(t.docker.copyIn(verifier, tar, '/')).rejects.toThrow(
 			'container rootfs is marked read-only',
 		);
-		await expect(t.docker.copyIn(verifier, tar, '/koi')).rejects.toThrow(
+		await expect(t.docker.copyIn(verifier, tar, '/previewlane')).rejects.toThrow(
 			'mounted volume is marked read-only',
 		);
 		// Docker refuses a volume a container mounts, even one never started.
@@ -2170,7 +2170,7 @@ describe('VerifierRunner', () => {
 			name: 's',
 			image: CURL,
 			runId: RUN,
-			volumes: [{ name: 'v', destination: '/koi' }],
+			volumes: [{ name: 'v', destination: '/previewlane' }],
 		});
 		await t.docker.copyIn('s', tar, '/');
 		expect(t.docker.volumes.get('v')?.files.get('')?.type).toBe('dir');
@@ -2182,7 +2182,7 @@ describe('VerifierRunner', () => {
 		const refused = await extra.run();
 		expect(refused.stopped).toBe('failed');
 		expect(refused.blocked).toBe(
-			`image_mounts: koi-verify-${RUN}-verifier has mounts koi did not ask for: bind at /host`,
+			`image_mounts: previewlane-verify-${RUN}-verifier has mounts previewlane did not ask for: bind at /host`,
 		);
 		expect(extra.docker.verifiers).toEqual([]);
 
@@ -2193,17 +2193,17 @@ describe('VerifierRunner', () => {
 			name: volumes.find((v) => v.destination === destination)?.name,
 			readOnly: true,
 		});
-		expect(mountProblems(['/koi', '/workspace', '/fixtures'].map(read), volumes)).toEqual([]);
+		expect(mountProblems(['/previewlane', '/workspace', '/fixtures'].map(read), volumes)).toEqual([]);
 		expect(
 			mountProblems(
-				[read('/koi'), read('/workspace'), { ...read('/fixtures'), readOnly: false }],
+				[read('/previewlane'), read('/workspace'), { ...read('/fixtures'), readOnly: false }],
 				volumes,
 			),
 		).toEqual([
-			'has mounts koi did not ask for: volume at /fixtures',
+			'has mounts previewlane did not ask for: volume at /fixtures',
 			'lacks its input volumes at /fixtures',
 		]);
-		expect(mountProblems([read('/koi')], volumes)).toEqual([
+		expect(mountProblems([read('/previewlane')], volumes)).toEqual([
 			'lacks its input volumes at /workspace, /fixtures',
 		]);
 	});
@@ -2226,7 +2226,7 @@ describe('VerifierRunner', () => {
 
 	test('the staging container and the volumes go when a fill fails, and a leftover that cannot go blocks the point', async () => {
 		const t = await setup();
-		const staging = `koi-verify-${RUN}-staging`;
+		const staging = `previewlane-verify-${RUN}-staging`;
 		const copyIn = t.docker.copyIn.bind(t.docker);
 		t.docker.copyIn = async () => {
 			throw new Error('docker cp exited 1: no space left on device');
@@ -2240,13 +2240,13 @@ describe('VerifierRunner', () => {
 
 		// A volume still in use cannot be emptied, and the point must not run
 		// on what is in it.
-		const name = `koi-verify-${RUN}-inputs-koi`;
+		const name = `previewlane-verify-${RUN}-inputs-previewlane`;
 		await t.docker.createVolume(name, {});
 		await t.docker.createStaging({
 			name: 'held',
 			image: CURL,
 			runId: RUN,
-			volumes: [{ name, destination: '/koi' }],
+			volumes: [{ name, destination: '/previewlane' }],
 		});
 		const held = await t.run();
 		expect(held.blocked).toContain(`volume ${name} is in use by held`);
@@ -2310,7 +2310,7 @@ describe('VerifierRunner', () => {
 		};
 		expect((await w.run()).supervisor).toBeUndefined();
 
-		// The key is never written anywhere koid keeps.
+		// The key is never written anywhere previewlaned keeps.
 		const x = await setup();
 		let key: string | undefined;
 		x.docker.verifierScript = async (v) => {
@@ -2431,7 +2431,7 @@ describe('VerifierRunner', () => {
 			for (const line of supervisorExit(declaredSteps(v))) v.out(line);
 			v.keepOutputOpen = true;
 			// Each silence is under the limit, and together they are over it. The
-			// clock waits for koid to have read each line, or two silences would
+			// clock waits for previewlaned to have read each line, or two silences would
 			// count as one.
 			const late = async () => {
 				for (let i = 0; i < 3; i++) {
@@ -2594,10 +2594,10 @@ describe('VerifierRunner', () => {
 	});
 
 	test.skipIf(Bun.which('python3') === null)(
-		'the real supervisor runs a point under koid, forged lines and all, without Docker',
+		'the real supervisor runs a point under previewlaned, forged lines and all, without Docker',
 		async () => {
 			const t = await setup();
-			const scratch = await mkdtemp(join(tmpdir(), 'koid-real-supervisor-'));
+			const scratch = await mkdtemp(join(tmpdir(), 'previewlaned-real-supervisor-'));
 			const forgedExit = JSON.stringify({
 				version: 1,
 				type: 'supervisor',
@@ -2630,7 +2630,7 @@ describe('VerifierRunner', () => {
 				const pointPath = join(scratch, 'point.json');
 				const supervisorPath = join(scratch, 'supervisor.py');
 				await writeFile(pointPath, JSON.stringify(pointFile));
-				await writeFile(supervisorPath, v.files.get('koi/supervisor.py')?.content ?? '');
+				await writeFile(supervisorPath, v.files.get('previewlane/supervisor.py')?.content ?? '');
 				const loader = [
 					'import importlib.util, sys',
 					"spec = importlib.util.spec_from_file_location('supervisor', sys.argv[1])",
@@ -2709,7 +2709,7 @@ describe('VerifierRunner', () => {
 		);
 		// The reader stopped at the first and read no further.
 		expect(result.counts.captures).toBe(1);
-		expect(t.docker.containers.has(`koi-verify-${RUN}-verifier`)).toBe(false);
+		expect(t.docker.containers.has(`previewlane-verify-${RUN}-verifier`)).toBe(false);
 	});
 
 	test("a capture refused at the point's budget ends the point there, blocked, and what the runner says next does not count", async () => {
@@ -2762,7 +2762,7 @@ describe('VerifierRunner', () => {
 		const CAPTURE = '{"type":"capture","kind":"screenshot","label":"slow"}';
 		const CHUNK = 64 * 1024;
 
-		// Writes until the container stops, without waiting on koid for anything.
+		// Writes until the container stops, without waiting on previewlaned for anything.
 		const flood = async (v: FakeVerifier, chunk: Uint8Array) => {
 			let stopped = false;
 			void v.stopped.then(() => {
@@ -2785,13 +2785,13 @@ describe('VerifierRunner', () => {
 				'long lines',
 				Uint8Array.from({ length: CHUNK }, (_, i) => (i % 4096 === 4095 ? 0x0a : 0x78)),
 				{ queueBytes: 1024 ** 2 },
-				`runner_protocol_limit: the runner's output outran koid: over ${1024 ** 2} bytes waited to be handled`,
+				`runner_protocol_limit: the runner's output outran previewlaned: over ${1024 ** 2} bytes waited to be handled`,
 			],
 			[
 				'empty lines',
 				new Uint8Array(CHUNK).fill(0x0a),
 				{},
-				`runner_protocol_limit: the runner's output outran koid: over ${PROTOCOL_LIMITS.queueBytes} bytes waited to be handled`,
+				`runner_protocol_limit: the runner's output outran previewlaned: over ${PROTOCOL_LIMITS.queueBytes} bytes waited to be handled`,
 			],
 		])(
 			'of %s stops the container, fails the point, and holds no more than the bound',
@@ -2814,7 +2814,7 @@ describe('VerifierRunner', () => {
 				expect(result.counts.queuedBytes).toBeLessThanOrEqual(bound);
 				// The total stops at the first chunk past it.
 				expect(result.counts.bytes).toBeLessThanOrEqual(PROTOCOL_LIMITS.bytesPerPoint + CHUNK);
-				expect(t.docker.containers.has(`koi-verify-${RUN}-verifier`)).toBe(false);
+				expect(t.docker.containers.has(`previewlane-verify-${RUN}-verifier`)).toBe(false);
 				expect((await t.events()).at(-1)).toMatchObject({
 					type: 'verifier-stopped',
 					how: 'protocol-limit',
@@ -2838,7 +2838,7 @@ describe('VerifierRunner', () => {
 				`runner_protocol_limit: the runner wrote more than ${PROTOCOL_LIMITS.bytesPerPoint} bytes`,
 			]);
 			expect(result.counts.bytes).toBeLessThanOrEqual(PROTOCOL_LIMITS.bytesPerPoint + CHUNK);
-			// koid stopped it before it was ever told to go.
+			// previewlaned stopped it before it was ever told to go.
 			expect(t.docker.verifiers[0]?.key).toBeUndefined();
 			expect((await verdict(t, result)).outcome).toBe('fail');
 		});
@@ -2895,7 +2895,7 @@ describe('VerifierRunner', () => {
 			['no newline', 'cat'],
 			['nothing but newlines', "tr '\\000' '\\n'"],
 		])(
-			'a real process writing 512 MiB of %s holds koid near the bound',
+			'a real process writing 512 MiB of %s holds previewlaned near the bound',
 			async (_name, filter) => {
 				const t = await setup();
 				stuck(t);
@@ -3052,7 +3052,7 @@ describe('VerifierRunner', () => {
 			expect((await verdict(t, result)).outcome).toBe('fail');
 		});
 
-		test("a step koid's own stop killed is no failure: the point is blocked", async () => {
+		test("a step previewlaned's own stop killed is no failure: the point is blocked", async () => {
 			const t = await setup();
 			t.docker.verifierScript = async (v) => {
 				await v.nextLine();
@@ -3150,7 +3150,7 @@ describe('VerifierRunner', () => {
 	test('start waits for the container to run, then for the permits, and the reapply asks for the port', async () => {
 		const t = await setup();
 		t.docker.runningAfterInspects = 3;
-		const verifier = `koi-verify-${RUN}-verifier`;
+		const verifier = `previewlane-verify-${RUN}-verifier`;
 		let order: string[] = [];
 		t.docker.verifierScript = async (v) => {
 			await v.nextLine();
@@ -3176,7 +3176,7 @@ describe('VerifierRunner', () => {
 		};
 		const result = await t.run();
 		expect(result.blocked).toBe(
-			`verifier_not_running: koi-verify-${RUN}-verifier was not running 30 seconds after its start`,
+			`verifier_not_running: previewlane-verify-${RUN}-verifier was not running 30 seconds after its start`,
 		);
 		expect(t.reapplied).toEqual([]);
 		expect(started).toBe(false);
@@ -3335,7 +3335,7 @@ describe('VerifierRunner', () => {
 describe('the real supervisor under VerifierRunner', () => {
 	const SUPERVISOR = join(import.meta.dir, '../../../host/verifier/supervisor.py');
 	// main() with a working directory of the test's, since /workspace is the
-	// container's. Everything else is the file koid puts in the verifier.
+	// container's. Everything else is the file previewlaned puts in the verifier.
 	const BOOT = `
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location('supervisor', sys.argv[1])
@@ -3389,9 +3389,9 @@ sys.exit(supervisor.main(['supervisor.py', sys.argv[2]], cwd=sys.argv[3]))
 	}
 
 	// In place of `docker start --attach`: the same streams, from a process on
-	// this box, with the point file koid would have written.
+	// this box, with the point file previewlaned would have written.
 	async function attachForReal(t: Awaited<ReturnType<typeof setup>>, point: Point) {
-		const dir = await mkdtemp(join(tmpdir(), 'koid-real-supervisor-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlaned-real-supervisor-'));
 		const pointFile = join(dir, 'point.json');
 		await writeFile(
 			pointFile,
@@ -3445,14 +3445,14 @@ sys.exit(supervisor.main(['supervisor.py', sys.argv[2]], cwd=sys.argv[3]))
 	test('a capture that stalls past the supervisor limit loses nothing: the failing assertion arrives, and the verdict is fail', async () => {
 		const t = await setup();
 		const capture = t.recorder.capture.bind(t.recorder);
-		// koid handles nothing from the verifier while it waits on this, and the
+		// previewlaned handles nothing from the verifier while it waits on this, and the
 		// supervisor's own limit on a silent pipe was 5 seconds.
 		t.recorder.capture = async (r) => {
 			await Bun.sleep(7_000);
 			return capture(r);
 		};
 		// More than a pipe holds, and little enough that the step can finish and
-		// exit 0 with the failing assertion behind the capture in koid's queue.
+		// exit 0 with the failing assertion behind the capture in previewlaned's queue.
 		const step = `
 import json
 def say(event):

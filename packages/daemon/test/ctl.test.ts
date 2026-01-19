@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { encodeCtlArgs } from '@koi/shared';
+import { encodeCtlArgs } from '@previewlane/shared';
 import { type CtlIo, ctl, ctlEncoded } from '../src/ctl.ts';
 
 const ID = 'abcdefghij0123456';
@@ -26,7 +26,7 @@ function io(status = 200, body: unknown = { ok: true }) {
 	return { out, err, requests, io: fakeIo };
 }
 
-describe('koid ctl', () => {
+describe('previewlaned ctl', () => {
 	test('maps commands to control API calls', async () => {
 		const cases: Array<[string[], string, string]> = [
 			[['ping'], '/health', 'GET'],
@@ -128,7 +128,7 @@ describe('koid ctl', () => {
 		const out = t.out.join('');
 		expect(Buffer.byteLength(out)).toBeLessThanOrEqual(16_000);
 		const lines = out.split('\n');
-		expect(lines[0]).toStartWith('[koid: earlier output cut');
+		expect(lines[0]).toStartWith('[previewlaned: earlier output cut');
 		expect(lines[1]).toMatch(/^line \d+ é{20}$/);
 		expect(lines.at(-2)).toBe(`line 5000 ${'é'.repeat(20)}`);
 		expect(lines.at(-1)).toBe('');
@@ -150,7 +150,7 @@ describe('koid ctl', () => {
 		expect(JSON.parse(s.out.join(''))).toEqual(big);
 	});
 
-	test('ping prints what koid says and gives up on a koid that does not answer', async () => {
+	test('ping prints what previewlaned says and gives up on a previewlaned that does not answer', async () => {
 		const t = io(200, { ok: true });
 		expect(await ctl(['ping'], t.io)).toBe(0);
 		expect(JSON.parse(t.out.join(''))).toEqual({ ok: true });
@@ -163,17 +163,17 @@ describe('koid ctl', () => {
 		expect(signal).toBeInstanceOf(AbortSignal);
 	});
 
-	test('exits 3 when koid cannot be reached', async () => {
+	test('exits 3 when previewlaned cannot be reached', async () => {
 		const t = io();
 		t.io.fetch = async () => {
-			throw new Error('ENOENT /run/koi/control.sock');
+			throw new Error('ENOENT /run/previewlane/control.sock');
 		};
 		expect(await ctl(['list'], t.io)).toBe(3);
-		expect(t.err.join('')).toContain('cannot reach koid');
+		expect(t.err.join('')).toContain('cannot reach previewlaned');
 	});
 });
 
-describe('koid ctl-b64', () => {
+describe('previewlaned ctl-b64', () => {
 	test('runs the command the blob encodes', async () => {
 		const t = io();
 		expect(await ctlEncoded([encodeCtlArgs(['status', 'hello-pr-7', ID, '120'])], t.io)).toBe(0);
@@ -182,7 +182,7 @@ describe('koid ctl-b64', () => {
 		]);
 	});
 
-	test('checks the decoded arguments as koid ctl does', async () => {
+	test('checks the decoded arguments as previewlaned ctl does', async () => {
 		const t = io();
 		expect(await ctlEncoded([encodeCtlArgs(['status', 'x; rm -rf /'])], t.io)).toBe(2);
 		expect(t.requests).toEqual([]);
@@ -197,13 +197,13 @@ describe('koid ctl-b64', () => {
 		]) {
 			const t = io();
 			expect(await ctlEncoded(args, t.io)).toBe(2);
-			expect(t.err.join('')).toStartWith('koid ctl-b64:');
+			expect(t.err.join('')).toStartWith('previewlaned ctl-b64:');
 			expect(t.requests).toEqual([]);
 		}
 	});
 
-	test("koid's entry point decodes the blob and asks the control socket", async () => {
-		const socket = join(await mkdtemp(join(tmpdir(), 'koid-ctl-')), 'control.sock');
+	test("previewlaned's entry point decodes the blob and asks the control socket", async () => {
+		const socket = join(await mkdtemp(join(tmpdir(), 'previewlaned-ctl-')), 'control.sock');
 		const paths: string[] = [];
 		const server = Bun.serve({
 			unix: socket,
@@ -213,22 +213,22 @@ describe('koid ctl-b64', () => {
 			},
 		});
 		try {
-			const koid = (...args: string[]) =>
+			const previewlaned = (...args: string[]) =>
 				Bun.spawn([process.execPath, join(import.meta.dir, '../src/main.ts'), ...args], {
-					env: { ...process.env, KOID_CONTROL_SOCKET: socket },
+					env: { ...process.env, PREVIEWLANED_CONTROL_SOCKET: socket },
 					stdout: 'pipe',
 					stderr: 'pipe',
 				});
-			const ok = koid('ctl-b64', encodeCtlArgs(['status', 'hello-pr-7']));
+			const ok = previewlaned('ctl-b64', encodeCtlArgs(['status', 'hello-pr-7']));
 			expect(await ok.exited).toBe(0);
 			expect(await new Response(ok.stdout).text()).toBe('{"ok":true}\n');
-			const refused = koid('ctl-b64', encodeCtlArgs(['status', '$(id)']));
+			const refused = previewlaned('ctl-b64', encodeCtlArgs(['status', '$(id)']));
 			expect(await refused.exited).toBe(2);
 			// An unknown command is refused, never taken as a request to run the
 			// daemon, which would touch the box's containers.
-			const unknown = koid('ctl-json', '[]');
+			const unknown = previewlaned('ctl-json', '[]');
 			expect(await unknown.exited).toBe(2);
-			expect(await new Response(unknown.stderr).text()).toStartWith('koid: unknown command');
+			expect(await new Response(unknown.stderr).text()).toStartWith('previewlaned: unknown command');
 			expect(paths).toEqual(['/previews/hello-pr-7']);
 		} finally {
 			server.stop(true);
@@ -236,7 +236,7 @@ describe('koid ctl-b64', () => {
 	});
 });
 
-describe('koid ctl verify', () => {
+describe('previewlaned ctl verify', () => {
 	const PLAN = 'p'.repeat(20);
 	const RUN = 'r'.repeat(20);
 	const DIGEST = `sha256:${'1'.repeat(64)}`;
@@ -318,7 +318,7 @@ describe('koid ctl verify', () => {
 			const t = io();
 			expect(await ctl(args, t.io)).toBe(2);
 			expect(t.requests).toEqual([]);
-			expect(t.err.join('')).toStartWith('koid ctl: ');
+			expect(t.err.join('')).toStartWith('previewlaned ctl: ');
 		}
 	});
 

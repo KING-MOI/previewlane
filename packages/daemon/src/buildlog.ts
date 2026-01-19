@@ -6,13 +6,13 @@ import {
 	logCutNote,
 	PreviewLabelSchema,
 	type PreviewRecord,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { redact } from './redact.ts';
 
 // The log of each attempt at a build, one file per attempt (see
-// AttemptSchema) in a directory per label. `koi up` follows the log of its
-// request's latest attempt by byte offset and `koi logs` reads the end of the
-// label's latest attempt's log, both through koid ctl. A label keeps only the
+// AttemptSchema) in a directory per label. `previewlane up` follows the log of its
+// request's latest attempt by byte offset and `previewlane logs` reads the end of the
+// label's latest attempt's log, both through previewlaned ctl. A label keeps only the
 // log of its latest build: opening a log removes the label's others.
 export class BuildLogs {
 	private readonly dir: string;
@@ -32,7 +32,7 @@ export class BuildLogs {
 		return join(this.labelDir(label), `${AttemptSchema.parse(attempt)}.build.log`);
 	}
 
-	// An attempt's log, or undefined if it has none. A record koid could not
+	// An attempt's log, or undefined if it has none. A record previewlaned could not
 	// give an attempt when it started (see PreviewStore.init) has attempt '',
 	// and no log.
 	private async file(label: string, attempt: string): Promise<LogFile | undefined> {
@@ -63,10 +63,10 @@ export class BuildLogs {
 		};
 	}
 
-	// Logs koid kept before logs were per attempt, logs/<label>.build.log, were
+	// Logs previewlaned kept before logs were per attempt, logs/<label>.build.log, were
 	// each the log of their label's latest build. Each moves to its label's
 	// latest attempt when the label has a record and no log of the new kind
-	// yet; the rest are removed. koid runs this when it starts, before any
+	// yet; the rest are removed. previewlaned runs this when it starts, before any
 	// build.
 	async upgrade(records: PreviewRecord[]): Promise<void> {
 		const attempts = new Map(records.map((r) => [r.label, r.attempt]));
@@ -304,7 +304,7 @@ export function jsonSize(text: string): number {
 	return Buffer.byteLength(JSON.stringify(text), 'utf8');
 }
 
-const CUT = ' [cut by koid]';
+const CUT = ' [cut by previewlaned]';
 
 // text, or as much of its start as fits in maxSize (see jsonSize) with CUT
 // after it.

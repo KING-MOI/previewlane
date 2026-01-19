@@ -4,7 +4,7 @@ import {
 	RecorderDroppedLineSchema,
 	RecorderNetworkRecordSchema,
 	RecorderStateReadSchema,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import {
 	LineScrubber,
 	PngError,
@@ -14,7 +14,7 @@ import {
 	TEXT_LIMITATIONS,
 } from './redact.ts';
 
-// What koid does to each kind of capture between reading it from the
+// What previewlaned does to each kind of capture between reading it from the
 // recorder and keeping it (docs/verify.md, "Recorder and evidence"). The
 // policy for a kind is fixed here and hashed into every artifact's
 // policyDigest, so a reader can tell which policy ran. A capture the
@@ -249,8 +249,8 @@ const NETWORK_FIELDS = new Set([
 
 // The recorder's network observations, one JSON object per line, each read
 // with the shared schema (RecorderNetworkRecordSchema), projected to the
-// fields koi keeps and scrubbed. A line the schema refuses fails the whole
-// capture: a record koid cannot read is not evidence.
+// fields previewlane keeps and scrubbed. A line the schema refuses fails the whole
+// capture: a record previewlaned cannot read is not evidence.
 export function sanitizeNetwork(bytes: Uint8Array, secrets: SecretRegistry): Sanitized {
 	const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
 	const removed = new Set<string>(['request-headers', 'bodies']);
@@ -377,7 +377,7 @@ export function sanitizeHttpResponse(
 			removed.add('body');
 			response.bodyOmitted = 'the body is not text';
 		} else {
-			// The recorder cut the body at the bound before koid saw it, so a
+			// The recorder cut the body at the bound before previewlaned saw it, so a
 			// value split at the cut reaches the scrubber as a fragment the
 			// registry does not know.
 			if (r.response.truncated) {

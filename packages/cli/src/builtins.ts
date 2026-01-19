@@ -1,4 +1,4 @@
-import { type Recipe, RecipeSchema } from '@koi/shared';
+import { type Recipe, RecipeSchema } from '@previewlane/shared';
 import { builtinRecipeFiles } from './recipe-files.ts' with { type: 'macro' };
 
 // The built-in recipes the CLI can match by repo: the recipe.json of every

@@ -46,7 +46,7 @@ describe('RecipeSchema', () => {
 		const withEnv = (env: Record<string, string>) =>
 			RecipeSchema.safeParse({ name: 'a', build: { kind: 'dockerfile' }, port: 80, env }).success;
 		expect(withEnv({ APP_MODE: 'preview' })).toBe(true);
-		expect(withEnv({ KOI_SECRET: 'x' })).toBe(false);
+		expect(withEnv({ PREVIEWLANE_SECRET: 'x' })).toBe(false);
 		expect(withEnv({ 'lower-case': 'x' })).toBe(false);
 		expect(withEnv({ 'A=B': 'x' })).toBe(false);
 	});
@@ -377,7 +377,7 @@ describe('PreviewRecordSchema', () => {
 		};
 		const merge = { head: 'b'.repeat(40), base: 'c'.repeat(40), baseBranch: 'main' };
 		expect(PreviewRecordSchema.parse({ ...base, merge }).merge).toEqual(merge);
-		// Records written before koid kept it, and builds of a working tree.
+		// Records written before previewlaned kept it, and builds of a working tree.
 		expect(PreviewRecordSchema.parse(base).merge).toBeUndefined();
 		expect(PreviewRecordSchema.safeParse({ ...base, merge: { head: merge.head } }).success).toBe(
 			false,
@@ -388,8 +388,8 @@ describe('PreviewRecordSchema', () => {
 		const old = {
 			requestId: 'a'.repeat(16),
 			commit: 'a'.repeat(40),
-			image: 'koi-preview/hello:a',
-			container: 'koi-hello-a',
+			image: 'previewlane-preview/hello:a',
+			container: 'previewlane-hello-a',
 			port: 8080,
 			healthPath: '/',
 			healthTimeoutSeconds: 60,
@@ -447,7 +447,7 @@ describe('PreviewRecordSchema', () => {
 			createdAt: now,
 			updatedAt: now,
 		};
-		// Records written before koid kept leases have none.
+		// Records written before previewlaned kept leases have none.
 		expect(PreviewRecordSchema.parse(record).lease).toBeUndefined();
 		expect(PreviewRecordSchema.parse({ ...record, lease }).lease).toEqual(lease);
 	});

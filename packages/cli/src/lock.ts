@@ -1,8 +1,8 @@
 import { mkdir, rmdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-// A lock on a file koi rewrites whole: `koi config import-aws` on the config
-// file, `koi target trust` on a known_hosts file. Two runs that both read
+// A lock on a file previewlane rewrites whole: `previewlane config import-aws` on the config
+// file, `previewlane target trust` on a known_hosts file. Two runs that both read
 // the file and write it back would each lose the other's change; the lock
 // puts them in turn.
 //
@@ -23,7 +23,7 @@ export const LOCK_WAIT_MS = 60_000;
 const LOCK_POLL_MS = 200;
 
 // Runs `task` while holding <path>.lock. `holder` names the command that
-// takes this lock, for the message when it is held: "koi config", say.
+// takes this lock, for the message when it is held: "previewlane config", say.
 export async function withFileLock<T>(
 	path: string,
 	holder: string,

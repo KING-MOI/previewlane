@@ -32,7 +32,7 @@ export class OutputTooLargeError extends Error {
 		readonly maxBytes: number,
 	) {
 		super(
-			`${commandName(cmd)} wrote more than ${maxBytes} bytes; koi does not use part of a command's output`,
+			`${commandName(cmd)} wrote more than ${maxBytes} bytes; previewlane does not use part of a command's output`,
 		);
 	}
 }

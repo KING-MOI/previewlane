@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { decodeCtlArgs, RepoRecipeSchema, type UpRequest, UpRequestSchema } from '@koi/shared';
+import { decodeCtlArgs, RepoRecipeSchema, type UpRequest, UpRequestSchema } from '@previewlane/shared';
 import type { Clients } from '../src/box.ts';
 import {
 	awsBox,
@@ -14,7 +14,7 @@ import {
 import { exec } from '../src/exec.ts';
 import * as transport from '../src/transport.ts';
 import * as aws from '../src/transports/aws.ts';
-import { koidClients, koidDeps, s3Stub } from './koid.ts';
+import { previewlanedClients, previewlanedDeps, s3Stub } from './previewlaned.ts';
 
 describe('box.ts', () => {
 	test('keeps the old names for what moved to transport.ts and transports/aws.ts', () => {
@@ -28,19 +28,19 @@ describe('box.ts', () => {
 // Shell metacharacters, quotes, a newline and text outside ASCII.
 const NASTY = `x'; rm -rf / $(id) \`id\` "q" \\ | & > < * ?\n é😀`;
 
-// The arguments in an SSM command from ctlCommand, as koid decodes them.
+// The arguments in an SSM command from ctlCommand, as previewlaned decodes them.
 function sentArgs(command: string | undefined): string[] {
 	return decodeCtlArgs((command ?? '').split(' ')[2] ?? '');
 }
 
 describe('ctlCommand', () => {
-	test('sends the arguments as base64 that koid decodes to the same list', () => {
+	test('sends the arguments as base64 that previewlaned decodes to the same list', () => {
 		for (const args of [
 			['up', 'abcdefghij0123456'],
 			['status', NASTY, '-rf', ''],
 		]) {
 			const command = ctlCommand(args);
-			expect(command).toMatch(/^\/usr\/local\/bin\/koid ctl-b64 [A-Za-z0-9+/]+=*$/);
+			expect(command).toMatch(/^\/usr\/local\/bin\/previewlaned ctl-b64 [A-Za-z0-9+/]+=*$/);
 			expect(sentArgs(command)).toEqual(args);
 		}
 	});
@@ -83,17 +83,17 @@ describe('resolveSettings', () => {
 	test('discovers the box by tag, the domain from its Domain tag and the bucket from the account', async () => {
 		const { settings } = await resolveSettings({}, () => fakeClients(['i-0abc']));
 		expect(settings).toEqual({
-			profile: 'koi-cli',
+			profile: 'previewlane-cli',
 			region: 'us-east-1',
 			domain: 'previews.example.com',
 			instanceId: 'i-0abc',
-			bucket: 'koi-uploads-123456789012',
+			bucket: 'previewlane-uploads-123456789012',
 		});
 	});
 
-	test('reads the domain from the box KOI_INSTANCE_ID names', async () => {
+	test('reads the domain from the box PREVIEWLANE_INSTANCE_ID names', async () => {
 		const described: unknown[] = [];
-		const { settings } = await resolveSettings({ KOI_INSTANCE_ID: 'i-1' }, () =>
+		const { settings } = await resolveSettings({ PREVIEWLANE_INSTANCE_ID: 'i-1' }, () =>
 			fakeClients(['i-1'], { described }),
 		);
 		expect(settings.instanceId).toBe('i-1');
@@ -104,7 +104,7 @@ describe('resolveSettings', () => {
 	test('refuses to guess the domain when the box has no Domain tag', async () => {
 		await expect(
 			resolveSettings({}, () => fakeClients(['i-0abc'], { domain: null })),
-		).rejects.toThrow(/no Domain tag.*KOI_DOMAIN/);
+		).rejects.toThrow(/no Domain tag.*PREVIEWLANE_DOMAIN/);
 	});
 
 	test('uses overrides from the environment and asks AWS nothing', async () => {
@@ -117,10 +117,10 @@ describe('resolveSettings', () => {
 		} as never;
 		const { settings } = await resolveSettings(
 			{
-				KOI_AWS_PROFILE: 'other',
-				KOI_INSTANCE_ID: 'i-1',
-				KOI_BUCKET: 'b',
-				KOI_DOMAIN: 'example.dev',
+				PREVIEWLANE_AWS_PROFILE: 'other',
+				PREVIEWLANE_INSTANCE_ID: 'i-1',
+				PREVIEWLANE_BUCKET: 'b',
+				PREVIEWLANE_DOMAIN: 'example.dev',
 			},
 			() => ({ s3: refuse, ec2: refuse, ssm: refuse, sts: refuse }),
 		);
@@ -135,18 +135,18 @@ describe('resolveSettings', () => {
 
 	test('refuses to guess between several boxes, or none', async () => {
 		await expect(resolveSettings({}, () => fakeClients(['i-1', 'i-2']))).rejects.toThrow(
-			/expected one koi box, found 2/,
+			/expected one previewlane box, found 2/,
 		);
 		await expect(resolveSettings({}, () => fakeClients([]))).rejects.toThrow(/found 0/);
 	});
 });
 
 const settings: Settings = {
-	profile: 'koi-cli',
+	profile: 'previewlane-cli',
 	region: 'us-east-1',
 	domain: 'previews.example.net',
 	instanceId: 'i-0abc',
-	bucket: 'koi-uploads-123456789012',
+	bucket: 'previewlane-uploads-123456789012',
 };
 
 // SSM that runs every command at once and answers with the given output.
@@ -170,7 +170,7 @@ function fakeSsm(stdout: string) {
 }
 
 describe('awsBox ctl', () => {
-	test('returns what koid ctl printed', async () => {
+	test('returns what previewlaned ctl printed', async () => {
 		const reply = JSON.stringify({ record: 'x'.repeat(23_000) });
 		const { clients, sent } = fakeSsm(reply);
 		const box = awsBox(settings, clients, async () => {});
@@ -184,14 +184,14 @@ describe('awsBox ctl', () => {
 		expect(sentArgs(input.Parameters.commands[0])).toEqual(['status', 'hello-pr-7', '0']);
 	});
 
-	test('a value with shell metacharacters reaches koid unchanged, and koid refuses it', async () => {
-		const clients = koidClients(koidDeps({}));
+	test('a value with shell metacharacters reaches previewlaned unchanged, and previewlaned refuses it', async () => {
+		const clients = previewlanedClients(previewlanedDeps({}));
 		const box = awsBox(settings, clients, async () => {});
 		const r = await box.ctl(['status', NASTY]);
 		expect(clients.commands).toEqual([['status', NASTY]]);
 		expect(r.code).toBe(2);
 		expect(r.stdout).toBe('');
-		expect(r.stderr).toContain('koid ctl:');
+		expect(r.stderr).toContain('previewlaned ctl:');
 	});
 
 	test('tells failures that can pass from those that cannot', async () => {
@@ -235,30 +235,30 @@ describe('awsBox ctl', () => {
 			);
 			const thrown = await box.ctl(['status', 'hello-pr-7']).catch((e: unknown) => e);
 			expect(thrown).toBeInstanceOf(BoxUnavailableError);
-			expect((thrown as Error).message).toStartWith('SSM reports koid ctl status as');
+			expect((thrown as Error).message).toStartWith('SSM reports previewlaned ctl status as');
 		}
 	});
 
-	test("returns koid ctl's own exit status", async () => {
+	test("returns previewlaned ctl's own exit status", async () => {
 		const client = {
 			send: async (cmd: { constructor: { name: string } }) =>
 				cmd.constructor.name === 'SendCommandCommand'
 					? { Command: { CommandId: 'c' } }
-					: { Status: 'Failed', ResponseCode: 3, StandardErrorContent: 'cannot reach koid' },
+					: { Status: 'Failed', ResponseCode: 3, StandardErrorContent: 'cannot reach previewlaned' },
 		} as never;
 		const box = awsBox(
 			settings,
 			{ s3: client, ec2: client, ssm: client, sts: client },
 			async () => {},
 		);
-		expect(await box.ctl(['ping'])).toEqual({ code: 3, stdout: '', stderr: 'cannot reach koid' });
+		expect(await box.ctl(['ping'])).toEqual({ code: 3, stdout: '', stderr: 'cannot reach previewlaned' });
 	});
 
 	test('refuses output that SSM cut at 24,000 characters', async () => {
 		// The first 24,000 characters of a longer JSON reply: not valid JSON.
 		const cut = JSON.stringify({ record: 'x'.repeat(30_000) }).slice(0, 24_000);
 		const box = awsBox(settings, fakeSsm(cut).clients, async () => {});
-		await expect(box.ctl(['list'])).rejects.toThrow(/koid ctl list was cut off by SSM/);
+		await expect(box.ctl(['list'])).rejects.toThrow(/previewlaned ctl list was cut off by SSM/);
 	});
 });
 
@@ -281,8 +281,8 @@ const request: UpRequest = {
 
 // A tarball of `size` bytes, and its content.
 async function tarball(size: number): Promise<{ path: string; content: Buffer }> {
-	const path = join(await mkdtemp(join(tmpdir(), 'koi-upload-')), 'source.tar.gz');
-	const content = Buffer.alloc(size, 'koi');
+	const path = join(await mkdtemp(join(tmpdir(), 'previewlane-upload-')), 'source.tar.gz');
+	const content = Buffer.alloc(size, 'previewlane');
 	await writeFile(path, content);
 	return { path, content };
 }
@@ -362,7 +362,7 @@ describe('awsBox upload', () => {
 });
 
 // A box whose EC2 state is the next of `states` at each DescribeInstances,
-// whose SSM agent reports online from the `online`-th check, and whose koid
+// whose SSM agent reports online from the `online`-th check, and whose previewlaned
 // answers the first ping. `sent` lists the AWS commands in order.
 function wakeBox(states: string[], online = 1) {
 	const sent: string[] = [];
@@ -402,7 +402,7 @@ function wakeBox(states: string[], online = 1) {
 }
 
 describe('awsBox ensureAwake from sleep', () => {
-	test('starts a stopped box, then waits for SSM and koid', async () => {
+	test('starts a stopped box, then waits for SSM and previewlaned', async () => {
 		const b = wakeBox(['stopped'], 3);
 		const status: string[] = [];
 		await b.box.ensureAwake((m) => status.push(m));
@@ -443,7 +443,7 @@ describe('awsBox ensureAwake from sleep', () => {
 	});
 });
 
-// A running box whose SSM agent is online, where each `koid ctl ping` gets the
+// A running box whose SSM agent is online, where each `previewlaned ctl ping` gets the
 // next scripted reply: a command result, or an error SendCommand throws.
 function pingBox(replies: Array<{ code: number; stdout: string; stderr?: string } | Error>) {
 	let clock = 0;
@@ -494,10 +494,10 @@ function invalidInstance(): Error {
 }
 
 const OK = { code: 0, stdout: '{"ok":true}\n' };
-const DOWN = { code: 3, stdout: '', stderr: 'koid ctl: cannot reach koid: ENOENT\n' };
+const DOWN = { code: 3, stdout: '', stderr: 'previewlaned ctl: cannot reach previewlaned: ENOENT\n' };
 
 describe('awsBox ensureAwake', () => {
-	test('asks koid for a ping once SSM reports the box online', async () => {
+	test('asks previewlaned for a ping once SSM reports the box online', async () => {
 		const b = pingBox([OK]);
 		const status: string[] = [];
 		await b.box.ensureAwake((m) => status.push(m));
@@ -505,19 +505,19 @@ describe('awsBox ensureAwake', () => {
 		expect(status).toEqual([]);
 	});
 
-	test('retries the ping every 3 seconds until koid answers', async () => {
+	test('retries the ping every 3 seconds until previewlaned answers', async () => {
 		const b = pingBox([invalidInstance(), DOWN, DOWN, OK]);
 		const status: string[] = [];
 		await b.box.ensureAwake((m) => status.push(m));
 		expect(b.pings).toHaveLength(4);
 		expect(b.sleeps.filter((ms) => ms === 3000)).toHaveLength(3);
-		expect(status).toEqual(['waiting for koid on the box to start']);
+		expect(status).toEqual(['waiting for previewlaned on the box to start']);
 	});
 
 	test('gives up after five minutes, saying why', async () => {
 		const b = pingBox([DOWN]);
 		await expect(b.box.ensureAwake(() => {})).rejects.toThrow(
-			'koid on the box did not answer within 5 minutes: koid ctl: cannot reach koid: ENOENT',
+			'previewlaned on the box did not answer within 5 minutes: previewlaned ctl: cannot reach previewlaned: ENOENT',
 		);
 		expect(b.clock()).toBeGreaterThanOrEqual(5 * 60_000);
 		expect(b.clock()).toBeLessThan(5 * 60_000 + 10_000);

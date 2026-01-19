@@ -31,13 +31,13 @@ import {
 	type RunStatus,
 	RunStatusSchema,
 	VerifyIdSchema,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { diskSpace as statDiskSpace } from './fsutil.ts';
 import type { EvidenceLookup, Integrity, ResolvedEvidence } from './verdict.ts';
 import { type Sanitize, sanitizeRunData } from './verification-sanitize.ts';
 
-// The evidence store (docs/verify.md, "Recorder and evidence"): what koid
-// keeps of verification under <stateDir>/verification. koid is its only
+// The evidence store (docs/verify.md, "Recorder and evidence"): what previewlaned
+// keeps of verification under <stateDir>/verification. previewlaned is its only
 // writer; no container sees these paths. Every directory is 0700 and every
 // file 0600. A file is written whole into the run's .pending directory,
 // fsynced and renamed into place, so a reader never sees half of one, and
@@ -57,13 +57,13 @@ import { type Sanitize, sanitizeRunData } from './verification-sanitize.ts';
 
 const DAY_MS = 86_400_000;
 
-// The directory snapshotInputs copies a snapshot into, under inputs/. If koid
+// The directory snapshotInputs copies a snapshot into, under inputs/. If previewlaned
 // is killed during the copy, nothing else ever removes it.
 export const PENDING_INPUTS_PREFIX = '.pending-';
 
 // How long such a directory must go unchanged before the sweep removes it. A
 // snapshot copies 64 MiB at most and changes the directory with every file, so
-// after an hour no koid can still be writing it.
+// after an hour no previewlaned can still be writing it.
 const PENDING_INPUTS_MAX_AGE_MS = 60 * 60_000;
 
 // The longest a run waits on one thing its disk has to do: a write and its sync,
@@ -87,7 +87,7 @@ export class EvidenceStuckError extends Error {
 	}
 }
 
-// A time on koid's clock: `at` resolves once it comes. This looks at the clock
+// A time on previewlaned's clock: `at` resolves once it comes. This looks at the clock
 // instead of arming one timer, so a clock that jumps is seen.
 export function clockReaches(
 	until: number,
@@ -129,7 +129,7 @@ function recordText(record: unknown, sanitize: Sanitize): string {
 	return jsonText(sanitize(record));
 }
 
-// A record as its file holds it. One with only project text and koid's own values comes
+// A record as its file holds it. One with only project text and previewlaned's own values comes
 // here directly, as it is, so a digest over it holds.
 function jsonText(record: unknown): string {
 	return `${JSON.stringify(record, null, '\t')}\n`;
@@ -173,7 +173,7 @@ export const RUN_RECORDS: readonly RunRecordName[] = [
 	'controller.json',
 ];
 
-// Those that hold only project text and koid's own values (writeDeclared).
+// Those that hold only project text and previewlaned's own values (writeDeclared).
 export type DeclaredRecordName = Extract<
 	RunRecordName,
 	'run.json' | 'plan.json' | 'execution.json'
@@ -297,14 +297,14 @@ export class EvidenceStore {
 		}
 	}
 
-	// Writes a record of a run with no writer open: recovery ends what the last koid left.
+	// Writes a record of a run with no writer open: recovery ends what the last previewlaned left.
 	async writeRecord(dir: string, name: string, record: unknown, sanitize: Sanitize): Promise<void> {
 		const pending = join(dir, '.pending');
 		await mkdir(pending, { recursive: true, mode: 0o700 });
 		await writeAtomic(join(dir, name), recordText(record, sanitize), pending);
 	}
 
-	// Writes a record that has only project text and koid's own values, with no writer
+	// Writes a record that has only project text and previewlaned's own values, with no writer
 	// open: a plan is made before any run, and recovery ends a run's run.json.
 	async writeDeclared(dir: string, name: string, record: unknown): Promise<void> {
 		const pending = join(dir, '.pending');
@@ -340,7 +340,7 @@ export class EvidenceStore {
 	// its pin; then the evidence goes and a tombstone stays with the
 	// manifest until tombstoneUntil; then the directory goes. A run that
 	// never finalized goes whole after inputDays, as does an input snapshot
-	// and a plan past its time. A snapshot a killed koid left half copied goes
+	// and a plan past its time. A snapshot a killed previewlaned left half copied goes
 	// after an hour.
 	async sweep(): Promise<{
 		expired: string[];

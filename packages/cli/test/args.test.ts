@@ -33,7 +33,7 @@ describe('parseCli', () => {
 		expect(() => parseCli(['up', '--head'])).toThrow(/--head needs --pr/);
 	});
 
-	test('--tail takes 1 to 5000 lines, the most koid gives', () => {
+	test('--tail takes 1 to 5000 lines, the most previewlaned gives', () => {
 		expect(parseCli(['logs', 'a', '--tail', '50']).tail).toBe(50);
 		expect(parseCli(['logs', 'a']).tail).toBe(200);
 		expect(parseCli(['logs', 'a', '--tail', '1']).tail).toBe(1);

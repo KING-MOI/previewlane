@@ -8,7 +8,7 @@ import { extractTarball, resolveInside, tarMemberSize } from '../src/fsutil.ts';
 import { KeyedLock, Semaphore } from '../src/lock.ts';
 import { PreviewStore } from '../src/store.ts';
 
-const temp = () => mkdtemp(join(tmpdir(), 'koid-'));
+const temp = () => mkdtemp(join(tmpdir(), 'previewlaned-'));
 
 describe('resolveInside', () => {
 	test('resolves paths inside the root and refuses symlinks that leave it', async () => {
@@ -119,8 +119,8 @@ describe('PreviewStore', () => {
 	const deployment = {
 		requestId: 'a'.repeat(16),
 		commit: 'a'.repeat(40),
-		image: 'koi-preview/hello:x',
-		container: 'koi-hello-x',
+		image: 'previewlane-preview/hello:x',
+		container: 'previewlane-hello-x',
 		port: 8080,
 		healthPath: '/',
 		healthTimeoutSeconds: 5,
@@ -183,8 +183,8 @@ describe('PreviewStore', () => {
 		}
 		const store = new PausingStore(await temp());
 		await store.init();
-		const old = { ...deployment, requestId: 'a'.repeat(16), container: 'koi-hello-old' };
-		const newer = { ...deployment, requestId: 'b'.repeat(16), container: 'koi-hello-new' };
+		const old = { ...deployment, requestId: 'a'.repeat(16), container: 'previewlane-hello-old' };
+		const newer = { ...deployment, requestId: 'b'.repeat(16), container: 'previewlane-hello-new' };
 		await store.put({ ...record, deployment: old });
 		let resume = () => {};
 		const read = new Promise<void>((read) => {

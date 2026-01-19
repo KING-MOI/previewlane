@@ -17,7 +17,7 @@ import {
 // The browser port, TCP 4317: the verifier's way to drive the browser the
 // recorder owns. Chromium listens for DevTools connections on loopback only;
 // this proxy puts a run-scoped token in front of it, so a client needs the
-// path koid gave the verifier and nothing else on the port answers, and it
+// path previewlaned gave the verifier and nothing else on the port answers, and it
 // reads every message on the way in. Only a method on the allowlist in
 // cdp-allowlist.ts goes through, some of them rewritten first; every other
 // message gets a DevTools error reply instead. Sessions are flattened, so a
@@ -263,7 +263,7 @@ function relay(client: Socket, browser: Socket, first: Uint8Array, options: Prox
 						textFrame(
 							JSON.stringify({
 								id: verdict.id,
-								error: { code: METHOD_NOT_FOUND, message: `koi recorder: ${verdict.denied}` },
+								error: { code: METHOD_NOT_FOUND, message: `previewlane recorder: ${verdict.denied}` },
 								...(verdict.sessionId !== undefined ? { sessionId: verdict.sessionId } : {}),
 							}),
 						),

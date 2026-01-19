@@ -2,7 +2,7 @@ import { constants, createWriteStream } from 'node:fs';
 import { type FileHandle, lstat, open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import { RequestIdSchema, type UpRequest, UpRequestSchema } from '@koi/shared';
+import { RequestIdSchema, type UpRequest, UpRequestSchema } from '@previewlane/shared';
 import type { Uploads } from './uploads.ts';
 
 // The upload spool on the host, for a box the CLI reaches over SSH instead of
@@ -22,9 +22,9 @@ import type { Uploads } from './uploads.ts';
 // One check is out of reach, and not faked: Bun and Node have no openat, so
 // nothing pins the entry directory between the lstat that proves it is a
 // directory and the open of a file inside it. A process that swapped it in
-// that moment would have to run as koid's user, because only that user can
+// that moment would have to run as previewlaned's user, because only that user can
 // rename inside a 0700 directory of its own, and such a process already
-// controls koid itself. The lstat, O_NOFOLLOW and fstat checks stay for
+// controls previewlaned itself. The lstat, O_NOFOLLOW and fstat checks stay for
 // what they do catch.
 
 export const MAX_SOURCE_BYTES = 2 * 1024 ** 3;

@@ -53,7 +53,7 @@ export const EVENTS_PAGE_MAX = 200;
 export const SSM_EXPORT_MAX_BYTES = 8 * 1024 ** 2;
 export const SSM_ARTIFACT_MAX_BYTES = 1024 ** 2;
 
-// How long a run may take before koid stops it, and what the operator may
+// How long a run may take before previewlaned stops it, and what the operator may
 // raise that to; the lease outlives the run by the teardown allowance.
 export const RUN_LIMIT_DEFAULTS = {
 	runSeconds: 900,
@@ -135,8 +135,8 @@ export const PlanRequestSchema = z.strictObject({
 export type PlanRequest = z.infer<typeof PlanRequestSchema>;
 
 // Whether a point has a proof record (ProofRecordSchema) in the snapshot's
-// .koi/proofs/. `unverified` means one names a failing and a passing run
-// that koid has not resolved to finalized bundles, so it is a claim.
+// .previewlane/proofs/. `unverified` means one names a failing and a passing run
+// that previewlaned has not resolved to finalized bundles, so it is a claim.
 export const ProofStatusSchema = z.enum(['none', 'unverified']);
 
 export const PlannedPointSchema = z.strictObject({
@@ -154,7 +154,7 @@ export const BlockedPointSchema = z.strictObject({ id: PointIdSchema, reason: Te
 
 // Where the required policy came from. Only base-branch can count toward
 // readiness; none means no trusted source exists yet, and `advisory` is
-// what the snapshot's own .koi/required.yaml said, if it had one.
+// what the snapshot's own .previewlane/required.yaml said, if it had one.
 export const PlanPolicySchema = z.strictObject({
 	source: z.enum(['base-branch', 'none']),
 	advisory: z
@@ -173,7 +173,7 @@ export const PlanCursorSchema = z
 	.string()
 	.regex(/^(?:points|blocked|uncovered):(?:0|[1-9][0-9]{0,6})$/);
 
-// The most characters one note of a plan may be. koid cuts a note to this
+// The most characters one note of a plan may be. previewlaned cuts a note to this
 // when it builds the plan, so it never writes a record it cannot read back.
 export const PLAN_NOTE_MAX = 500;
 
@@ -279,7 +279,7 @@ export const ReadinessSchema = z.strictObject({
 export type Readiness = z.infer<typeof ReadinessSchema>;
 
 // One point as the run has it so far: pending before its turn, running,
-// then done with its outcome and the evidence koid holds for it.
+// then done with its outcome and the evidence previewlaned holds for it.
 export const PointStatusSchema = z.strictObject({
 	id: PointIdSchema,
 	state: z.enum(['pending', 'running', 'done']),
@@ -455,7 +455,7 @@ export const IndexCursorSchema = z
 
 // -- The CLI's results --------------------------------------------------------
 
-// What `koi verify evidence RUN --out DIR --json` prints, and export.json holds:
+// What `previewlane verify evidence RUN --out DIR --json` prints, and export.json holds:
 // where each artifact went, or why it did not. `complete` is true only when every
 // event and every artifact the manifest records is in the export, the events run in
 // order and hash to the manifest, and each artifact hashes to it too. `missing` says

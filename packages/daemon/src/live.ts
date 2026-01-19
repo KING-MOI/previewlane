@@ -1,5 +1,5 @@
 import { PutParameterCommand, type SSMClient } from '@aws-sdk/client-ssm';
-import { encodeLivePreviews, LIVE_PREVIEWS_MAX_BYTES, livePreviewsFit } from '@koi/shared';
+import { encodeLivePreviews, LIVE_PREVIEWS_MAX_BYTES, livePreviewsFit } from '@previewlane/shared';
 
 // Publishes the labels allowed to wake the box, where whatever wakes it
 // reads them: the SSM parameter the wake function reads on AWS, or a file on
@@ -9,7 +9,7 @@ export interface LiveList {
 	// Whether a list of these labels can be published. Deployer.up asks before
 	// it accepts a new label and refuses the label with the reason given here,
 	// so a list too long at publish means records changed on disk behind
-	// koid's back.
+	// previewlaned's back.
 	room(labels: string[]): Room;
 }
 

@@ -13,18 +13,18 @@ export interface Origin {
 	port: number;
 }
 
-// The origin of KOI_PREVIEW_URL. Only plain http is served inside the run
+// The origin of PREVIEWLANE_PREVIEW_URL. Only plain http is served inside the run
 // network; anything else is a configuration mistake.
 export function parseOrigin(url: string): Origin {
 	let parsed: URL;
 	try {
 		parsed = new URL(url);
 	} catch {
-		throw new Error('KOI_PREVIEW_URL is not a URL');
+		throw new Error('PREVIEWLANE_PREVIEW_URL is not a URL');
 	}
-	if (parsed.protocol !== 'http:') throw new Error('KOI_PREVIEW_URL must be http://');
+	if (parsed.protocol !== 'http:') throw new Error('PREVIEWLANE_PREVIEW_URL must be http://');
 	if (parsed.username !== '' || parsed.password !== '') {
-		throw new Error('KOI_PREVIEW_URL must not carry credentials');
+		throw new Error('PREVIEWLANE_PREVIEW_URL must not carry credentials');
 	}
 	const port = parsed.port === '' ? 80 : Number(parsed.port);
 	return { host: parsed.hostname, port };

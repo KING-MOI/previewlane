@@ -7,7 +7,7 @@ import {
 	PingReplySchema,
 	type StatusReply,
 	StatusReplySchema,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import {
 	BoxUnavailableError,
 	type CtlResult,
@@ -21,58 +21,58 @@ import {
 	UnsupportedCapabilityError,
 } from '../transport.ts';
 
-// What every transport does the same way once it can run `koid ctl`: read
+// What every transport does the same way once it can run `previewlaned ctl`: read
 // the host descriptor, follow a build log by polling status, and hold each
 // call to the caller's deadline and signal. The AWS transport (aws.ts) did
 // this first; the SSH transport (ssh.ts) shares it unchanged.
 
 export type Ctl = (args: string[], o?: OperationOptions) => Promise<CtlResult>;
 
-// The host's descriptor through `koid ctl describe`.
+// The host's descriptor through `previewlaned ctl describe`.
 export async function describeViaCtl(ctl: Ctl, o: OperationOptions | undefined) {
 	const r = await ctl(['describe'], o);
-	// A koid from before the descriptor: its ctl knows no such command
+	// A previewlaned from before the descriptor: its ctl knows no such command
 	// and answers as for bad arguments.
 	if (r.code === CTL_EXIT.usage) {
 		throw new UnsupportedCapabilityError(
 			'describe',
-			'koid on the box does not answer koid ctl describe; it predates the host descriptor',
+			'previewlaned on the box does not answer previewlaned ctl describe; it predates the host descriptor',
 		);
 	}
 	if (r.code !== CTL_EXIT.ok) {
-		throw new Error(ctlErrorText(r) || `koid ctl describe exited ${r.code}`);
+		throw new Error(ctlErrorText(r) || `previewlaned ctl describe exited ${r.code}`);
 	}
 	return parseDescriptor(r);
 }
 
-// The descriptor a successful `koid ctl describe` printed.
+// The descriptor a successful `previewlaned ctl describe` printed.
 export function parseDescriptor(r: CtlResult): HostInfo {
 	const parsed = HostInfoSchema.safeParse(parseJson(r.stdout));
 	if (!parsed.success) {
 		throw new Error(
-			`koid ctl describe returned a descriptor koi cannot read: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
+			`previewlaned ctl describe returned a descriptor previewlane cannot read: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
 		);
 	}
 	return parsed.data;
 }
 
-// How long ensureAwake waits for koid to answer once the host answers.
-export const KOID_READY_MS = 5 * 60_000;
+// How long ensureAwake waits for previewlaned to answer once the host answers.
+export const PREVIEWLANED_READY_MS = 5 * 60_000;
 
-// How long streamLogs keeps asking for a status while the host or koid cannot
-// answer, as while koid restarts.
+// How long streamLogs keeps asking for a status while the host or previewlaned cannot
+// answer, as while previewlaned restarts.
 export const STATUS_RETRY_MS = 5 * 60_000;
 
 // How long streamLogs waits between two status reads of a build in flight.
 export const STATUS_POLL_MS = 3000;
 
-// A build log as koid ctl status pages it: the lines of one attempt from a
+// A build log as previewlaned ctl status pages it: the lines of one attempt from a
 // byte offset, with the offset to ask for next. The stream follows the
-// attempt koid is on: when koid builds the request again, a gap says so and
+// attempt previewlaned is on: when previewlaned builds the request again, a gap says so and
 // the new attempt's log follows from its start. It ends once the build has
 // finished and its log is drained. A cursor is `<offset>:<skip>`: page from
 // that byte offset and skip that many lines, which resumes exactly after the
-// line that carried it, since koid pages a finished stretch of log the same
+// line that carried it, since previewlaned pages a finished stretch of log the same
 // way each time. With a time limit, the whole stream has one deadline from
 // its start, and ends there with a gap that says so, then `end`.
 export async function* buildLog(
@@ -136,13 +136,13 @@ export async function* buildLog(
 		failing = undefined;
 		const { record, log } = read.reply;
 		if (q.requestId !== undefined && record.requestId !== q.requestId) {
-			throw new Error(`superseded by a newer koi up for ${q.label}`);
+			throw new Error(`superseded by a newer previewlane up for ${q.label}`);
 		}
 		if (record.attempt !== attempt) {
 			if (attempt !== undefined) {
 				yield {
 					type: 'gap',
-					reason: `koid is building ${q.label} again; its new build log follows from the start`,
+					reason: `previewlaned is building ${q.label} again; its new build log follows from the start`,
 				};
 			}
 			attempt = record.attempt;
@@ -158,7 +158,7 @@ export async function* buildLog(
 		skip = 0;
 		if (log.lines.length > 0) offset = log.next;
 		// Any status but an in-flight one is a verdict on the build: running,
-		// failed, and also stopped or expired, which koid keeps the record and
+		// failed, and also stopped or expired, which previewlaned keeps the record and
 		// log of. The log will not grow, so drain it and end.
 		if (!IN_FLIGHT_STATUSES.has(record.status)) {
 			if (log.lines.length === 0) {
@@ -233,8 +233,8 @@ export function parseCursor(cursor: string): { offset: number; skip: number } {
 	return { offset: Number(m[1]), skip: Number(m[2]) };
 }
 
-// One status read: koid's reply, why it could not be had this time, or that
-// the stream's time limit passed while koi waited for it. Throws on a
+// One status read: previewlaned's reply, why it could not be had this time, or that
+// the stream's time limit passed while previewlane waited for it. Throws on a
 // failure that asking again will not fix, and when the caller's signal
 // ended the read.
 async function readStatus(
@@ -248,7 +248,7 @@ async function readStatus(
 		r = await ctl(args, o);
 	} catch (err) {
 		if (err instanceof BoxUnavailableError) return { unavailable: err.message };
-		// A read koi stopped waiting for has no outcome worth knowing: status
+		// A read previewlane stopped waiting for has no outcome worth knowing: status
 		// changes nothing on the box. ctl stops waiting for the caller's
 		// signal, which keeps its error, or for the time limit.
 		if (err instanceof UnknownOutcomeError && !o?.signal?.aborted) return { overdue: true };
@@ -256,10 +256,10 @@ async function readStatus(
 	}
 	if (r.code === CTL_EXIT.unavailable) return { unavailable: ctlErrorText(r) };
 	if (r.code !== CTL_EXIT.ok) {
-		const why = ctlErrorText(r) || `koid ctl status exited ${r.code}`;
+		const why = ctlErrorText(r) || `previewlaned ctl status exited ${r.code}`;
 		throw new Error(
 			why === NO_SUCH_PREVIEW
-				? `koid no longer has ${label}; someone may have removed it with koi down`
+				? `previewlaned no longer has ${label}; someone may have removed it with previewlane down`
 				: `stopped following ${label}: ${why}`,
 		);
 	}

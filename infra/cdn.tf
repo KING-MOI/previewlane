@@ -51,7 +51,7 @@ resource "aws_acm_certificate_validation" "edge" {
 # Lets CloudFront call the wake function's URL with SigV4, so the URL itself
 # is not publicly invokable.
 resource "aws_cloudfront_origin_access_control" "wake" {
-  name                              = "koi-wake"
+  name                              = "previewlane-wake"
   origin_access_control_origin_type = "lambda"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
@@ -64,7 +64,7 @@ locals {
 resource "aws_cloudfront_distribution" "edge" {
   enabled         = true
   is_ipv6_enabled = true
-  comment         = "koi previews"
+  comment         = "previewlane previews"
   http_version    = "http2and3"
   price_class     = "PriceClass_100"
   aliases         = ["*.${var.domain}", var.domain]
@@ -115,7 +115,7 @@ resource "aws_cloudfront_distribution" "edge" {
   # The wake page and its API. Host must not be forwarded here: a function URL
   # only answers to its own hostname.
   ordered_cache_behavior {
-    path_pattern             = "/__koi-wake/*"
+    path_pattern             = "/__previewlane-wake/*"
     target_origin_id         = "wake"
     viewer_protocol_policy   = "https-only"
     allowed_methods          = ["GET", "HEAD", "OPTIONS"]
@@ -126,7 +126,7 @@ resource "aws_cloudfront_distribution" "edge" {
   }
 
   # A stopped box never answers the SYN (CloudFront returns 504), a booting box
-  # refuses the connection (502), and Caddy answers 502 while koid is down. 503
+  # refuses the connection (502), and Caddy answers 502 while previewlaned is down. 503
   # is deliberately left out: CloudFront replaces matching responses from the
   # app too, and 503 is a status real apps send. The cost is that a preview's
   # own 502 or 504 also shows the wake page.
@@ -135,7 +135,7 @@ resource "aws_cloudfront_distribution" "edge" {
     content {
       error_code            = custom_error_response.value
       response_code         = 503
-      response_page_path    = "/__koi-wake/index.html"
+      response_page_path    = "/__previewlane-wake/index.html"
       error_caching_min_ttl = 0
     }
   }

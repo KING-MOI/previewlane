@@ -6,27 +6,27 @@ import {
 	canonicalDigest,
 	type InputSnapshot,
 	InputSnapshotSchema,
-	KOI_DIR,
+	PREVIEWLANE_DIR,
 	loadVerifyConfig,
 	MAX_VERIFY_FILE_BYTES,
 	type UpRequest,
 	type VerifyConfig,
 	VerifyConfigError,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { fsyncDir, PENDING_INPUTS_PREFIX, syncTree, writeAtomic } from './verification-store.ts';
 
 // The input snapshot (docs/verify.md, "Recorder and evidence"): what the
 // deployer keeps of a build's verification inputs before it removes the
 // build directory, so a plan made later reads the files the build had and
-// nothing is ever taken from the running container. Bounded: .koi/ is
-// measured before the loader opens anything in it (koiFiles, koiBytes),
+// nothing is ever taken from the running container. Bounded: .previewlane/ is
+// measured before the loader opens anything in it (previewlaneFiles, previewlaneBytes),
 // the loader's files at its limit, fixtures at 16 MiB each and 64 MiB
 // together, the changed-file list at 1 MiB. Everything is copied by
 // reading the file without following a symlink, written 0600 (0700 when the
 // file is executable, since a point may run it by its path) under 0700
 // directories into a pending directory, and the whole directory is renamed
 // into place once snapshot.json, written last, is in it and every directory
-// under it is synced (syncTree). A koid killed during the copy leaves that
+// under it is synced (syncTree). A previewlaned killed during the copy leaves that
 // directory, and EvidenceStore.sweep removes it. A project without
 // verification files gets a snapshot that says so. A built-in recipe is
 // recorded by the digest of the files in the copy of its directory
@@ -38,18 +38,18 @@ export const SNAPSHOT_LIMITS = {
 	fixtureBytes: 16 * 1024 ** 2,
 	totalBytes: 64 * 1024 ** 2,
 	changedFilesBytes: 1024 ** 2,
-	// What .koi/ may hold, counted before the loader reads any of it. The
+	// What .previewlane/ may hold, counted before the loader reads any of it. The
 	// loader bounds each file but holds every file it reads, so a tree of
 	// thousands of point files would be in memory before the byte bound
 	// above could apply.
-	koiFiles: 2000,
-	koiBytes: 64 * 1024 ** 2,
+	previewlaneFiles: 2000,
+	previewlaneBytes: 64 * 1024 ** 2,
 } as const;
 
 // Where the CLI writes the changed-file list on every build.
-export const CHANGED_FILES = '.koi-runtime/changed-files.txt';
+export const CHANGED_FILES = '.previewlane-runtime/changed-files.txt';
 
-// The tree's advisory required policy and proof records, under .koi/.
+// The tree's advisory required policy and proof records, under .previewlane/.
 export const REQUIRED_POLICY = 'required.yaml';
 export const PROOFS_DIR = 'proofs';
 // The most proof files a snapshot copies; a project has one per required
@@ -71,7 +71,7 @@ export interface SnapshotInput {
 // A built-in recipe as the build used it: its installed directory on the
 // box, and the digest of each regular file in the copy of it the build
 // read (deployer.ts). scripts/deploy-host.sh replaces the installed
-// recipes before it restarts the old koid, so the build never reads the
+// recipes before it restarts the old previewlaned, so the build never reads the
 // installed directory itself, and a hash of it could be of a newer recipe
 // than the one built.
 export interface SnapshotRecipe {
@@ -169,9 +169,9 @@ async function build(
 
 	let verify: InputSnapshot['verify'] | undefined;
 	let loaded: VerifyConfig | undefined;
-	// Before the loader opens anything: what .koi/ holds, so a tree past the
+	// Before the loader opens anything: what .previewlane/ holds, so a tree past the
 	// bound is refused unread and the snapshot says so.
-	const over = await koiOverBound(input.source);
+	const over = await previewlaneOverBound(input.source);
 	if (over !== undefined) {
 		verify = { status: 'invalid', error: over };
 	} else {
@@ -179,12 +179,12 @@ async function build(
 			loaded = await loadVerifyConfig(input.source);
 		} catch (err) {
 			if (!(err instanceof VerifyConfigError)) throw err;
-			// No .koi/ or no manifest is a project without verification files;
+			// No .previewlane/ or no manifest is a project without verification files;
 			// anything else is a project whose files do not load.
 			const missing =
 				err.field === undefined &&
 				err.message.endsWith(': not found') &&
-				(err.file === `${KOI_DIR}/verify.yaml` || err.file === KOI_DIR);
+				(err.file === `${PREVIEWLANE_DIR}/verify.yaml` || err.file === PREVIEWLANE_DIR);
 			verify = missing
 				? { status: 'absent' }
 				: { status: 'invalid', error: err.message.slice(0, 2000) };
@@ -201,7 +201,7 @@ async function build(
 		const seen = new Set<string>();
 		for (const point of loaded.points) {
 			for (const fixture of point.point.requires?.fixtures ?? []) {
-				const path = `${KOI_DIR}/${fixture}`;
+				const path = `${PREVIEWLANE_DIR}/${fixture}`;
 				if (seen.has(path)) continue;
 				seen.add(path);
 				fixtures.push({ path, ...(await copy(path, SNAPSHOT_LIMITS.fixtureBytes)) });
@@ -209,25 +209,25 @@ async function build(
 		}
 		const other: Array<{ path: string; digest: string; size: number }> = [];
 		for (const skill of loaded.manifest.skills) {
-			const path = `${KOI_DIR}/${skill.path}`;
+			const path = `${PREVIEWLANE_DIR}/${skill.path}`;
 			if (seen.has(path) || path in loaded.digests) continue;
 			seen.add(path);
 			other.push({ path, ...(await copy(path, SNAPSHOT_LIMITS.fixtureBytes)) });
 		}
-		const koiYaml = `${KOI_DIR}/koi.yaml`;
-		if ((await lstat(join(input.source, koiYaml)).catch(() => undefined))?.isFile()) {
-			other.push({ path: koiYaml, ...(await copy(koiYaml, SNAPSHOT_LIMITS.fixtureBytes)) });
+		const previewlaneYaml = `${PREVIEWLANE_DIR}/previewlane.yaml`;
+		if ((await lstat(join(input.source, previewlaneYaml)).catch(() => undefined))?.isFile()) {
+			other.push({ path: previewlaneYaml, ...(await copy(previewlaneYaml, SNAPSHOT_LIMITS.fixtureBytes)) });
 		}
 		// The tree's own required policy and proof records, for the planner
 		// to show. Advisory: a pull request cannot make its own checks
 		// required, so these never decide readiness; the trusted source is
 		// the protected base branch, which is later work.
-		const required = `${KOI_DIR}/${REQUIRED_POLICY}`;
+		const required = `${PREVIEWLANE_DIR}/${REQUIRED_POLICY}`;
 		if ((await lstat(join(input.source, required)).catch(() => undefined))?.isFile()) {
 			other.push({ path: required, ...(await copy(required, MAX_VERIFY_FILE_BYTES)) });
 		}
-		for (const name of await proofFiles(join(input.source, KOI_DIR, PROOFS_DIR))) {
-			const path = `${KOI_DIR}/${PROOFS_DIR}/${name}`;
+		for (const name of await proofFiles(join(input.source, PREVIEWLANE_DIR, PROOFS_DIR))) {
+			const path = `${PREVIEWLANE_DIR}/${PROOFS_DIR}/${name}`;
 			other.push({ path, ...(await copy(path, MAX_VERIFY_FILE_BYTES)) });
 		}
 		// The copy must load as the original did, with the same digests;
@@ -273,12 +273,12 @@ async function build(
 	});
 }
 
-// Why .koi/ under `source` is past SNAPSHOT_LIMITS.koiFiles or koiBytes,
+// Why .previewlane/ under `source` is past SNAPSHOT_LIMITS.previewlaneFiles or previewlaneBytes,
 // or undefined when it is within them or absent. Counts regular files and
 // their sizes without following symlinks or opening anything; the loader
 // judges symlinks and each file's size when it reads.
-async function koiOverBound(source: string): Promise<string | undefined> {
-	const root = join(source, KOI_DIR);
+async function previewlaneOverBound(source: string): Promise<string | undefined> {
+	const root = join(source, PREVIEWLANE_DIR);
 	if (!(await lstat(root).catch(() => undefined))?.isDirectory()) return undefined;
 	let files = 0;
 	let bytes = 0;
@@ -291,11 +291,11 @@ async function koiOverBound(source: string): Promise<string | undefined> {
 			} else if (entry.isFile()) {
 				files += 1;
 				bytes += (await lstat(path)).size;
-				if (files > SNAPSHOT_LIMITS.koiFiles) {
-					return `${KOI_DIR}/ holds more than ${SNAPSHOT_LIMITS.koiFiles} files; koi reads no more than that`;
+				if (files > SNAPSHOT_LIMITS.previewlaneFiles) {
+					return `${PREVIEWLANE_DIR}/ holds more than ${SNAPSHOT_LIMITS.previewlaneFiles} files; previewlane reads no more than that`;
 				}
-				if (bytes > SNAPSHOT_LIMITS.koiBytes) {
-					return `${KOI_DIR}/ holds more than ${SNAPSHOT_LIMITS.koiBytes} bytes; koi reads no more than that`;
+				if (bytes > SNAPSHOT_LIMITS.previewlaneBytes) {
+					return `${PREVIEWLANE_DIR}/ holds more than ${SNAPSHOT_LIMITS.previewlaneBytes} bytes; previewlane reads no more than that`;
 				}
 			}
 		}
@@ -317,7 +317,7 @@ export async function proofFiles(dir: string): Promise<string[]> {
 	}
 	if (names.length > MAX_PROOF_FILES) {
 		throw new SnapshotError(
-			`${KOI_DIR}/${PROOFS_DIR}/ holds ${names.length} files; koi reads at most ${MAX_PROOF_FILES}`,
+			`${PREVIEWLANE_DIR}/${PROOFS_DIR}/ holds ${names.length} files; previewlane reads at most ${MAX_PROOF_FILES}`,
 		);
 	}
 	return names.sort();
@@ -403,7 +403,7 @@ export async function readFileNoFollow(
 		const info = await handle.stat();
 		if (!info.isFile()) throw new SnapshotError(`${name} is not a regular file`);
 		if (info.size > max)
-			throw new SnapshotError(`${name} is ${info.size} bytes; the most koi keeps is ${max}`);
+			throw new SnapshotError(`${name} is ${info.size} bytes; the most previewlane keeps is ${max}`);
 		const chunks: Buffer[] = [];
 		let length = 0;
 		for (;;) {
@@ -412,7 +412,7 @@ export async function readFileNoFollow(
 			if (bytesRead === 0) break;
 			length += bytesRead;
 			if (length > max)
-				throw new SnapshotError(`${name} is over ${max} bytes; it grew while koi read it`);
+				throw new SnapshotError(`${name} is over ${max} bytes; it grew while previewlane read it`);
 			chunks.push(buffer.subarray(0, bytesRead));
 		}
 		return { bytes: Buffer.concat(chunks), executable: (info.mode & 0o111) !== 0 };

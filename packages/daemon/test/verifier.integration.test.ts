@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { type RunNetworkRecord, stagingName } from '@koi/shared';
+import { type RunNetworkRecord, stagingName } from '@previewlane/shared';
 import { cliDocker } from '../src/docker.ts';
 import { exec } from '../src/exec.ts';
 import { newRecorderTokens, RecorderSession, recorderEnv } from '../src/recorder.ts';
@@ -18,10 +18,10 @@ import {
 	VerifierRunner,
 } from '../src/verifier.ts';
 
-// Real Docker, opt in with KOI_DOCKER_TESTS=1. Builds examples/hello, the
+// Real Docker, opt in with PREVIEWLANE_DOCKER_TESTS=1. Builds examples/hello, the
 // recorder (host/recorder) and the default verifier (host/verifier), which
 // takes minutes and downloads the pinned bases and packages, then does for
-// the hello point what `koi verify run` does for each point of a plan: the
+// the hello point what `previewlane verify run` does for each point of a plan: the
 // recorder's context opened at /, a verifier created from the resolved
 // image with the frozen inputs and the supervisor, the point's runner
 // executed under the protocol against the recorder's browser, and the
@@ -36,20 +36,20 @@ import {
 // with fakes in verification.test.ts. The network here is a plain one, not
 // kv+, so a provisioned box's rules do not drop it; the subnet is in
 // TEST-NET-3, which nothing routes.
-const enabled = process.env.KOI_DOCKER_TESTS === '1';
+const enabled = process.env.PREVIEWLANE_DOCKER_TESTS === '1';
 const run = randomUUID().replace(/-/g, '').slice(0, 10);
 const runId = `it${run}${run}`;
-const network = `koi-it-ver-${run}`;
+const network = `previewlane-it-ver-${run}`;
 const bridge = `ke${run}00`;
 const subnet = '203.0.113.0/28';
 const gateway = '203.0.113.1';
 const appIp = '203.0.113.2';
 const recorderIp = '203.0.113.3';
 const verifierIp = '203.0.113.4';
-const recorderImage = `koi-it-recorder:${run}`;
-const verifierImage = `koi-it-verifier:${run}`;
-const helloImage = `koi-it-hello:${run}`;
-const appName = `koi-it-ver-app-${run}`;
+const recorderImage = `previewlane-it-recorder:${run}`;
+const verifierImage = `previewlane-it-verifier:${run}`;
+const helloImage = `previewlane-it-hello:${run}`;
+const appName = `previewlane-it-ver-app-${run}`;
 const recorderName = helperName(runId, 'recorder');
 const verifierName = helperName(runId, 'verifier');
 const repo = resolve(import.meta.dir, '../../..');
@@ -144,7 +144,7 @@ test.skipIf(!enabled)(
 		]);
 		await startApp(undefined);
 
-		// The run network's record, as koid would have it for this network.
+		// The run network's record, as previewlaned would have it for this network.
 		const record: RunNetworkRecord = {
 			version: 1,
 			runId,
@@ -167,7 +167,7 @@ test.skipIf(!enabled)(
 			runId,
 			appHost: { name: appHost, ip: appIp },
 			dns: gateway,
-			env: { KOI_RUN_ID: runId, KOI_PREVIEW_URL: `http://${appHost}:8080` },
+			env: { PREVIEWLANE_RUN_ID: runId, PREVIEWLANE_PREVIEW_URL: `http://${appHost}:8080` },
 		};
 		await docker.createRecorder({
 			...common,
@@ -190,13 +190,13 @@ test.skipIf(!enabled)(
 		// The image policy: the manifest names the default image.
 		const info = await docker.imageInfo(verifierImage);
 		if (info === undefined) throw new Error('the verifier image was not built');
-		const image = await resolveRunnerImage(docker, 'koi-verifier', {
+		const image = await resolveRunnerImage(docker, 'previewlane-verifier', {
 			defaultImageId: info.id,
 			allowed: [],
 		});
 		if (!image.ok) throw new Error(image.reason);
 
-		const state = await mkdtemp(join(tmpdir(), 'koid-it-verifier-'));
+		const state = await mkdtemp(join(tmpdir(), 'previewlaned-it-verifier-'));
 		const evidence = new EvidenceStore({ stateDir: state, now: () => new Date() });
 		await evidence.init();
 		const writer = await evidence.openRun(runId);
@@ -218,7 +218,7 @@ test.skipIf(!enabled)(
 		};
 		const session = await RecorderSession.start(deps, { record, tokens, run: writer });
 		const runner = new VerifierRunner(deps);
-		const { loadVerifyConfig } = await import('@koi/shared');
+		const { loadVerifyConfig } = await import('@previewlane/shared');
 		const config = await loadVerifyConfig(resolve(repo, 'examples/hello'));
 		const loaded = config.points[0];
 		if (loaded === undefined) throw new Error('no hello point');
@@ -309,7 +309,7 @@ test.skipIf(!enabled)(
 			expect(passed.reasons).toEqual([]);
 			expect(passed.outcome).toBe('pass');
 			expect(passed.reports).toHaveLength(1);
-			expect(passed.reports[0]?.detail).toBe('the heading reads "hello from koi"');
+			expect(passed.reports[0]?.detail).toBe('the heading reads "hello from previewlane"');
 			// A screenshot and the recorder's own read of /, both kept.
 			const kinds = passed.evidence.map((id) => writer.artifacts.find((a) => a.id === id)?.kind);
 			expect(kinds.sort()).toEqual(['http-response', 'screenshot']);
@@ -318,7 +318,7 @@ test.skipIf(!enabled)(
 				await readFile(join(writer.dir, 'artifacts', read?.id ?? ''), 'utf8'),
 			) as { response: { status: number; body?: string } };
 			expect(state.response.status).toBe(200);
-			expect(state.response.body).toContain('hello from koi');
+			expect(state.response.body).toContain('hello from previewlane');
 			const shot = writer.artifacts.find((a) => a.kind === 'screenshot' && a.attempt === 1);
 			expect(shot?.availability).toBe('available');
 			expect(shot?.size).toBeGreaterThan(1000);
@@ -346,7 +346,7 @@ test.skipIf(!enabled)(
 			expect(failed.failures).toEqual([]);
 			expect(failed.outcome).toBe('fail');
 			expect(failed.reasons).toEqual([
-				'home-says-hello failed: the heading reads "hello from nobody", not "hello from koi"',
+				'home-says-hello failed: the heading reads "hello from nobody", not "hello from previewlane"',
 			]);
 			// The events hold the runner's words, scrubbed, and never the token.
 			const events = await readFile(join(writer.dir, 'events.ndjson'), 'utf8');

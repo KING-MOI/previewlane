@@ -61,7 +61,7 @@ const status: RunStatus = {
 describe('ArtifactSchema', () => {
 	test("accepts the design's manifest entry and nothing more", () => {
 		expect(ArtifactSchema.parse(artifact)).toEqual(artifact);
-		expect(ArtifactSchema.safeParse({ ...artifact, path: '/var/lib/koi/x' }).success).toBe(false);
+		expect(ArtifactSchema.safeParse({ ...artifact, path: '/var/lib/previewlane/x' }).success).toBe(false);
 		expect(ArtifactSchema.safeParse({ ...artifact, origin: 'runner' }).success).toBe(false);
 		expect(ArtifactSchema.safeParse({ ...artifact, kind: 'video' }).success).toBe(false);
 		expect(
@@ -217,14 +217,14 @@ describe('InputSnapshotSchema', () => {
 		expect(
 			InputSnapshotSchema.safeParse({
 				...base,
-				verify: { status: 'invalid', error: '.koi/verify.yaml: version: Invalid input' },
+				verify: { status: 'invalid', error: '.previewlane/verify.yaml: version: Invalid input' },
 			}).success,
 		).toBe(true);
 		const present = {
 			status: 'present',
-			digests: { '.koi/verify.yaml': DIGEST },
-			points: [{ id: 'hello.home', revision: 1, path: '.koi/points/home.yaml' }],
-			fixtures: [{ path: '.koi/fixtures/probe.txt', digest: DIGEST, size: 12 }],
+			digests: { '.previewlane/verify.yaml': DIGEST },
+			points: [{ id: 'hello.home', revision: 1, path: '.previewlane/points/home.yaml' }],
+			fixtures: [{ path: '.previewlane/fixtures/probe.txt', digest: DIGEST, size: 12 }],
 			other: [],
 		};
 		expect(InputSnapshotSchema.safeParse({ ...base, verify: present }).success).toBe(true);

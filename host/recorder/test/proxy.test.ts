@@ -731,14 +731,14 @@ describe('the browser port proxy', () => {
 			expect(messages[0]).toBe(`echo:${allowed}`);
 			expect(JSON.parse(messages[1] ?? '')).toEqual({
 				id: 2,
-				error: { code: METHOD_NOT_FOUND, message: 'koi recorder: Tracing.start is not permitted' },
+				error: { code: METHOD_NOT_FOUND, message: 'previewlane recorder: Tracing.start is not permitted' },
 			});
 			// A refusal on a session carries that session id, so the client
 			// routes it to the session that asked.
 			expect(JSON.parse(messages[2] ?? '')).toEqual({
 				id: 3,
 				sessionId: 'S1',
-				error: { code: METHOD_NOT_FOUND, message: 'koi recorder: Fetch.enable is not permitted' },
+				error: { code: METHOD_NOT_FOUND, message: 'previewlane recorder: Fetch.enable is not permitted' },
 			});
 			expect(JSON.parse((messages[3] ?? '').slice('echo:'.length))).toEqual({
 				id: 4,
@@ -794,7 +794,7 @@ describe('the browser port proxy', () => {
 				sessionId: 'S9',
 				error: {
 					code: METHOD_NOT_FOUND,
-					message: 'koi recorder: Runtime.evaluate for an unknown session',
+					message: 'previewlane recorder: Runtime.evaluate for an unknown session',
 				},
 			});
 			// Chromium announces the session; now the same message is relayed.
@@ -856,7 +856,7 @@ describe('the browser port proxy', () => {
 				sessionId: 'S1',
 				error: {
 					code: METHOD_NOT_FOUND,
-					message: 'koi recorder: Page.navigate to a non-navigable URL',
+					message: 'previewlane recorder: Page.navigate to a non-navigable URL',
 				},
 			});
 			// A browser-level refusal carries no session, like the request.
@@ -865,7 +865,7 @@ describe('the browser port proxy', () => {
 				id: 2,
 				error: {
 					code: METHOD_NOT_FOUND,
-					message: 'koi recorder: Target.closeTarget is not permitted',
+					message: 'previewlane recorder: Target.closeTarget is not permitted',
 				},
 			});
 			expect(browser.received).toEqual([]);
@@ -924,7 +924,7 @@ describe('the browser port proxy', () => {
 				sessionId: 'S-page',
 				error: {
 					code: METHOD_NOT_FOUND,
-					message: 'koi recorder: Page.navigate to a non-navigable URL',
+					message: 'previewlane recorder: Page.navigate to a non-navigable URL',
 				},
 			});
 			// And an allowed command on it is relayed.
@@ -987,7 +987,7 @@ describe('the browser port proxy', () => {
 				sessionId: 'S1',
 				error: {
 					code: METHOD_NOT_FOUND,
-					message: 'koi recorder: Page.enable for an unknown session',
+					message: 'previewlane recorder: Page.enable for an unknown session',
 				},
 			});
 			expect(browser.received).toEqual([before]);
@@ -1013,7 +1013,7 @@ describe('the browser port proxy', () => {
 				id: 1,
 				error: {
 					code: METHOD_NOT_FOUND,
-					message: 'koi recorder: Target.attachedToTarget is not permitted',
+					message: 'previewlane recorder: Target.attachedToTarget is not permitted',
 				},
 			});
 			client.ws.send(
@@ -1022,7 +1022,7 @@ describe('the browser port proxy', () => {
 			expect(await client.reply(2)).toMatchObject({
 				id: 2,
 				sessionId: 'S-forged',
-				error: { message: 'koi recorder: Runtime.evaluate for an unknown session' },
+				error: { message: 'previewlane recorder: Runtime.evaluate for an unknown session' },
 			});
 			// A result from the browser that carries such an object by value,
 			// as Runtime.evaluate with returnByValue would, is told from an
@@ -1040,7 +1040,7 @@ describe('the browser port proxy', () => {
 			);
 			expect(await client.reply(3)).toMatchObject({
 				id: 3,
-				error: { message: 'koi recorder: Runtime.evaluate for an unknown session' },
+				error: { message: 'previewlane recorder: Runtime.evaluate for an unknown session' },
 			});
 			expect(browser.received).toEqual([]);
 			// Sessions are still tracked afterwards: a real attach is known.
@@ -1089,7 +1089,7 @@ describe('the browser port proxy', () => {
 					id: 1,
 					error: {
 						code: METHOD_NOT_FOUND,
-						message: 'koi recorder: Tracing.start is not permitted',
+						message: 'previewlane recorder: Tracing.start is not permitted',
 					},
 				},
 			]);

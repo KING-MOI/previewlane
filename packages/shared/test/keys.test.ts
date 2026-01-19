@@ -6,7 +6,7 @@ import {
 	RegisterKeysSchema,
 } from '../src/index.ts';
 
-const TOKEN = `koi_${'a'.repeat(32)}`;
+const TOKEN = `previewlane_${'a'.repeat(32)}`;
 
 describe('the keys API schemas', () => {
 	test('a provider key is one line of 1 to 512 characters', () => {
@@ -34,7 +34,7 @@ describe('the keys API schemas', () => {
 
 	test('forgetting names one token the proxy made, and nothing else', () => {
 		expect(ForgetTokenSchema.safeParse({ token: TOKEN }).success).toBe(true);
-		for (const bad of [{ token: 'koi_short' }, { token: TOKEN, label: 'evil-pr-8' }, {}]) {
+		for (const bad of [{ token: 'previewlane_short' }, { token: TOKEN, label: 'evil-pr-8' }, {}]) {
 			expect(ForgetTokenSchema.safeParse(bad).success).toBe(false);
 		}
 	});

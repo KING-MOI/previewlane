@@ -33,15 +33,15 @@ const labels = (n: number) => Array.from({ length: n }, (_, i) => long(i));
 describe('ssmLiveList', () => {
 	test('writes the labels, each once and sorted, as a String parameter', async () => {
 		const c = client();
-		await ssmLiveList('/koi/previews', c.ssm).publish(['b', 'a', 'b']);
+		await ssmLiveList('/previewlane/previews', c.ssm).publish(['b', 'a', 'b']);
 		expect(c.sent).toEqual([
-			{ Name: '/koi/previews', Value: '["a","b"]', Type: 'String', Overwrite: true },
+			{ Name: '/previewlane/previews', Value: '["a","b"]', Type: 'String', Overwrite: true },
 		]);
 	});
 
 	test('skips the call when the list has not changed, in any order', async () => {
 		const c = client();
-		const live = ssmLiveList('/koi/previews', c.ssm);
+		const live = ssmLiveList('/previewlane/previews', c.ssm);
 		await live.publish(['a', 'b']);
 		await live.publish(['b', 'a']);
 		expect(c.sent).toHaveLength(1);
@@ -51,7 +51,7 @@ describe('ssmLiveList', () => {
 
 	test('sends the same list again after a call that failed', async () => {
 		const c = client();
-		const live = ssmLiveList('/koi/previews', c.ssm);
+		const live = ssmLiveList('/previewlane/previews', c.ssm);
 		c.fail(1);
 		await expect(live.publish(['a'])).rejects.toThrow('ThrottlingException');
 		await live.publish(['a']);
@@ -60,24 +60,24 @@ describe('ssmLiveList', () => {
 
 	test('writes a list of exactly 4096 bytes and refuses a longer one without calling SSM', async () => {
 		const c = client();
-		const live = ssmLiveList('/koi/previews', c.ssm);
+		const live = ssmLiveList('/previewlane/previews', c.ssm);
 		await live.publish(labels(63));
 		expect(new TextEncoder().encode(c.sent[0]?.Value ?? '').length).toBe(4096);
 		await expect(live.publish([...labels(63), 'a'])).rejects.toThrow(
-			'64 live previews do not fit in the 4096 bytes of /koi/previews',
+			'64 live previews do not fit in the 4096 bytes of /previewlane/previews',
 		);
 		expect(c.sent).toHaveLength(1);
 	});
 
 	test('refuses a label that is not a preview label without calling SSM', async () => {
 		const c = client();
-		await expect(ssmLiveList('/koi/previews', c.ssm).publish(['Bad_Label'])).rejects.toThrow();
+		await expect(ssmLiveList('/previewlane/previews', c.ssm).publish(['Bad_Label'])).rejects.toThrow();
 		expect(c.sent).toEqual([]);
 	});
 
 	test('has room for a list of exactly 4096 bytes and not for one label more, and says why', () => {
 		const c = client();
-		const live = ssmLiveList('/koi/previews', c.ssm);
+		const live = ssmLiveList('/previewlane/previews', c.ssm);
 		expect(live.room(labels(63))).toEqual({ ok: true });
 		expect(live.room([...labels(63), 'a'])).toEqual({
 			ok: false,

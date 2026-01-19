@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto';
 
 // Raw captures, held in this process's memory from the moment they are
-// taken until koid has read, sanitized and acknowledged them. Never on the
+// taken until previewlaned has read, sanitized and acknowledged them. Never on the
 // filesystem: Chromium and this server share uid 10001, so a file under
 // /tmp is readable through the browser, and a page could read a capture of
-// another page back. Memory is not. Nothing here is evidence: koid hashes
+// another page back. Memory is not. Nothing here is evidence: previewlaned hashes
 // and keeps the sanitized result, and frees the raw bytes by acknowledging.
-// The space is bounded; a run that captures faster than koid acknowledges
+// The space is bounded; a run that captures faster than previewlaned acknowledges
 // fails its captures rather than grow without limit.
 
 export interface StoredCapture {
@@ -66,7 +66,7 @@ export class CaptureStore {
 		return this.held.get(captureId);
 	}
 
-	// koid's acknowledgment: the raw bytes go.
+	// previewlaned's acknowledgment: the raw bytes go.
 	delete(captureId: string): boolean {
 		const stored = this.held.get(captureId);
 		if (stored === undefined) return false;

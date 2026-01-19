@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { encodeLivePreviews } from '@koi/shared';
+import { encodeLivePreviews } from '@previewlane/shared';
 import { writeFileAtomic } from './fsutil.ts';
 import type { LiveList } from './live.ts';
 

@@ -165,7 +165,7 @@ describe('verification reply schemas', () => {
 		expect(BlockedPointSchema.safeParse({ id: 'a.point', reason: 'x' }).success).toBe(true);
 		const policy = (id: string) => ({
 			source: 'none',
-			advisory: { path: '.koi/required.yaml', required: [{ id, revision: 1 }] },
+			advisory: { path: '.previewlane/required.yaml', required: [{ id, revision: 1 }] },
 		});
 		expect(PlanPolicySchema.safeParse(policy('refused:1')).success).toBe(false);
 		expect(PlanPolicySchema.safeParse(policy('a.point')).success).toBe(true);

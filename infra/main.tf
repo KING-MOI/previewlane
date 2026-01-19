@@ -3,7 +3,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project = "koi"
+      Project = "previewlane"
     }
   }
 }
@@ -46,6 +46,6 @@ data "aws_ami" "ubuntu" {
 locals {
   account_id   = data.aws_caller_identity.current.account_id
   origin_host  = "origin.${var.domain}"
-  uploads_name = "koi-uploads-${local.account_id}"
-  previews_ssm = "/koi/previews"
+  uploads_name = "previewlane-uploads-${local.account_id}"
+  previews_ssm = "/previewlane/previews"
 }

@@ -14,7 +14,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { HostInfo, UpRequest } from '@koi/shared';
+import type { HostInfo, UpRequest } from '@previewlane/shared';
 import { type ControlDeps, startControlServer } from '../src/control.ts';
 import {
 	MAX_REQUEST_BYTES,
@@ -172,13 +172,13 @@ function requestFor(method: string, path: string, body: Body): Request {
 		init.body = body;
 		if (body instanceof ReadableStream) init.duplex = 'half';
 	}
-	return new Request(`http://koid/v1/uploads${path}`, init as RequestInit);
+	return new Request(`http://previewlaned/v1/uploads${path}`, init as RequestInit);
 }
 
 async function setup(overrides: Partial<UploadApiOptions> = {}) {
 	// Resolved, so a path the API opens after realpath compares equal to
 	// one built from it here.
-	const root = await realpath(await mkdtemp(join(tmpdir(), 'koid-upload-')));
+	const root = await realpath(await mkdtemp(join(tmpdir(), 'previewlaned-upload-')));
 	// Real time, so entries written now age against it.
 	let now = Date.now();
 	const logs: string[] = [];
@@ -566,7 +566,7 @@ describe('POST /v1/uploads', () => {
 		const t = await setup();
 		const uploadId = await t.ticket();
 		await t.put(uploadId);
-		// The sync fails with EIO, then with ENOSPC, then holds. The koid
+		// The sync fails with EIO, then with ENOSPC, then holds. The previewlaned
 		// that starts over the same spool syncs ready as it starts, and that
 		// holds; its first sync for a ticket fails, then holds.
 		const failures = [eio(), enospc(), undefined, undefined, eio()];
@@ -600,7 +600,7 @@ describe('POST /v1/uploads', () => {
 			expect((await t.call('POST', '', body)).status).toBe(200);
 			expect((await t.commit(uploadId)).status).toBe(200);
 			expect(syncs).toBe(3);
-			// A koid that starts over the same spool syncs ready as it starts,
+			// A previewlaned that starts over the same spool syncs ready as it starts,
 			// but its ledger knows nothing of that sync or the earlier one:
 			// the entry is acknowledged only once a sync for it has held.
 			const restarted = new UploadApi({
@@ -751,7 +751,7 @@ describe('POST /v1/uploads', () => {
 			);
 			await t.api.cleanup();
 			expect(await readdir(t.layout.ready)).toEqual([ID]);
-			// A koid starting over the spool keeps it too, and its ledger
+			// A previewlaned starting over the spool keeps it too, and its ledger
 			// counts it: budget for the entry and one more upload of its
 			// size, with no room for a second.
 			const fresh = new UploadApi({
@@ -1089,7 +1089,7 @@ describe('POST /v1/uploads/<upload-id>/commit', () => {
 		const res = await t.call('POST', `/${uploadId}/commit`, text);
 		expect(res.status).toBe(413);
 		expect(((await res.json()) as { error: string }).error).toMatch(
-			/bytes once its defaults are filled in; koid keeps at most 262144/,
+			/bytes once its defaults are filled in; previewlaned keeps at most 262144/,
 		);
 		expect(await readdir(t.layout.ready)).toEqual([]);
 		// The ticket is unharmed.
@@ -1344,7 +1344,7 @@ describe('cleanup', () => {
 	});
 
 	test('removes what is under incoming with no ticket, at startup too', async () => {
-		const root = await mkdtemp(join(tmpdir(), 'koid-upload-'));
+		const root = await mkdtemp(join(tmpdir(), 'previewlaned-upload-'));
 		const layout = spoolLayout(root);
 		await mkdir(join(layout.incoming, 'f'.repeat(32)), { recursive: true });
 		await writeFile(join(layout.incoming, 'f'.repeat(32), SOURCE_FILE), 'half an upload');
@@ -1396,7 +1396,7 @@ describe('cleanup', () => {
 		expect(await readdir(t.layout.ready)).toEqual([]);
 	});
 
-	test('goes by the entry file time, so an old entry from a previous koid expires too', async () => {
+	test('goes by the entry file time, so an old entry from a previous previewlaned expires too', async () => {
 		const t = await setup();
 		await t.upload();
 		const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60_000);
@@ -1462,11 +1462,11 @@ describe('cleanup', () => {
 
 describe('startup', () => {
 	test('syncs each spool directory it makes with its parent, and the root, its parent, incoming and ready at every start', async () => {
-		// As /var/lib/koi/uploads on a box with no /var/lib/koi yet: two
+		// As /var/lib/previewlane/uploads on a box with no /var/lib/previewlane yet: two
 		// directories to make above the spool's own. The root is resolved
 		// so the paths the syncs open compare equal to it.
-		const root = await realpath(await mkdtemp(join(tmpdir(), 'koid-fresh-')));
-		const spoolDir = join(root, 'koi', 'uploads');
+		const root = await realpath(await mkdtemp(join(tmpdir(), 'previewlaned-fresh-')));
+		const spoolDir = join(root, 'previewlane', 'uploads');
 		const synced: string[] = [];
 		const spy = openingWith((path, handle) => {
 			const real = handle.sync.bind(handle);
@@ -1485,13 +1485,13 @@ describe('startup', () => {
 				join(spoolDir, 'incoming'),
 				join(spoolDir, 'ready'),
 				spoolDir,
-				join(root, 'koi'),
+				join(root, 'previewlane'),
 				root,
 			]);
 			expect((await stat(spoolDir)).mode & 0o777).toBe(0o700);
 			// Started again over the same spool, everything is there and
 			// nothing is made. The root, the directory that names it, incoming
-			// and ready are synced all the same: the koid that made them may
+			// and ready are synced all the same: the previewlaned that made them may
 			// not have got this far.
 			synced.length = 0;
 			await start();
@@ -1499,7 +1499,7 @@ describe('startup', () => {
 				join(spoolDir, 'incoming'),
 				join(spoolDir, 'ready'),
 				spoolDir,
-				join(root, 'koi'),
+				join(root, 'previewlane'),
 			]);
 		} finally {
 			spy.mockRestore();
@@ -1553,7 +1553,7 @@ describe('startup', () => {
 		expect(res.status).toBe(507);
 	});
 
-	test('removes a broken entry a previous koid left, and the ledger does not count it', async () => {
+	test('removes a broken entry a previous previewlaned left, and the ledger does not count it', async () => {
 		const t = await setup();
 		await t.upload();
 		await fsp.rm(join(t.layout.ready, ID, SOURCE_FILE));
@@ -1580,7 +1580,7 @@ describe('startup', () => {
 	});
 });
 
-// What this koid says of itself; the upload routes never read it.
+// What this previewlaned says of itself; the upload routes never read it.
 const HOST: HostInfo = {
 	protocol: 1,
 	hostId: 'k'.repeat(20),
@@ -1597,7 +1597,7 @@ const HOST: HostInfo = {
 // Through the control socket, as the CLI will reach it over SSH.
 describe('over the control socket', () => {
 	async function server(api: UploadApi | undefined, overrides: Partial<ControlDeps> = {}) {
-		const dir = await mkdtemp(join(tmpdir(), 'koid-ctl-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlaned-ctl-'));
 		const socket = join(dir, 'control.sock');
 		const deps: ControlDeps = {
 			deployer: {
@@ -1629,7 +1629,7 @@ describe('over the control socket', () => {
 				init.body = body;
 				if (body instanceof ReadableStream) init.duplex = 'half';
 			}
-			return fetch(`http://koid${path}`, init as RequestInit);
+			return fetch(`http://previewlaned${path}`, init as RequestInit);
 		};
 		return { call, stop: () => srv.stop(true) };
 	}

@@ -12,7 +12,7 @@ import {
 	digest,
 	escapeControls,
 	ImageRefSchema,
-	KoiPathSchema,
+	PreviewlanePathSchema,
 	loadVerifyConfig,
 	MANIFEST_GLOBS_MAX,
 	MAX_VERIFY_FILE_BYTES,
@@ -68,9 +68,9 @@ const POINT = {
 		provider: 'anthropic',
 		network: 'provider-https',
 	},
-	setup: { command: ['node', '.koi/runners/storefront.mjs', 'seed'] },
-	run: { command: ['node', '.koi/runners/storefront.mjs', 'save'] },
-	cleanup: { command: ['node', '.koi/runners/storefront.mjs', 'cleanup'] },
+	setup: { command: ['node', '.previewlane/runners/storefront.mjs', 'seed'] },
+	run: { command: ['node', '.previewlane/runners/storefront.mjs', 'save'] },
+	cleanup: { command: ['node', '.previewlane/runners/storefront.mjs', 'cleanup'] },
 	assertions: [
 		{
 			name: 'save-accepted',
@@ -134,7 +134,7 @@ describe('VerifyManifestSchema', () => {
 		['another version', { ...MANIFEST, version: 2 }],
 		['no points', { ...MANIFEST, points: [] }],
 		['an absolute skill path', { ...MANIFEST, skills: [{ id: 'x', path: '/etc/passwd' }] }],
-		['a skill path with ..', { ...MANIFEST, skills: [{ id: 'x', path: '../koi.yaml' }] }],
+		['a skill path with ..', { ...MANIFEST, skills: [{ id: 'x', path: '../previewlane.yaml' }] }],
 		['a glob with ..', { ...MANIFEST, points: ['../**/*.yaml'] }],
 		['an absolute glob', { ...MANIFEST, points: ['/points/*.yaml'] }],
 		['a glob that is only .', { ...MANIFEST, points: ['./'] }],
@@ -199,7 +199,7 @@ describe('what a plan names', () => {
 
 	test('a runner path and an image hold what a project can declare, so no scrub may touch them', () => {
 		const runner = (path: string) => ({ path, digest: DIGEST });
-		expect(RunnerFileSchema.safeParse(runner('.koi/runners/home.sh')).success).toBe(true);
+		expect(RunnerFileSchema.safeParse(runner('.previewlane/runners/home.sh')).success).toBe(true);
 		expect(RunnerFileSchema.safeParse(runner('[redacted]/home.sh')).success).toBe(false);
 		expect(ImageRefSchema.safeParse('ghcr.io/acme/runner:1').success).toBe(true);
 		expect(ImageRefSchema.safeParse('ghcr.io/[redacted]:1').success).toBe(false);
@@ -306,14 +306,14 @@ describe('what a glob may be', () => {
 			assertions: [{ name: 'saved', description: 'It is there.', evidence: ['read'] }],
 		};
 		const project = async (globs: string[], names: string[]) => {
-			const root = await mkdtemp(join(tmpdir(), 'koi-verify-globs-'));
-			await mkdir(join(root, '.koi/points'), { recursive: true });
+			const root = await mkdtemp(join(tmpdir(), 'previewlane-verify-globs-'));
+			await mkdir(join(root, '.previewlane/points'), { recursive: true });
 			for (const [i, name] of names.entries()) {
 				const point = { ...SMALL_POINT, id: `tasks.save${i}` };
-				await writeFile(join(root, '.koi/points', name), `${JSON.stringify(point)}\n`);
+				await writeFile(join(root, '.previewlane/points', name), `${JSON.stringify(point)}\n`);
 			}
 			await writeFile(
-				join(root, '.koi/verify.yaml'),
+				join(root, '.previewlane/verify.yaml'),
 				`version: 1\npoints: ${JSON.stringify(globs)}\nprofiles: {}\nrunner:\n  image: busybox:1.37\n`,
 			);
 			return root;
@@ -326,9 +326,9 @@ describe('what a glob may be', () => {
 			);
 			const config = await loadVerifyConfig(root);
 			expect(config.points.map((p) => p.path)).toEqual([
-				'.koi/points/.hidden.yaml',
-				'.koi/points/other.yaml',
-				'.koi/points/save.yaml',
+				'.previewlane/points/.hidden.yaml',
+				'.previewlane/points/other.yaml',
+				'.previewlane/points/save.yaml',
 			]);
 		});
 
@@ -336,7 +336,7 @@ describe('what a glob may be', () => {
 			const root = await project(['points/{a,b}.yaml'], ['save.yaml']);
 			const err = await loadVerifyConfig(root).catch((e: unknown) => e);
 			expect(err).toBeInstanceOf(VerifyConfigError);
-			expect((err as Error).message).toContain('matches no file under .koi/');
+			expect((err as Error).message).toContain('matches no file under .previewlane/');
 		});
 
 		test('over the budget, the project does not load, and the error says where', async () => {
@@ -430,10 +430,10 @@ describe('PointSchema', () => {
 		],
 		['a select with no paths and no always', { ...POINT, select: { paths: [] } }],
 		['an absolute select path', { ...POINT, select: { paths: ['/src/**'] } }],
-		['a fixture with ..', { ...POINT, requires: { fixtures: ['../koi.yaml'] } }],
+		['a fixture with ..', { ...POINT, requires: { fixtures: ['../previewlane.yaml'] } }],
 		['an absolute fixture', { ...POINT, requires: { fixtures: ['/etc/passwd'] } }],
 		['an unknown provider', { ...POINT, requires: { provider: 'acme' } }],
-		['an unknown requirement', { ...POINT, requires: { credential: 'koi-token:anthropic' } }],
+		['an unknown requirement', { ...POINT, requires: { credential: 'previewlane-token:anthropic' } }],
 		['a budget over an hour', { ...POINT, budgets: { timeoutSeconds: 3601 } }],
 	])('rejects %s', (_what, data) => {
 		expect(PointSchema.safeParse(data).success).toBe(false);
@@ -445,7 +445,7 @@ describe('PointSchema', () => {
 		);
 	});
 
-	test('a step may list the files under .koi/ its command depends on', () => {
+	test('a step may list the files under .previewlane/ its command depends on', () => {
 		const run = { command: ['node', 'run.mjs'], files: ['runners/run.mjs', 'runners/lib.mjs'] };
 		expect(PointSchema.parse({ ...POINT, run }).run).toEqual(run);
 		expect(PointSchema.parse({ ...POINT, cleanup: run }).cleanup).toEqual(run);
@@ -591,7 +591,7 @@ describe('RunnerEventSchema', () => {
 	});
 });
 
-describe('the records koi writes', () => {
+describe('the records previewlane writes', () => {
 	test('a deployment identity names the build, with or without a merge', () => {
 		expect(DeploymentIdentitySchema.parse(DEPLOYMENT)).toEqual(DEPLOYMENT);
 		const { merge: _merge, ...tree } = DEPLOYMENT;
@@ -612,8 +612,8 @@ describe('the records koi writes', () => {
 			imageDigest: DEPLOYMENT.imageDigest,
 			commit: DEPLOYMENT.commit,
 			merge: DEPLOYMENT.merge,
-			image: 'koi-preview/hello-pr-7:a',
-			container: 'koi-hello-pr-7-a',
+			image: 'previewlane-preview/hello-pr-7:a',
+			container: 'previewlane-hello-pr-7-a',
 			port: 8080,
 			healthPath: '/',
 			healthTimeoutSeconds: 60,
@@ -652,7 +652,7 @@ describe('the records koi writes', () => {
 		const { merge: _none, ...plain } = deployment;
 		expect(deploymentIdentity({ ...record, deployment: plain })).toEqual(tree);
 		// Nothing serves: no deployment, one stopped for disk use, an expired
-		// preview, or a deployment from before koid kept ids and digests.
+		// preview, or a deployment from before previewlaned kept ids and digests.
 		const { deployment: _gone, ...bare } = record;
 		expect(deploymentIdentity(bare)).toBeUndefined();
 		expect(
@@ -668,7 +668,7 @@ describe('the records koi writes', () => {
 			id: 'app.canvas.save',
 			revision: 1,
 			digest: DIGEST,
-			runners: [{ path: '.koi/runners/storefront.mjs', digest: DIGEST }],
+			runners: [{ path: '.previewlane/runners/storefront.mjs', digest: DIGEST }],
 			why: 'always in profile pr',
 		};
 		const plan: Plan = {
@@ -690,18 +690,18 @@ describe('the records koi writes', () => {
 				.success,
 		).toBe(false);
 		expect(PlanSchema.safeParse({ ...plan, verdict: 'pass' }).success).toBe(false);
-		// A runner file is always under .koi/, and a point always says which.
+		// A runner file is always under .previewlane/, and a point always says which.
 		const { runners: _runners, ...noRunners } = taken;
 		expect(PlanSchema.safeParse({ ...plan, points: [noRunners] }).success).toBe(false);
-		for (const path of ['runners/x.mjs', '/.koi/runners/x.mjs', '.koi/../x.mjs', '.koi']) {
+		for (const path of ['runners/x.mjs', '/.previewlane/runners/x.mjs', '.previewlane/../x.mjs', '.previewlane']) {
 			expect(RunnerFileSchema.safeParse({ path, digest: DIGEST }).success, path).toBe(false);
 		}
-		expect(RunnerFileSchema.safeParse({ path: '.koi/runners/x.mjs', digest: 'abc' }).success).toBe(
+		expect(RunnerFileSchema.safeParse({ path: '.previewlane/runners/x.mjs', digest: 'abc' }).success).toBe(
 			false,
 		);
 	});
 
-	test('a runner file path follows the rule of a files entry: what KoiPathSchema refuses, RunnerFileSchema refuses behind .koi/', () => {
+	test('a runner file path follows the rule of a files entry: what PreviewlanePathSchema refuses, RunnerFileSchema refuses behind .previewlane/', () => {
 		const refused = [
 			'',
 			'.',
@@ -715,14 +715,14 @@ describe('the records koi writes', () => {
 			'x'.repeat(256),
 		];
 		for (const inside of refused) {
-			expect(KoiPathSchema.safeParse(inside).success, inside).toBe(false);
+			expect(PreviewlanePathSchema.safeParse(inside).success, inside).toBe(false);
 			expect(
-				RunnerFileSchema.safeParse({ path: `.koi/${inside}`, digest: DIGEST }).success,
+				RunnerFileSchema.safeParse({ path: `.previewlane/${inside}`, digest: DIGEST }).success,
 				inside,
 			).toBe(false);
 		}
 		// What it accepts, in the form it gives, RunnerFileSchema accepts behind
-		// .koi/: a colon, a leading dash, an @, a name 255 characters long.
+		// .previewlane/: a colon, a leading dash, an @, a name 255 characters long.
 		const accepted = [
 			'runners/check:v1.sh',
 			'runners/-x.sh',
@@ -731,12 +731,12 @@ describe('the records koi writes', () => {
 			'./runners//x.sh',
 		];
 		for (const inside of accepted) {
-			const path = `.koi/${KoiPathSchema.parse(inside)}`;
+			const path = `.previewlane/${PreviewlanePathSchema.parse(inside)}`;
 			expect(RunnerFileSchema.parse({ path, digest: DIGEST }).path).toBe(path);
 		}
 		// Only in that form: the loader writes no "." or empty segment, so a
 		// path with one is not something the loader returned.
-		for (const path of ['.koi/./x.mjs', '.koi//x.mjs', '.koi/x.mjs/']) {
+		for (const path of ['.previewlane/./x.mjs', '.previewlane//x.mjs', '.previewlane/x.mjs/']) {
 			expect(RunnerFileSchema.safeParse({ path, digest: DIGEST }).success, path).toBe(false);
 		}
 	});
@@ -915,11 +915,11 @@ describe('the records koi writes', () => {
 	});
 });
 
-// A source tree with the given files under .koi/, by path relative to .koi/.
+// A source tree with the given files under .previewlane/, by path relative to .previewlane/.
 async function tree(files: Record<string, string>): Promise<string> {
-	const root = await mkdtemp(join(tmpdir(), 'koi-verify-'));
+	const root = await mkdtemp(join(tmpdir(), 'previewlane-verify-'));
 	for (const [path, text] of Object.entries(files)) {
-		const full = join(root, '.koi', path);
+		const full = join(root, '.previewlane', path);
 		await mkdir(dirname(full), { recursive: true });
 		await writeFile(full, text);
 	}
@@ -937,7 +937,7 @@ const point = (id: string, extra = '') => `id: ${id}
 revision: 1
 claim: Something a user sees.
 select: { paths: ["src/**"] }
-run: { command: [sh, .koi/runners/x.sh] }
+run: { command: [sh, .previewlane/runners/x.sh] }
 assertions:
   - { name: shows, description: It shows., evidence: [screenshot] }
 ${extra}`;
@@ -953,8 +953,8 @@ describe('loadVerifyConfig', () => {
 		const config = await loadVerifyConfig(HELLO);
 		expect(config.manifest.points).toEqual(['points/*.yaml']);
 		expect(config.manifest.profiles.pr?.always).toEqual(['hello.home']);
-		expect(config.manifest.runner.image).toBe('koi-verifier');
-		expect(config.points.map((p) => p.path)).toEqual(['.koi/points/home.yaml']);
+		expect(config.manifest.runner.image).toBe('previewlane-verifier');
+		expect(config.points.map((p) => p.path)).toEqual(['.previewlane/points/home.yaml']);
 		const home = config.points[0]?.point;
 		expect(home?.id).toBe('hello.home');
 		expect(home?.assertions.map((a) => [a.name, a.evidence])).toEqual([
@@ -962,15 +962,15 @@ describe('loadVerifyConfig', () => {
 		]);
 		// The command names the runner script, relative to the source root,
 		// and that makes the script one of the point's runner files.
-		expect(home?.run.command[1]).toBe('.koi/runners/home.py');
+		expect(home?.run.command[1]).toBe('.previewlane/runners/home.py');
 		expect(existsSync(join(HELLO, home?.run.command[1] ?? ''))).toBe(true);
 		expect(config.points[0]?.runners).toEqual([
-			{ path: '.koi/runners/home.py', digest: config.digests['.koi/runners/home.py'] ?? '' },
+			{ path: '.previewlane/runners/home.py', digest: config.digests['.previewlane/runners/home.py'] ?? '' },
 		]);
 		expect(Object.keys(config.digests).sort()).toEqual([
-			'.koi/points/home.yaml',
-			'.koi/runners/home.py',
-			'.koi/verify.yaml',
+			'.previewlane/points/home.yaml',
+			'.previewlane/runners/home.py',
+			'.previewlane/verify.yaml',
 		]);
 		for (const [path, sha] of Object.entries(config.digests)) {
 			expect(sha).toBe(digest(new Uint8Array(await readFile(join(HELLO, path)))));
@@ -991,9 +991,9 @@ describe('loadVerifyConfig', () => {
 		});
 		const config = await loadVerifyConfig(root);
 		expect(config.points.map((p) => [p.path, p.point.id])).toEqual([
-			['.koi/more/b.yaml', 'a.two'],
-			['.koi/points/a.yaml', 'a.one'],
-			['.koi/points/sub/c.yaml', 'a.three'],
+			['.previewlane/more/b.yaml', 'a.two'],
+			['.previewlane/points/a.yaml', 'a.one'],
+			['.previewlane/points/sub/c.yaml', 'a.three'],
 		]);
 		expect(Object.keys(config.digests)).toHaveLength(4);
 	});
@@ -1007,32 +1007,32 @@ describe('loadVerifyConfig', () => {
 		const files = (command: string) => ({
 			'verify.yaml': prefixed(command),
 			'points/a.yaml': point('a.one'),
-			'points/b.yaml': point('a.two').replace('.koi/runners/x.sh', '.koi/runners/y.sh'),
+			'points/b.yaml': point('a.two').replace('.previewlane/runners/x.sh', '.previewlane/runners/y.sh'),
 			'runners/x.sh': 'true\n',
 			'runners/y.sh': 'true\n',
 			'runners/wrapper.py': 'print("wrapped")\n',
 		});
 
 		test('is a runner file of every point, and so in the digests a snapshot copies', async () => {
-			const root = await tree(files('[python3, .koi/runners/wrapper.py]'));
+			const root = await tree(files('[python3, .previewlane/runners/wrapper.py]'));
 			const config = await loadVerifyConfig(root);
-			const digest = config.digests['.koi/runners/wrapper.py'];
+			const digest = config.digests['.previewlane/runners/wrapper.py'];
 			expect(digest).toBeDefined();
 			expect(config.points.map((p) => p.runners.map((r) => r.path))).toEqual([
-				['.koi/runners/wrapper.py', '.koi/runners/x.sh'],
-				['.koi/runners/wrapper.py', '.koi/runners/y.sh'],
+				['.previewlane/runners/wrapper.py', '.previewlane/runners/x.sh'],
+				['.previewlane/runners/wrapper.py', '.previewlane/runners/y.sh'],
 			]);
 			for (const p of config.points) {
-				expect(p.runners.find((r) => r.path === '.koi/runners/wrapper.py')?.digest).toBe(
+				expect(p.runners.find((r) => r.path === '.previewlane/runners/wrapper.py')?.digest).toBe(
 					digest as string,
 				);
 			}
 		});
 
 		test('changing the wrapper changes the digest of each point it runs', async () => {
-			const root = await tree(files('[python3, ./.koi/runners/wrapper.py]'));
+			const root = await tree(files('[python3, ./.previewlane/runners/wrapper.py]'));
 			const before = await loadVerifyConfig(root);
-			await writeFile(join(root, '.koi/runners/wrapper.py'), 'print("changed")\n');
+			await writeFile(join(root, '.previewlane/runners/wrapper.py'), 'print("changed")\n');
 			const after = await loadVerifyConfig(root);
 			const of = (config: Awaited<ReturnType<typeof loadVerifyConfig>>) =>
 				config.points.map((p) => p.runners.find((r) => r.path.endsWith('wrapper.py'))?.digest);
@@ -1040,26 +1040,26 @@ describe('loadVerifyConfig', () => {
 			expect(of(after)[0]).not.toBe(of(before)[0] as string);
 			expect(of(after)[1]).not.toBe(of(before)[1] as string);
 			// The point's own digest does not move, so this is the only place it shows.
-			expect(after.digests['.koi/points/a.yaml']).toBe(
-				before.digests['.koi/points/a.yaml'] as string,
+			expect(after.digests['.previewlane/points/a.yaml']).toBe(
+				before.digests['.previewlane/points/a.yaml'] as string,
 			);
 		});
 
-		test('refuses a path under .koi/ that names no file, as a files entry is refused', async () => {
-			const root = await tree(files('[python3, .koi/runners/missing.py]'));
+		test('refuses a path under .previewlane/ that names no file, as a files entry is refused', async () => {
+			const root = await tree(files('[python3, .previewlane/runners/missing.py]'));
 			const err = await failure(root);
-			expect(err.file).toBe('.koi/verify.yaml');
+			expect(err.file).toBe('.previewlane/verify.yaml');
 			expect(err.field).toBe('runner.command[1]');
 			expect(err.message).toBe(
-				'.koi/verify.yaml: runner.command[1]: no file runners/missing.py under .koi/',
+				'.previewlane/verify.yaml: runner.command[1]: no file runners/missing.py under .previewlane/',
 			);
 		});
 
-		test('refuses a path that leaves the project, or .koi/ by way of ..', async () => {
-			for (const arg of ['../wrapper.py', '.koi/../../wrapper.py', '.koi/runners/../x.sh']) {
+		test('refuses a path that leaves the project, or .previewlane/ by way of ..', async () => {
+			for (const arg of ['../wrapper.py', '.previewlane/../../wrapper.py', '.previewlane/runners/../x.sh']) {
 				const err = await failure(await tree(files(`[python3, "${arg}"]`)));
 				expect(err.message).toBe(
-					'.koi/verify.yaml: runner.command[1]: must not contain a .. segment',
+					'.previewlane/verify.yaml: runner.command[1]: must not contain a .. segment',
 				);
 			}
 		});
@@ -1069,64 +1069,64 @@ describe('loadVerifyConfig', () => {
 				files('[/usr/bin/env, python3, -u, --config=../x, "sh -c cd ../x", scripts/run.py]'),
 			);
 			const config = await loadVerifyConfig(root);
-			expect(config.points[0]?.runners.map((r) => r.path)).toEqual(['.koi/runners/x.sh']);
+			expect(config.points[0]?.runners.map((r) => r.path)).toEqual(['.previewlane/runners/x.sh']);
 		});
 	});
 
-	test('refuses a symlink to a file, even one that stays inside .koi/', async () => {
+	test('refuses a symlink to a file, even one that stays inside .previewlane/', async () => {
 		const root = await tree({
 			'verify.yaml': manifest(),
 			'shared/a.yaml': point('a.one'),
 		});
-		await mkdir(join(root, '.koi', 'points'));
-		await symlink('../shared/a.yaml', join(root, '.koi', 'points', 'a.yaml'));
+		await mkdir(join(root, '.previewlane', 'points'));
+		await symlink('../shared/a.yaml', join(root, '.previewlane', 'points', 'a.yaml'));
 		expect((await failure(root)).message).toBe(
-			'.koi/points/a.yaml: is a symlink; nothing under .koi/ may be one',
+			'.previewlane/points/a.yaml: is a symlink; nothing under .previewlane/ may be one',
 		);
 	});
 
-	test('refuses a symlink to a directory inside .koi/, which would hide a runner from the digests', async () => {
+	test('refuses a symlink to a directory inside .previewlane/, which would hide a runner from the digests', async () => {
 		// With alias -> runners, the command names runners/check.sh as
-		// .koi/alias/check.sh. The script is there and would run, but the
+		// .previewlane/alias/check.sh. The script is there and would run, but the
 		// loader lists it as runners/check.sh only, so the alias path matches
 		// nothing it listed, and a change to the script would change no
 		// digest. The tree is refused instead of the runner being skipped.
 		const root = await tree({
 			'verify.yaml': manifest(),
-			'points/a.yaml': point('a.one').replace('.koi/runners/x.sh', '.koi/alias/check.sh'),
+			'points/a.yaml': point('a.one').replace('.previewlane/runners/x.sh', '.previewlane/alias/check.sh'),
 			'runners/check.sh': 'echo one\n',
 		});
-		await symlink('runners', join(root, '.koi', 'alias'));
-		expect(existsSync(join(root, '.koi', 'alias', 'check.sh'))).toBe(true);
+		await symlink('runners', join(root, '.previewlane', 'alias'));
+		expect(existsSync(join(root, '.previewlane', 'alias', 'check.sh'))).toBe(true);
 		expect((await failure(root)).message).toBe(
-			'.koi/alias: is a symlink; nothing under .koi/ may be one',
+			'.previewlane/alias: is a symlink; nothing under .previewlane/ may be one',
 		);
 	});
 
 	test('digests the runner files a point names in a command or lists in files, apart from the point itself', async () => {
 		const root = await tree({
 			'verify.yaml': manifest(),
-			// run names .koi/runners/x.sh; setup lists a module its command
+			// run names .previewlane/runners/x.sh; setup lists a module its command
 			// does not name; cleanup names the script another way, a file
-			// outside .koi/, and a file under .koi/ that is not there.
+			// outside .previewlane/, and a file under .previewlane/ that is not there.
 			'points/a.yaml': point(
 				'a.one',
-				'setup: { command: [node, run.mjs, seed], files: [runners/lib.mjs] }\ncleanup: { command: [sh, ./.koi/runners/x.sh, Dockerfile, .koi/runners/none.sh] }\n',
+				'setup: { command: [node, run.mjs, seed], files: [runners/lib.mjs] }\ncleanup: { command: [sh, ./.previewlane/runners/x.sh, Dockerfile, .previewlane/runners/none.sh] }\n',
 			),
 			'runners/x.sh': 'echo one\n',
 			'runners/lib.mjs': 'export const n = 1;\n',
 		});
 		const before = await loadVerifyConfig(root);
 		const runners = before.points[0]?.runners ?? [];
-		expect(runners.map((r) => r.path)).toEqual(['.koi/runners/lib.mjs', '.koi/runners/x.sh']);
+		expect(runners.map((r) => r.path)).toEqual(['.previewlane/runners/lib.mjs', '.previewlane/runners/x.sh']);
 		for (const r of runners) expect(before.digests[r.path]).toBe(r.digest);
 		expect(Object.keys(before.digests)).toHaveLength(4);
 		// Changing only the script changes its digest and nothing else.
-		await writeFile(join(root, '.koi/runners/x.sh'), 'echo two\n');
+		await writeFile(join(root, '.previewlane/runners/x.sh'), 'echo two\n');
 		const after = await loadVerifyConfig(root);
-		expect(after.digests['.koi/points/a.yaml']).toBe(before.digests['.koi/points/a.yaml'] ?? '');
+		expect(after.digests['.previewlane/points/a.yaml']).toBe(before.digests['.previewlane/points/a.yaml'] ?? '');
 		expect(after.points[0]?.runners[0]).toEqual(runners[0] ?? { path: '', digest: '' });
-		expect(after.points[0]?.runners[1]?.path).toBe('.koi/runners/x.sh');
+		expect(after.points[0]?.runners[1]?.path).toBe('.previewlane/runners/x.sh');
 		expect(after.points[0]?.runners[1]?.digest).not.toBe(runners[1]?.digest);
 		expect(after.points[0]?.runners[1]?.digest).toBe(
 			digest(new TextEncoder().encode('echo two\n')),
@@ -1136,12 +1136,12 @@ describe('loadVerifyConfig', () => {
 	test('returns runner paths a plan can hold, colon and all', async () => {
 		// A files entry may hold a colon (runners/check:v1.sh), so the plan's
 		// RunnerFileSchema must take one too, or a point the loader accepts
-		// could not be planned. Both go through KoiPathSchema.
+		// could not be planned. Both go through PreviewlanePathSchema.
 		const root = await tree({
 			'verify.yaml': manifest(),
 			'points/a.yaml': point('a.one').replace(
-				'run: { command: [sh, .koi/runners/x.sh] }',
-				'run: { command: [sh, ".koi/runners/check:v1.sh"], files: ["runners/lib:v1.mjs"] }',
+				'run: { command: [sh, .previewlane/runners/x.sh] }',
+				'run: { command: [sh, ".previewlane/runners/check:v1.sh"], files: ["runners/lib:v1.mjs"] }',
 			),
 			'runners/check:v1.sh': 'echo one\n',
 			'runners/lib:v1.mjs': 'export const n = 1;\n',
@@ -1149,8 +1149,8 @@ describe('loadVerifyConfig', () => {
 		const config = await loadVerifyConfig(root);
 		const runners = config.points[0]?.runners ?? [];
 		expect(runners.map((r) => r.path)).toEqual([
-			'.koi/runners/check:v1.sh',
-			'.koi/runners/lib:v1.mjs',
+			'.previewlane/runners/check:v1.sh',
+			'.previewlane/runners/lib:v1.mjs',
 		]);
 		const plan = PlanSchema.parse({
 			version: 1,
@@ -1161,7 +1161,7 @@ describe('loadVerifyConfig', () => {
 				{
 					id: 'a.one',
 					revision: 1,
-					digest: config.digests['.koi/points/a.yaml'],
+					digest: config.digests['.previewlane/points/a.yaml'],
 					runners,
 					why: 'always in profile pr',
 				},
@@ -1175,14 +1175,14 @@ describe('loadVerifyConfig', () => {
 
 	test('rejects a runner file entry that is absolute, has .., or names no file', async () => {
 		for (const [step, path, detail] of [
-			['run', '/etc/passwd', 'must be relative to .koi/, not absolute'],
+			['run', '/etc/passwd', 'must be relative to .previewlane/, not absolute'],
 			['setup', '../home.sh', 'must not contain a .. segment'],
-			['cleanup', 'runners/none.sh', 'no file runners/none.sh under .koi/'],
+			['cleanup', 'runners/none.sh', 'no file runners/none.sh under .previewlane/'],
 		]) {
 			const line = `${step}: { command: [sh, x.sh], files: ["${path}"] }`;
 			const text =
 				step === 'run'
-					? point('a.one').replace('run: { command: [sh, .koi/runners/x.sh] }', line)
+					? point('a.one').replace('run: { command: [sh, .previewlane/runners/x.sh] }', line)
 					: `${point('a.one')}${line}\n`;
 			const root = await tree({
 				'verify.yaml': manifest(),
@@ -1190,7 +1190,7 @@ describe('loadVerifyConfig', () => {
 				'runners/x.sh': 'echo\n',
 			});
 			const err = await failure(root);
-			expect(err.message).toBe(`.koi/points/a.yaml: ${step}.files[0]: ${detail}`);
+			expect(err.message).toBe(`.previewlane/points/a.yaml: ${step}.files[0]: ${detail}`);
 		}
 	});
 
@@ -1198,27 +1198,27 @@ describe('loadVerifyConfig', () => {
 		const root = await tree({ 'verify.yaml': manifest(), 'points/a.yaml': point('a.one') });
 		// What was a regular file when listed is a symlink when opened: the
 		// open must not follow it, wherever it points.
-		await symlink('a.yaml', join(root, '.koi/points/link.yaml'));
+		await symlink('a.yaml', join(root, '.previewlane/points/link.yaml'));
 		const err = await readVerifyFile(
-			join(root, '.koi/points/link.yaml'),
-			'.koi/points/link.yaml',
+			join(root, '.previewlane/points/link.yaml'),
+			'.previewlane/points/link.yaml',
 		).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(VerifyConfigError);
 		expect((err as Error).message).toBe(
-			'.koi/points/link.yaml: is a symlink; it was listed as a regular file',
+			'.previewlane/points/link.yaml: is a symlink; it was listed as a regular file',
 		);
-		const bytes = await readVerifyFile(join(root, '.koi/points/a.yaml'), '.koi/points/a.yaml');
+		const bytes = await readVerifyFile(join(root, '.previewlane/points/a.yaml'), '.previewlane/points/a.yaml');
 		expect(new TextDecoder().decode(bytes)).toBe(point('a.one'));
-		await expect(readVerifyFile(join(root, '.koi/points'), '.koi/points')).rejects.toThrow(
-			'.koi/points: is not a regular file',
+		await expect(readVerifyFile(join(root, '.previewlane/points'), '.previewlane/points')).rejects.toThrow(
+			'.previewlane/points: is not a regular file',
 		);
 		// The size comes from the open descriptor, before any byte is read.
-		await writeFile(join(root, '.koi/big'), 'x'.repeat(MAX_VERIFY_FILE_BYTES + 1));
-		await expect(readVerifyFile(join(root, '.koi/big'), '.koi/big')).rejects.toThrow(
-			`.koi/big: is ${MAX_VERIFY_FILE_BYTES + 1} bytes; the most koi reads is ${MAX_VERIFY_FILE_BYTES}`,
+		await writeFile(join(root, '.previewlane/big'), 'x'.repeat(MAX_VERIFY_FILE_BYTES + 1));
+		await expect(readVerifyFile(join(root, '.previewlane/big'), '.previewlane/big')).rejects.toThrow(
+			`.previewlane/big: is ${MAX_VERIFY_FILE_BYTES + 1} bytes; the most previewlane reads is ${MAX_VERIFY_FILE_BYTES}`,
 		);
-		await writeFile(join(root, '.koi/edge'), 'x'.repeat(MAX_VERIFY_FILE_BYTES));
-		expect((await readVerifyFile(join(root, '.koi/edge'), '.koi/edge')).length).toBe(
+		await writeFile(join(root, '.previewlane/edge'), 'x'.repeat(MAX_VERIFY_FILE_BYTES));
+		expect((await readVerifyFile(join(root, '.previewlane/edge'), '.previewlane/edge')).length).toBe(
 			MAX_VERIFY_FILE_BYTES,
 		);
 	});
@@ -1230,46 +1230,46 @@ describe('loadVerifyConfig', () => {
 			'points/b.yaml': point('a.one'),
 		});
 		const err = await failure(root);
-		expect(err.file).toBe('.koi/points/b.yaml');
+		expect(err.file).toBe('.previewlane/points/b.yaml');
 		expect(err.field).toBe('id');
-		expect(err.message).toBe('.koi/points/b.yaml: id: a.one is also the id of .koi/points/a.yaml');
+		expect(err.message).toBe('.previewlane/points/b.yaml: id: a.one is also the id of .previewlane/points/a.yaml');
 	});
 
 	test('rejects a skill path that is absolute, has .., or names no file', async () => {
 		for (const [path, detail] of [
-			['/etc/passwd', 'must be relative to .koi/, not absolute'],
-			['../koi.yaml', 'must not contain a .. segment'],
-			['skills/x/SKILL.md', 'no file skills/x/SKILL.md under .koi/'],
+			['/etc/passwd', 'must be relative to .previewlane/, not absolute'],
+			['../previewlane.yaml', 'must not contain a .. segment'],
+			['skills/x/SKILL.md', 'no file skills/x/SKILL.md under .previewlane/'],
 		]) {
 			const root = await tree({
 				'verify.yaml': manifest(`skills: [{ id: x, path: "${path}" }]\n`),
 				'points/a.yaml': point('a.one'),
 			});
 			const err = await failure(root);
-			expect(err.message).toBe(`.koi/verify.yaml: skills[0].path: ${detail}`);
+			expect(err.message).toBe(`.previewlane/verify.yaml: skills[0].path: ${detail}`);
 		}
 	});
 
 	test('rejects a point glob that is absolute, has .., or matches nothing', async () => {
 		for (const [glob, detail] of [
-			['/points/*.yaml', 'must be relative to .koi/, not absolute'],
+			['/points/*.yaml', 'must be relative to .previewlane/, not absolute'],
 			['../**/*.yaml', 'must not contain a .. segment'],
-			['nowhere/*.yaml', 'matches no file under .koi/'],
+			['nowhere/*.yaml', 'matches no file under .previewlane/'],
 		]) {
 			const root = await tree({
 				'verify.yaml': manifest().replace('[points/*.yaml]', `["${glob}"]`),
 				'points/a.yaml': point('a.one'),
 			});
 			const err = await failure(root);
-			expect(err.message).toBe(`.koi/verify.yaml: points[0]: ${detail}`);
+			expect(err.message).toBe(`.previewlane/verify.yaml: points[0]: ${detail}`);
 		}
 	});
 
 	test('rejects a fixture path that is absolute, has .., or names no file', async () => {
 		for (const [path, detail] of [
-			['/etc/passwd', 'must be relative to .koi/, not absolute'],
-			['../koi.yaml', 'must not contain a .. segment'],
-			['fixtures/missing.txt', 'no file fixtures/missing.txt under .koi/'],
+			['/etc/passwd', 'must be relative to .previewlane/, not absolute'],
+			['../previewlane.yaml', 'must not contain a .. segment'],
+			['fixtures/missing.txt', 'no file fixtures/missing.txt under .previewlane/'],
 		]) {
 			const root = await tree({
 				'verify.yaml': manifest(),
@@ -1277,38 +1277,38 @@ describe('loadVerifyConfig', () => {
 				'fixtures/probe.txt': 'probe\n',
 			});
 			const err = await failure(root);
-			expect(err.message).toBe(`.koi/points/a.yaml: requires.fixtures[0]: ${detail}`);
+			expect(err.message).toBe(`.previewlane/points/a.yaml: requires.fixtures[0]: ${detail}`);
 		}
 	});
 
-	test('refuses a symlink that leaves .koi/, to a file or to a directory, like any other', async () => {
-		const outside = await mkdtemp(join(tmpdir(), 'koi-outside-'));
+	test('refuses a symlink that leaves .previewlane/, to a file or to a directory, like any other', async () => {
+		const outside = await mkdtemp(join(tmpdir(), 'previewlane-outside-'));
 		await writeFile(join(outside, 'evil.yaml'), point('a.one'));
 		const file = await tree({ 'verify.yaml': manifest(), 'points/a.yaml': point('a.one') });
-		await symlink(join(outside, 'evil.yaml'), join(file, '.koi', 'points', 'evil.yaml'));
+		await symlink(join(outside, 'evil.yaml'), join(file, '.previewlane', 'points', 'evil.yaml'));
 		expect((await failure(file)).message).toBe(
-			'.koi/points/evil.yaml: is a symlink; nothing under .koi/ may be one',
+			'.previewlane/points/evil.yaml: is a symlink; nothing under .previewlane/ may be one',
 		);
 		const dir = await tree({ 'verify.yaml': manifest(), 'points/a.yaml': point('a.one') });
-		await symlink(outside, join(dir, '.koi', 'fixtures'));
+		await symlink(outside, join(dir, '.previewlane', 'fixtures'));
 		expect((await failure(dir)).message).toBe(
-			'.koi/fixtures: is a symlink; nothing under .koi/ may be one',
+			'.previewlane/fixtures: is a symlink; nothing under .previewlane/ may be one',
 		);
 		// A symlink to a file the loader never reads is refused all the same.
 		const linkToRoot = await tree({ 'verify.yaml': manifest(), 'points/a.yaml': point('a.one') });
-		await writeFile(join(linkToRoot, 'koi.yaml'), 'port: 1\n');
-		await symlink('../koi.yaml', join(linkToRoot, '.koi', 'koi.yaml'));
+		await writeFile(join(linkToRoot, 'previewlane.yaml'), 'port: 1\n');
+		await symlink('../previewlane.yaml', join(linkToRoot, '.previewlane', 'previewlane.yaml'));
 		expect((await failure(linkToRoot)).message).toBe(
-			'.koi/koi.yaml: is a symlink; nothing under .koi/ may be one',
+			'.previewlane/previewlane.yaml: is a symlink; nothing under .previewlane/ may be one',
 		);
 	});
 
-	test('rejects .koi/ itself being a symlink', async () => {
-		const root = await mkdtemp(join(tmpdir(), 'koi-verify-'));
+	test('rejects .previewlane/ itself being a symlink', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'previewlane-verify-'));
 		const elsewhere = await tree({ 'verify.yaml': manifest(), 'points/a.yaml': point('a.one') });
-		await symlink(join(elsewhere, '.koi'), join(root, '.koi'));
+		await symlink(join(elsewhere, '.previewlane'), join(root, '.previewlane'));
 		expect((await failure(root)).message).toBe(
-			'.koi: is a symlink; .koi/ must be a real directory',
+			'.previewlane: is a symlink; .previewlane/ must be a real directory',
 		);
 	});
 
@@ -1319,9 +1319,9 @@ describe('loadVerifyConfig', () => {
 			'points/big.yaml': point('a.two', `# ${'x'.repeat(MAX_VERIFY_FILE_BYTES)}\n`),
 		});
 		const err = await failure(root);
-		expect(err.file).toBe('.koi/points/big.yaml');
+		expect(err.file).toBe('.previewlane/points/big.yaml');
 		expect(err.message).toMatch(
-			/^\.koi\/points\/big\.yaml: is \d+ bytes; the most koi reads is 262144$/,
+			/^\.previewlane\/points\/big\.yaml: is \d+ bytes; the most previewlane reads is 262144$/,
 		);
 	});
 
@@ -1331,7 +1331,7 @@ describe('loadVerifyConfig', () => {
 			'points/a.yaml': point('a.one'),
 		});
 		expect((await failure(root)).message).toBe(
-			'.koi/verify.yaml: profiles.pr.always[1]: no point a.none',
+			'.previewlane/verify.yaml: profiles.pr.always[1]: no point a.none',
 		);
 		const include = await tree({
 			'verify.yaml': manifest().replace(
@@ -1341,7 +1341,7 @@ describe('loadVerifyConfig', () => {
 			'points/a.yaml': point('a.one'),
 		});
 		expect((await failure(include)).message).toBe(
-			'.koi/verify.yaml: profiles.matrix.include[0]: no point a.gone',
+			'.previewlane/verify.yaml: profiles.matrix.include[0]: no point a.gone',
 		);
 	});
 
@@ -1349,12 +1349,12 @@ describe('loadVerifyConfig', () => {
 		const bad = await tree({
 			'verify.yaml': manifest(),
 			'points/a.yaml': point('a.one').replace(
-				'command: [sh, .koi/runners/x.sh]',
+				'command: [sh, .previewlane/runners/x.sh]',
 				'command: sh x.sh',
 			),
 		});
 		const err = await failure(bad);
-		expect(err.file).toBe('.koi/points/a.yaml');
+		expect(err.file).toBe('.previewlane/points/a.yaml');
 		expect(err.field).toBe('run.command');
 		const deep = await tree({
 			'verify.yaml': manifest(),
@@ -1365,7 +1365,7 @@ describe('loadVerifyConfig', () => {
 			'verify.yaml': manifest('required: [a.one]\n'),
 			'points/a.yaml': point('a.one'),
 		});
-		expect((await failure(unknown)).message).toBe('.koi/verify.yaml: Unrecognized key: "required"');
+		expect((await failure(unknown)).message).toBe('.previewlane/verify.yaml: Unrecognized key: "required"');
 	});
 
 	test('rejects YAML that does not parse, naming the file', async () => {
@@ -1374,14 +1374,14 @@ describe('loadVerifyConfig', () => {
 			'points/a.yaml': 'id: [a.one\n',
 		});
 		const err = await failure(root);
-		expect(err.file).toBe('.koi/points/a.yaml');
+		expect(err.file).toBe('.previewlane/points/a.yaml');
 		expect(err.field).toBeUndefined();
 	});
 
-	test('says when there is no .koi/ or no verify.yaml', async () => {
-		const none = await mkdtemp(join(tmpdir(), 'koi-verify-'));
-		expect((await failure(none)).message).toBe('.koi/verify.yaml: not found');
+	test('says when there is no .previewlane/ or no verify.yaml', async () => {
+		const none = await mkdtemp(join(tmpdir(), 'previewlane-verify-'));
+		expect((await failure(none)).message).toBe('.previewlane/verify.yaml: not found');
 		const empty = await tree({ 'points/a.yaml': point('a.one') });
-		expect((await failure(empty)).message).toBe('.koi/verify.yaml: not found');
+		expect((await failure(empty)).message).toBe('.previewlane/verify.yaml: not found');
 	});
 });

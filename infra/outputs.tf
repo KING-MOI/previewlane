@@ -22,7 +22,7 @@ output "previews_parameter" {
   value = aws_ssm_parameter.previews.name
 }
 
-# scripts/deploy-host.sh writes it to /etc/koi/env; scripts/provision-host.sh
+# scripts/deploy-host.sh writes it to /etc/previewlane/env; scripts/provision-host.sh
 # hands it to host/cloud-init.sh.
 output "domain" {
   value = var.domain

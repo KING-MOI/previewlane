@@ -9,7 +9,7 @@ import {
 	UploadCommittedSchema,
 	UploadTicketSchema,
 	type UpRequest,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { HttpRelayClient, RelayBrokenError, RelayIdleError, type RelayReply } from '../http1.ts';
 import { readAll, type SshClient, SshMissingError, type SshProcess } from '../ssh.ts';
 import {
@@ -30,30 +30,30 @@ import {
 	buildLog,
 	describeViaCtl,
 	InterruptedError,
-	KOID_READY_MS,
+	PREVIEWLANED_READY_MS,
 	parseDescriptor,
 	within,
 } from './common.ts';
 
 // The SSH transport: a plain Linux host that is always on, reached as the
-// koi-connect account through the system ssh client (ssh.ts). On the host,
-// sshd runs the koi gateway for that account and nothing else, and the
-// gateway takes two commands (host/ssh/koi-ssh-gateway.ts):
+// previewlane-connect account through the system ssh client (ssh.ts). On the host,
+// sshd runs the previewlane gateway for that account and nothing else, and the
+// gateway takes two commands (host/ssh/previewlane-ssh-gateway.ts):
 //
-//   ctl-b64 <blob>   runs `koid ctl` with the arguments encoded as the SSM
+//   ctl-b64 <blob>   runs `previewlaned ctl` with the arguments encoded as the SSM
 //                    path encodes them, and relays its output and exit status;
-//   tunnel-v1        copies bytes between the session and koid's control
+//   tunnel-v1        copies bytes between the session and previewlaned's control
 //                    socket, over which the source upload speaks HTTP to the
 //                    upload API (packages/daemon/src/upload-api.ts).
 //
-// Nothing else crosses: no shell, no file transfer, no forwarding. koi cannot
-// start the host; ensureAwake connects and waits for koid, and reports a
+// Nothing else crosses: no shell, no file transfer, no forwarding. previewlane cannot
+// start the host; ensureAwake connects and waits for previewlaned, and reports a
 // host that does not take the connection as one its operator must start.
 //
 // The host is checked against the target here, not by verifiedTransport
-// (transport.ts): the upload hands the source to koid itself, so the
+// (transport.ts): the upload hands the source to previewlaned itself, so the
 // descriptor must be checked before it, and ensureAwake has the descriptor
-// in hand when koid first answers. The check runs once per process and
+// in hand when previewlaned first answers. The check runs once per process and
 // again after a failure.
 
 // ssh's own exit status, for a failure before or outside the remote command.
@@ -61,28 +61,28 @@ const SSH_FAILED = 255;
 
 // How long each operation may take when the caller sets no limit of its
 // own. ssh keeps a session up for as long as the host keeps the connection,
-// so a koid that stops answering while sshd stays up would otherwise hold
-// koi for good: the deadline is what ends the wait. A limit the caller
+// so a previewlaned that stops answering while sshd stays up would otherwise hold
+// previewlane for good: the deadline is what ends the wait. A limit the caller
 // gives stands instead, shorter or longer.
 export const SSH_DEFAULT_LIMITS = {
-	// One koid ctl command: as long as the AWS transport lets SSM run one
+	// One previewlaned ctl command: as long as the AWS transport lets SSM run one
 	// (executionTimeout in transports/aws.ts). A build is not waited for
-	// here; koid answers up at once and status is read again and again.
+	// here; previewlaned answers up at once and status is read again and again.
 	ctlMs: 5 * 60_000,
-	// koid ctl describe reads one small file; a minute is generous.
+	// previewlaned ctl describe reads one small file; a minute is generous.
 	describeMs: 60_000,
-	// The whole upload: the wait for a koid that is starting, the digest of
+	// The whole upload: the wait for a previewlaned that is starting, the digest of
 	// the archive, and its transfer, up to 2 GiB over a slow link.
 	uploadMs: 30 * 60_000,
 	// How long the upload waits for the tunnel to carry anything, in either
-	// direction, before it gives koid up as not answering (RelayIdleError).
+	// direction, before it gives previewlaned up as not answering (RelayIdleError).
 	// The clock restarts after each 64 KiB ssh takes (http1.ts), so a slow
 	// transfer does not run it out and only a stall counts.
 	tunnelIdleMs: 2 * 60_000,
 };
 export type SshLimits = typeof SSH_DEFAULT_LIMITS;
 
-// koid did not trust, or no longer trusts, the host key: nothing was sent.
+// previewlaned did not trust, or no longer trusts, the host key: nothing was sent.
 export class HostKeyError extends Error {}
 
 // The client's view of the target, for messages and for the check of the
@@ -95,7 +95,7 @@ export interface SshHost {
 }
 
 export interface SshTransportOptions {
-	// Where a wait for koid is reported while an upload waits for it.
+	// Where a wait for previewlaned is reported while an upload waits for it.
 	progress?: Progress | undefined;
 	sleep?: ((ms: number) => Promise<void>) | undefined;
 	now?: (() => number) | undefined;
@@ -121,7 +121,7 @@ export function sshTransport(
 		o?.signal?.throwIfAborted();
 		const timeoutMs = o?.timeoutMs ?? limits.ctlMs;
 		const deadline = now() + timeoutMs;
-		const what = `koid ctl ${args[0] ?? ''}`;
+		const what = `previewlaned ctl ${args[0] ?? ''}`;
 		const command = `ctl-b64 ${encodeCtlArgs(args)}`;
 		let r: { code: number; stdout: string; stderr: string };
 		try {
@@ -132,8 +132,8 @@ export function sshTransport(
 			// not the caller's signal, ended the wait.
 			if (err instanceof InterruptedError) {
 				const why = o?.signal?.aborted
-					? 'koi stopped waiting for its result'
-					: `koi stopped waiting for its result after ${describeMs(timeoutMs)}`;
+					? 'previewlane stopped waiting for its result'
+					: `previewlane stopped waiting for its result after ${describeMs(timeoutMs)}`;
 				throw new UnknownOutcomeError(
 					`${what} may have run on ${where}: ${why}, so its outcome is unknown`,
 				);
@@ -144,15 +144,15 @@ export function sshTransport(
 		return r;
 	};
 
-	// Connects, and waits for koid to answer `describe`. A host that does
-	// not take the connection is reported as one koi cannot start: this
-	// transport manages no power. The first descriptor koid gives is
+	// Connects, and waits for previewlaned to answer `describe`. A host that does
+	// not take the connection is reported as one previewlane cannot start: this
+	// transport manages no power. The first descriptor previewlaned gives is
 	// checked against the target; a mismatch stops here and nothing is
-	// sent to koid after it.
+	// sent to previewlaned after it.
 	const ensureAwake: HostTransport['ensureAwake'] = async (report, o) => {
 		o?.signal?.throwIfAborted();
 		const deadline = o?.timeoutMs === undefined ? undefined : now() + o.timeoutMs;
-		const until = Math.min(now() + KOID_READY_MS, deadline ?? Number.POSITIVE_INFINITY);
+		const until = Math.min(now() + PREVIEWLANED_READY_MS, deadline ?? Number.POSITIVE_INFINITY);
 		let last = '';
 		for (let attempt = 0; now() < until; attempt++) {
 			try {
@@ -167,39 +167,39 @@ export function sshTransport(
 				if (r.code === CTL_EXIT.usage) {
 					throw new UnsupportedCapabilityError(
 						'describe',
-						`koid on ${where} does not answer koid ctl describe; it predates the host descriptor, and an SSH target needs the current koid`,
+						`previewlaned on ${where} does not answer previewlaned ctl describe; it predates the host descriptor, and an SSH target needs the current previewlaned`,
 					);
 				}
 				if (r.code !== CTL_EXIT.unavailable) {
-					throw new Error(ctlErrorText(r) || `koid ctl describe exited ${r.code} on ${where}`);
+					throw new Error(ctlErrorText(r) || `previewlaned ctl describe exited ${r.code} on ${where}`);
 				}
-				// koid is starting, or restarting after a deploy.
+				// previewlaned is starting, or restarting after a deploy.
 				last = ctlErrorText(r);
 			} catch (err) {
 				if (err instanceof BoxUnavailableError) {
 					throw new Error(
-						`${err.message}; target ${target.name} does not manage the host's power (power: always-on), so koi cannot start it; its operator must`,
+						`${err.message}; target ${target.name} does not manage the host's power (power: always-on), so previewlane cannot start it; its operator must`,
 					);
 				}
-				// A describe koi stopped waiting for has no outcome worth
+				// A describe previewlane stopped waiting for has no outcome worth
 				// knowing; the limit it ran into is reported below.
 				if (!(err instanceof UnknownOutcomeError)) throw err;
 				last = err.message;
 			}
 			o?.signal?.throwIfAborted();
 			if (now() >= until) break;
-			if (attempt === 0) report(`waiting for koid on ${target.host} to start`);
+			if (attempt === 0) report(`waiting for previewlaned on ${target.host} to start`);
 			await sleep(3000);
 			o?.signal?.throwIfAborted();
 		}
 		if (deadline !== undefined && now() >= deadline) throw wakeTimeout(o);
 		throw new Error(
-			`koid on ${where} did not answer within ${KOID_READY_MS / 60_000} minutes${last === '' ? '' : `: ${last}`}`,
+			`previewlaned on ${where} did not answer within ${PREVIEWLANED_READY_MS / 60_000} minutes${last === '' ? '' : `: ${last}`}`,
 		);
 	};
 
 	return {
-		// The source goes to koid over a tunnel, so koid must be up and the
+		// The source goes to previewlaned over a tunnel, so previewlaned must be up and the
 		// host checked before any of it is sent: ensureAwake does both. The
 		// archive's size and digest, the wait and the tunnel all count
 		// against the caller's deadline and stop on the caller's signal.
@@ -213,7 +213,7 @@ export function sshTransport(
 					try {
 						await ensureAwake(progress, { signal: abortSignal, timeoutMs: timeLeft() });
 					} catch (err) {
-						// The wait for koid ran out of the upload's time, which can
+						// The wait for previewlaned ran out of the upload's time, which can
 						// be gone before the wait starts: that is the upload's
 						// limit, reported as such below, not the wake's.
 						if (err instanceof WakeTimeoutError) throw new InterruptedError(err.message);
@@ -261,7 +261,7 @@ export function sshTransport(
 			if (q.kind === 'runtime') {
 				throw new UnsupportedCapabilityError(
 					'runtimeLogStream',
-					'the SSH transport cannot follow a container log yet; koi logs shows a bounded tail instead',
+					'the SSH transport cannot follow a container log yet; previewlane logs shows a bounded tail instead',
 				);
 			}
 			return buildLog(q, o, ctl, sleep, now);
@@ -280,7 +280,7 @@ export function sshTransport(
 	};
 }
 
-// Why ssh exited 255, as an error the caller can act on. A host key koi does
+// Why ssh exited 255, as an error the caller can act on. A host key previewlane does
 // not trust, and a key the host refuses, are the operator's to fix; the rest
 // is the network or the host, which can pass.
 export function sshFailure(target: SshHost, stderr: string): Error {
@@ -291,12 +291,12 @@ export function sshFailure(target: SshHost, stderr: string): Error {
 		)
 	) {
 		return new HostKeyError(
-			`koi does not trust the host key of ${target.host} for target ${target.name}: ${text}. koi never trusts a key on first use; get the key's SHA256 fingerprint from the host's operator and run koi target trust ${target.name} --fingerprint SHA256:...`,
+			`previewlane does not trust the host key of ${target.host} for target ${target.name}: ${text}. previewlane never trusts a key on first use; get the key's SHA256 fingerprint from the host's operator and run previewlane target trust ${target.name} --fingerprint SHA256:...`,
 		);
 	}
 	if (/Permission denied/.test(text)) {
 		return new Error(
-			`${target.host} refused koi's key for ${target.user}: ${text}. On the host, the key's public half must be in /etc/ssh/koi-connect/authorized_keys`,
+			`${target.host} refused previewlane's key for ${target.user}: ${text}. On the host, the key's public half must be in /etc/ssh/previewlane-connect/authorized_keys`,
 		);
 	}
 	return new BoxUnavailableError(
@@ -331,7 +331,7 @@ interface Source {
 // landed, and a ticket left behind expires on the host.
 const TUNNEL_RETRIES = 1;
 
-// How many times a commit koid could not make durable is sent again.
+// How many times a commit previewlaned could not make durable is sent again.
 const COMMIT_RETRIES = 2;
 
 // The upload sequence over a tunnel: a ticket for the request id, size and
@@ -341,9 +341,9 @@ const COMMIT_RETRIES = 2;
 // ticket, which answers 200 if the commit had landed. A tunnel whose ssh
 // ended with a lost connection counts as broken the same way; one ssh
 // refused, or the gateway refused, is reported at once. A tunnel that
-// carried nothing for `idleMs` is koid not answering with the connection
+// carried nothing for `idleMs` is previewlaned not answering with the connection
 // up: it is not tried again, since a second tunnel would stall the same
-// way, and the stall is reported as koid's.
+// way, and the stall is reported as previewlaned's.
 async function uploadSource(
 	target: SshHost,
 	client: SshClient,
@@ -368,7 +368,7 @@ async function uploadSource(
 			tunnel.kill();
 			if (err instanceof RelayIdleError) {
 				throw new BoxUnavailableError(
-					`koid on ${target.host} stopped answering during the upload of ${request.label}: nothing crossed the tunnel for ${describeMs(err.idleMs)}`,
+					`previewlaned on ${target.host} stopped answering during the upload of ${request.label}: nothing crossed the tunnel for ${describeMs(err.idleMs)}`,
 				);
 			}
 			// The tunnel is gone. If ssh or the gateway refused it, retrying
@@ -377,11 +377,11 @@ async function uploadSource(
 			const text = ((await stderr) ?? '').trim();
 			if (code === SSH_FAILED && !sshFailureIsTransient(text)) throw sshFailure(target, text);
 			if (code === CTL_EXIT.unavailable) {
-				throw new BoxUnavailableError(`koid on ${target.host} is not taking uploads: ${text}`);
+				throw new BoxUnavailableError(`previewlaned on ${target.host} is not taking uploads: ${text}`);
 			}
 			if (code === CTL_EXIT.usage) {
 				throw new Error(
-					`the koi gateway on ${target.host} refused tunnel-v1: ${text}. Install the current gateway (host/ssh/install.sh)`,
+					`the previewlane gateway on ${target.host} refused tunnel-v1: ${text}. Install the current gateway (host/ssh/install.sh)`,
 				);
 			}
 			if (attempt >= TUNNEL_RETRIES) {
@@ -434,15 +434,15 @@ async function uploadSequence(
 			break;
 		case 409:
 			throw new Error(
-				`koid on ${target.host} already holds request ${request.id} with other content: ${errorText(ticket)}`,
+				`previewlaned on ${target.host} already holds request ${request.id} with other content: ${errorText(ticket)}`,
 			);
 		case 413:
 			throw new Error(
-				`koid on ${target.host} refuses the source of ${label}: ${errorText(ticket)}`,
+				`previewlaned on ${target.host} refuses the source of ${label}: ${errorText(ticket)}`,
 			);
 		case 507:
 			throw new Error(
-				`koid on ${target.host} has no room for the source of ${label}: ${errorText(ticket)}. Try again once uploads have expired or previews were removed`,
+				`previewlaned on ${target.host} has no room for the source of ${label}: ${errorText(ticket)}. Try again once uploads have expired or previews were removed`,
 			);
 		default:
 			throw unexpected(target, 'POST /v1/uploads', ticket);
@@ -459,14 +459,14 @@ async function uploadSequence(
 	});
 	if (put.status !== 200) {
 		throw new Error(
-			`koid on ${target.host} did not take the source of ${label} (${put.status}): ${errorText(put)}`,
+			`previewlaned on ${target.host} did not take the source of ${label} (${put.status}): ${errorText(put)}`,
 		);
 	}
 	const received = SourceReceivedSchema.safeParse(parseJson(put.body));
 	if (!received.success) throw badReply(target, 'PUT source', put);
 	if (received.data.sizeBytes !== source.size || received.data.sha256 !== source.sha256) {
 		throw new Error(
-			`koid on ${target.host} received ${received.data.sizeBytes} bytes with digest ${received.data.sha256}, not the ${source.size} bytes with digest ${source.sha256} koi sent`,
+			`previewlaned on ${target.host} received ${received.data.sizeBytes} bytes with digest ${received.data.sha256}, not the ${source.size} bytes with digest ${source.sha256} previewlane sent`,
 		);
 	}
 
@@ -481,19 +481,19 @@ async function uploadSequence(
 			if (!reply.success) throw badReply(target, 'POST commit', commit);
 			if (reply.data.requestId !== request.id || reply.data.label !== label) {
 				throw new Error(
-					`koid on ${target.host} committed the upload as ${reply.data.label} (request ${reply.data.requestId}), not ${label} (request ${request.id})`,
+					`previewlaned on ${target.host} committed the upload as ${reply.data.label} (request ${reply.data.requestId}), not ${label} (request ${request.id})`,
 				);
 			}
 			return;
 		}
 		// The entry is on the disk but not durable yet, or the disk filled
-		// up at the last step: koid says to commit again.
+		// up at the last step: previewlaned says to commit again.
 		if ((commit.status === 500 || commit.status === 507) && tries < COMMIT_RETRIES) {
 			await sleep(1000);
 			continue;
 		}
 		throw new Error(
-			`koid on ${target.host} did not commit the upload of ${label} (${commit.status}): ${errorText(commit)}`,
+			`previewlaned on ${target.host} did not commit the upload of ${label} (${commit.status}): ${errorText(commit)}`,
 		);
 	}
 }
@@ -506,7 +506,7 @@ function parseJson(body: Uint8Array): unknown {
 	}
 }
 
-// koid's error for a refusal, or else the body as text.
+// previewlaned's error for a refusal, or else the body as text.
 function errorText(reply: RelayReply): string {
 	const text = new TextDecoder().decode(reply.body).trim();
 	const parsed = ErrorReplySchema.safeParse(parseJson(reply.body));
@@ -515,13 +515,13 @@ function errorText(reply: RelayReply): string {
 
 function badReply(target: SshHost, what: string, reply: RelayReply): Error {
 	return new Error(
-		`koid on ${target.host} answered ${what} with ${reply.status} and a body koi cannot read: ${new TextDecoder().decode(reply.body).slice(0, 200)}`,
+		`previewlaned on ${target.host} answered ${what} with ${reply.status} and a body previewlane cannot read: ${new TextDecoder().decode(reply.body).slice(0, 200)}`,
 	);
 }
 
 function unexpected(target: SshHost, what: string, reply: RelayReply): Error {
 	return new Error(
-		`koid on ${target.host} answered ${what} with ${reply.status}: ${errorText(reply)}`,
+		`previewlaned on ${target.host} answered ${what} with ${reply.status}: ${errorText(reply)}`,
 	);
 }
 

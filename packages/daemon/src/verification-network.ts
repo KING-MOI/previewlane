@@ -7,7 +7,7 @@ import {
 	INPUT_VOLUME_PARTS,
 	INPUT_VOLUME_ROLE,
 	inputVolumeName,
-	type KoidContainerRole,
+	type PreviewlanedContainerRole,
 	parseHelperName,
 	parseInputVolumeName,
 	parseRunNetworkName,
@@ -23,7 +23,7 @@ import {
 	VerifyAttestationSchema,
 	VerifyIdSchema,
 	VerifyPoolSchema,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import type { Docker, LabelledContainer, LabelledVolume, NetworkInfo } from './docker.ts';
 import { ExecError, type ExecOptions, type ExecResult, exec, WHOLE_OUTPUT } from './exec.ts';
 import { writeFileAtomic } from './fsutil.ts';
@@ -32,9 +32,9 @@ import { Mutex } from './lock.ts';
 // The private network of one verification run (docs/verify.md, "Run
 // network"): a bridge of its own with a /28 from the operator's reserved
 // pool, the serving app attached to it as a second interface, and two
-// containers koi owns, the recorder and the verifier, created but not
+// containers previewlane owns, the recorder and the verifier, created but not
 // started. The firewall permits between them come from the root-owned
-// helper (host/verify/koi_verify_net.py), which koid runs through sudo.
+// helper (host/verify/previewlane_verify_net.py), which previewlaned runs through sudo.
 //
 // Each network has a record on disk from before Docker is asked for
 // anything until after the helper has revoked its permits and the network
@@ -79,20 +79,20 @@ export function sudoHelper(path: string, run: Run = exec): VerifyNetHelper {
 	};
 }
 
-// What `koi-verify-net attest` printed, checked against its schema.
+// What `previewlane-verify-net attest` printed, checked against its schema.
 export function parseAttestation(text: string): VerifyAttestation {
 	let data: unknown;
 	try {
 		data = JSON.parse(text);
 	} catch {
-		throw new Error('koi-verify-net attest printed something other than JSON');
+		throw new Error('previewlane-verify-net attest printed something other than JSON');
 	}
 	const result = VerifyAttestationSchema.safeParse(data);
 	if (!result.success) {
 		const fields = result.error.issues.map(
 			(i) => `${i.path.join('.') || 'the output'}: ${i.message}`,
 		);
-		throw new Error(`koi-verify-net attest printed what koid cannot read: ${fields.join('; ')}`);
+		throw new Error(`previewlane-verify-net attest printed what previewlaned cannot read: ${fields.join('; ')}`);
 	}
 	return result.data;
 }
@@ -104,18 +104,18 @@ export function attestationProblems(attestation: VerifyAttestation, pool: string
 	const problems: string[] = [];
 	if (attestation.policy !== VERIFY_POLICY_VERSION) {
 		problems.push(
-			`the helper installs policy version ${attestation.policy}, and koid expects ${VERIFY_POLICY_VERSION}`,
+			`the helper installs policy version ${attestation.policy}, and previewlaned expects ${VERIFY_POLICY_VERSION}`,
 		);
 	}
 	if (attestation.pool !== pool) {
 		problems.push(
-			`the helper's pool is ${attestation.pool ?? 'not set'} and KOI_VERIFY_POOL is ${pool}; both come from /etc/koi/verify/env`,
+			`the helper's pool is ${attestation.pool ?? 'not set'} and PREVIEWLANE_VERIFY_POOL is ${pool}; both come from /etc/previewlane/verify/env`,
 		);
 	}
 	const ipv4 = attestation.ipv4;
 	if (!ipv4.chains || !ipv4.jump || !ipv4.defaults || !ipv4.permits) {
 		problems.push(...ipv4.problems);
-		if (ipv4.problems.length === 0) problems.push('the KOI-VERIFY chains are not in place');
+		if (ipv4.problems.length === 0) problems.push('the PREVIEWLANE-VERIFY chains are not in place');
 	}
 	if (!attestation.ipv6.defaults) {
 		problems.push(...attestation.ipv6.problems);
@@ -152,41 +152,41 @@ export function attestationProblems(attestation: VerifyAttestation, pool: string
 export { helperName, runNetworkName };
 
 // A run's helper or staging container, from a container's name and labels,
-// or undefined for anything else. A container is one only when koid named
-// it as one, its labels say the same run and role, and koi.preview holds
-// nothing: a preview's image can set any label, including koi.run and
-// koi.role, but its name is koid's and never a helper's, and koid creates a
-// helper or staging container with koi.preview set to nothing over whatever
+// or undefined for anything else. A container is one only when previewlaned named
+// it as one, its labels say the same run and role, and previewlane.preview holds
+// nothing: a preview's image can set any label, including previewlane.run and
+// previewlane.role, but its name is previewlaned's and never a helper's, and previewlaned creates a
+// helper or staging container with previewlane.preview set to nothing over whatever
 // its image carries (docker.ts, helperArgs and stagingArgs), so a value there
-// is not koid's doing. Cleanup removes nothing it is not sure of. The
+// is not previewlaned's doing. Cleanup removes nothing it is not sure of. The
 // reconciler and the watchdog, which must keep every preview in sight, go by
 // the name alone (docker.ts, isPreview).
 export function helperOf(
 	container: LabelledContainer,
-): { name: string; runId: string; role: KoidContainerRole } | undefined {
+): { name: string; runId: string; role: PreviewlanedContainerRole } | undefined {
 	const named = parseHelperName(container.name);
 	if (named === undefined) return undefined;
 	const { labels } = container;
-	if ((labels['koi.preview'] ?? '') !== '') return undefined;
-	if (labels['koi.role'] !== named.role) return undefined;
-	if (labels['koi.run'] !== named.runId) return undefined;
+	if ((labels['previewlane.preview'] ?? '') !== '') return undefined;
+	if (labels['previewlane.role'] !== named.role) return undefined;
+	if (labels['previewlane.run'] !== named.runId) return undefined;
 	if (!VerifyIdSchema.safeParse(named.runId).success) return undefined;
 	return { name: container.name, ...named };
 }
 
-// The run an input volume belongs to, when koid named it as one and its
+// The run an input volume belongs to, when previewlaned named it as one and its
 // labels say the same run, or undefined. An image can declare a volume, but
-// not name one, so the name is the part only koid can have set.
+// not name one, so the name is the part only previewlaned can have set.
 export function inputVolumeOf(volume: LabelledVolume): { name: string; runId: string } | undefined {
 	const named = parseInputVolumeName(volume.name);
 	if (named === undefined) return undefined;
-	if (volume.labels['koi.role'] !== INPUT_VOLUME_ROLE) return undefined;
-	if (volume.labels['koi.run'] !== named.runId) return undefined;
+	if (volume.labels['previewlane.role'] !== INPUT_VOLUME_ROLE) return undefined;
+	if (volume.labels['previewlane.run'] !== named.runId) return undefined;
 	if (!VerifyIdSchema.safeParse(named.runId).success) return undefined;
 	return { name: volume.name, runId: named.runId };
 }
 
-// The run a network belongs to, when koid named it as a run network and its
+// The run a network belongs to, when previewlaned named it as a run network and its
 // label says the same run, or undefined.
 export function runNetworkOf(network: NetworkInfo): string | undefined {
 	const runId = parseRunNetworkName(network.name);
@@ -278,7 +278,7 @@ export function runNetworkProblems(
 	if (network.subnets.join(' ') !== record.subnet) {
 		problems.push(`has subnets ${network.subnets.join(' ') || '(none)'}, not ${record.subnet}`);
 	}
-	if (network.run !== record.runId) problems.push(`is not labelled koi.run=${record.runId}`);
+	if (network.run !== record.runId) problems.push(`is not labelled previewlane.run=${record.runId}`);
 	return problems.map((p) => `network ${record.network} ${p}`);
 }
 
@@ -287,7 +287,7 @@ export function runNetworkProblems(
 export interface VerificationNetworkDeps {
 	docker: Docker;
 	helper: VerifyNetHelper;
-	// KOI_VERIFY_POOL.
+	// PREVIEWLANE_VERIFY_POOL.
 	pool: string;
 	// The preview network, where the app keeps its address.
 	previewNetwork: string;
@@ -491,7 +491,7 @@ export class VerificationNetwork {
 				bridge: record.bridge,
 				subnet: record.subnet,
 				gateway: record.gateway,
-				labels: { 'koi.run': runId },
+				labels: { 'previewlane.run': runId },
 			},
 			signal,
 		);
@@ -517,8 +517,8 @@ export class VerificationNetwork {
 		];
 		const appHost = { name: privateHost(runId), ip: addresses.app };
 		const env = {
-			KOI_RUN_ID: runId,
-			KOI_PREVIEW_URL: `http://${appHost.name}:${record.appPort}`,
+			PREVIEWLANE_RUN_ID: runId,
+			PREVIEWLANE_PREVIEW_URL: `http://${appHost.name}:${record.appPort}`,
 		};
 		for (const role of ['recorder', 'verifier'] as const) {
 			const name = helperName(runId, role);
@@ -553,11 +553,11 @@ export class VerificationNetwork {
 				throw new Error(`${name} got MAC ${made.mac} on ${network}, not ${mac}`);
 			}
 			// An image may declare a volume, which would give the helper a
-			// writable place koi did not ask for.
+			// writable place previewlane did not ask for.
 			const mounts = await docker.mounts(name, signal);
 			if (mounts.length > 0) {
 				throw new Error(
-					`${name} has mounts koi did not ask for: ${mounts.map((m) => `${m.type} at ${m.destination}`).join(', ')}`,
+					`${name} has mounts previewlane did not ask for: ${mounts.map((m) => `${m.type} at ${m.destination}`).join(', ')}`,
 				);
 			}
 			endpoints.push({ role, container: name, ip, mac });
@@ -702,12 +702,12 @@ export class VerificationNetwork {
 		await step('removing its record', () => rm(this.path(record.runId), { force: true }));
 	}
 
-	// At startup: every recorded network goes, since no run outlives koid,
+	// At startup: every recorded network goes, since no run outlives previewlaned,
 	// and so do helpers, staging containers, input volumes and run networks
 	// that no record names (a crash before the record was written). Only
-	// what koid named as one of these and labelled as the same run counts
+	// what previewlaned named as one of these and labelled as the same run counts
 	// (helperOf, inputVolumeOf, runNetworkOf); anything else that carries
-	// koi.run is left where it is and logged. Returns the run ids cleaned
+	// previewlane.run is left where it is and logged. Returns the run ids cleaned
 	// up. What could not be cleaned
 	// is logged and tried again next start. Every run and orphan is
 	// attempted first; then the failures are thrown as one error naming
@@ -719,7 +719,7 @@ export class VerificationNetwork {
 	// A record that cannot be read or parsed is such a failure too. Without
 	// it, nothing here knows the run: what the run left in Docker still goes
 	// as an orphan, and its permits go with the helper's list below. The file
-	// stays, because koid cannot tell which subnet it held, so verification
+	// stays, because previewlaned cannot tell which subnet it held, so verification
 	// stays unavailable until the operator has looked at it and removed it.
 	async cleanupOrphans(): Promise<string[]> {
 		return this.changes.run(async () => {
@@ -753,7 +753,7 @@ export class VerificationNetwork {
 				const found = helperOf(container);
 				if (found === undefined) {
 					log(
-						`leaving container ${container.name}, labelled koi.run=${JSON.stringify(container.labels['koi.run'] ?? '')}: not a helper koid made`,
+						`leaving container ${container.name}, labelled previewlane.run=${JSON.stringify(container.labels['previewlane.run'] ?? '')}: not a helper previewlaned made`,
 					);
 				} else helpers.push(found);
 			}
@@ -762,7 +762,7 @@ export class VerificationNetwork {
 				const found = inputVolumeOf(volume);
 				if (found === undefined) {
 					log(
-						`leaving volume ${volume.name}, labelled koi.run=${JSON.stringify(volume.labels['koi.run'] ?? '')}: not an input volume koid made`,
+						`leaving volume ${volume.name}, labelled previewlane.run=${JSON.stringify(volume.labels['previewlane.run'] ?? '')}: not an input volume previewlaned made`,
 					);
 				} else volumes.push(found);
 			}
@@ -772,7 +772,7 @@ export class VerificationNetwork {
 				const runId = runNetworkOf(network);
 				if (runId === undefined) {
 					log(
-						`leaving network ${network.name}, labelled koi.run=${JSON.stringify(network.run)}: not a run network koid made`,
+						`leaving network ${network.name}, labelled previewlane.run=${JSON.stringify(network.run)}: not a run network previewlaned made`,
 					);
 				} else networks.push({ ...network, runId });
 			}
@@ -807,10 +807,10 @@ export class VerificationNetwork {
 			// Logged here rather than by the caller, so a pass that also
 			// failed somewhere still says what went.
 			if (cleaned.length > 0) log(`removed the run networks of ${cleaned.join(', ')}`);
-			// The helper lists every run it holds state for, whatever koid knows.
+			// The helper lists every run it holds state for, whatever previewlaned knows.
 			// A run can be on that list with nothing else left to find it by: its
 			// record could not be read, or its Docker objects are gone. No run
-			// outlives koid, so any such run gets a revoke.
+			// outlives previewlaned, so any such run gets a revoke.
 			let held: string[] = [];
 			try {
 				held = (await helper.attest()).runs;
@@ -822,7 +822,7 @@ export class VerificationNetwork {
 				if (failedRuns.has(runId)) continue;
 				try {
 					await step('revoking its permits', () => helper.revoke(runId));
-					log(`revoked run ${runId}, which the helper held and koid had no record of`);
+					log(`revoked run ${runId}, which the helper held and previewlaned had no record of`);
 					if (!cleaned.includes(runId)) cleaned.push(runId);
 				} catch (err) {
 					log(`run ${runId}, held by the helper: ${message(err)}; tried again next start`);

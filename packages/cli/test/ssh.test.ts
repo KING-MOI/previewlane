@@ -4,7 +4,7 @@ import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { connect as netConnect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { CTL_EXIT, decodeCtlArgs, type UpRequest } from '@koi/shared';
+import { CTL_EXIT, decodeCtlArgs, type UpRequest } from '@previewlane/shared';
 import { CTL_USAGE } from '../../daemon/src/ctl.ts';
 import {
 	CONTROL_PERSIST_S,
@@ -32,21 +32,21 @@ import {
 	sshFailureIsTransient,
 	sshTransport,
 } from '../src/transports/ssh.ts';
-import { hostInfoFor, previewRecord } from './koid.ts';
+import { hostInfoFor, previewRecord } from './previewlaned.ts';
 
 const TARGET: SshTarget = {
 	host: '203.0.113.10',
 	port: 22,
-	user: 'koi-connect',
-	identityFile: '/home/operator/.ssh/koi_team_ed25519',
-	knownHostsFile: '/home/operator/.config/koi/known_hosts',
+	user: 'previewlane-connect',
+	identityFile: '/home/operator/.ssh/previewlane_team_ed25519',
+	knownHostsFile: '/home/operator/.config/previewlane/known_hosts',
 	hostKeyAlias: 'team',
 };
 
 const AGENT_TARGET: SshTarget = {
 	...TARGET,
 	identityFile: undefined,
-	identityPublicKey: '/home/operator/.ssh/koi_team_ed25519.pub',
+	identityPublicKey: '/home/operator/.ssh/previewlane_team_ed25519.pub',
 };
 
 // Shell metacharacters, quotes, a newline and text outside ASCII.
@@ -135,13 +135,13 @@ function client(spawn: SshSpawn, target: SshTarget = TARGET, env: Record<string,
 		target,
 		env: { PATH: '/usr/bin', ...env },
 		spawn,
-		controlDir: async () => '/tmp/koi-ssh-test',
+		controlDir: async () => '/tmp/previewlane-ssh-test',
 	});
 }
 
 describe('sshArgs', () => {
 	test('is the full hardened command line for a private key file, and nothing else', () => {
-		expect(sshArgs(TARGET, '/tmp/koi-ssh-x/m', 'tunnel-v1')).toEqual([
+		expect(sshArgs(TARGET, '/tmp/previewlane-ssh-x/m', 'tunnel-v1')).toEqual([
 			'ssh',
 			'-F',
 			'none',
@@ -150,7 +150,7 @@ describe('sshArgs', () => {
 			'-o',
 			'IdentitiesOnly=yes',
 			'-o',
-			'IdentityFile="/home/operator/.ssh/koi_team_ed25519"',
+			'IdentityFile="/home/operator/.ssh/previewlane_team_ed25519"',
 			'-o',
 			'IdentityAgent=none',
 			'-o',
@@ -170,7 +170,7 @@ describe('sshArgs', () => {
 			'-o',
 			'StrictHostKeyChecking=yes',
 			'-o',
-			'UserKnownHostsFile="/home/operator/.config/koi/known_hosts"',
+			'UserKnownHostsFile="/home/operator/.config/previewlane/known_hosts"',
 			'-o',
 			'GlobalKnownHostsFile=/dev/null',
 			'-o',
@@ -206,7 +206,7 @@ describe('sshArgs', () => {
 			'-o',
 			'ControlMaster=auto',
 			'-o',
-			'ControlPath="/tmp/koi-ssh-x/m"',
+			'ControlPath="/tmp/previewlane-ssh-x/m"',
 			'-o',
 			`ControlPersist=${CONTROL_PERSIST_S}`,
 			'-o',
@@ -214,7 +214,7 @@ describe('sshArgs', () => {
 			'-o',
 			'Port=22',
 			'-o',
-			'User=koi-connect',
+			'User=previewlane-connect',
 			'--',
 			'203.0.113.10',
 			'tunnel-v1',
@@ -223,7 +223,7 @@ describe('sshArgs', () => {
 
 	test('a key in ssh-agent is named by its public half, and the agent is left on', () => {
 		const opts = options(sshArgs(AGENT_TARGET, '/tmp/c/m', 'tunnel-v1'));
-		expect(opts).toContain('IdentityFile="/home/operator/.ssh/koi_team_ed25519.pub"');
+		expect(opts).toContain('IdentityFile="/home/operator/.ssh/previewlane_team_ed25519.pub"');
 		expect(opts).toContain('IdentitiesOnly=yes');
 		expect(opts.some((o) => o.startsWith('IdentityAgent='))).toBe(false);
 	});
@@ -309,7 +309,7 @@ describe('sshEnv', () => {
 		SSH_AUTH_SOCK: '/run/user/1000/agent',
 		SSH_OPTS: '-o ProxyCommand=evil',
 		LD_PRELOAD: '/evil.so',
-		KOI_TARGET: 'team',
+		PREVIEWLANE_TARGET: 'team',
 		SSH_ASKPASS: '/evil',
 		DISPLAY: ':0',
 	};
@@ -337,7 +337,7 @@ describe('SshClient', () => {
 		const req = f.requests[0] as SpawnRequest;
 		expect(req.stdin).toBe(false);
 		expect(req.env).toEqual({ PATH: '/usr/bin' });
-		expect(req.cmd).toEqual(sshArgs(TARGET, '/tmp/koi-ssh-test/m', 'ctl-b64 WyJwaW5nIl0='));
+		expect(req.cmd).toEqual(sshArgs(TARGET, '/tmp/previewlane-ssh-test/m', 'ctl-b64 WyJwaW5nIl0='));
 	});
 
 	test('makes the control directory itself, mode 0700, and removes it on close', async () => {
@@ -419,7 +419,7 @@ describe('SshClient', () => {
 	test('refuses output past the bound rather than use part of it', async () => {
 		const f = fakeSsh(() => scripted({ stdout: 'x'.repeat(2000) }));
 		await expect(client(f.spawn).run('ctl-b64 abc', undefined, 1000)).rejects.toThrow(
-			'passed 1000 bytes; koi does not use part of a reply',
+			'passed 1000 bytes; previewlane does not use part of a reply',
 		);
 	});
 
@@ -466,7 +466,7 @@ describe('SshClient', () => {
 			spawn,
 			controlDir: async () => {
 				await made;
-				return '/tmp/koi-ssh-test';
+				return '/tmp/previewlane-ssh-test';
 			},
 		});
 		return { c, release };
@@ -532,7 +532,7 @@ describe('SshClient', () => {
 const HOST = {
 	name: 'team',
 	host: '203.0.113.10',
-	user: 'koi-connect',
+	user: 'previewlane-connect',
 	domain: 'previews.example.com',
 };
 
@@ -556,7 +556,7 @@ function transport(
 }
 
 describe('sshTransport ctl', () => {
-	test('sends the arguments as ctl-b64 with a blob koid decodes to the same list', async () => {
+	test('sends the arguments as ctl-b64 with a blob previewlaned decodes to the same list', async () => {
 		const { t, requests } = transport(() => scripted({ stdout: '{"ok":true}\n' }));
 		const r = await t.ctl(['status', NASTY, '-rf', '']);
 		expect(r).toEqual({ code: 0, stdout: '{"ok":true}\n', stderr: '' });
@@ -565,14 +565,14 @@ describe('sshTransport ctl', () => {
 		expect(ctlArgsOf(requests[0] as SpawnRequest)).toEqual(['status', NASTY, '-rf', '']);
 	});
 
-	test("returns koid ctl's own exit status and output, whatever it is", async () => {
+	test("returns previewlaned ctl's own exit status and output, whatever it is", async () => {
 		for (const code of [CTL_EXIT.ok, CTL_EXIT.refused, CTL_EXIT.usage, CTL_EXIT.unavailable, 127]) {
 			const { t } = transport(() => scripted({ code, stdout: 'out', stderr: 'err' }));
 			expect(await t.ctl(['list'])).toEqual({ code, stdout: 'out', stderr: 'err' });
 		}
 	});
 
-	test("a host key koi does not trust is the operator's to fix, with the command to do it", async () => {
+	test("a host key previewlane does not trust is the operator's to fix, with the command to do it", async () => {
 		for (const text of [
 			'Host key verification failed.',
 			'@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@\nHost key verification failed.',
@@ -581,18 +581,18 @@ describe('sshTransport ctl', () => {
 			const { t } = transport(() => scripted({ code: 255, stderr: text }));
 			const err = await t.ctl(['ping']).catch((e: unknown) => e);
 			expect(err).toBeInstanceOf(HostKeyError);
-			expect((err as Error).message).toContain('koi target trust team --fingerprint SHA256:...');
+			expect((err as Error).message).toContain('previewlane target trust team --fingerprint SHA256:...');
 			expect((err as Error).message).toContain('203.0.113.10');
 		}
 	});
 
 	test('a key the host refuses names the authorized keys file', async () => {
 		const { t } = transport(() =>
-			scripted({ code: 255, stderr: 'koi-connect@203.0.113.10: Permission denied (publickey).' }),
+			scripted({ code: 255, stderr: 'previewlane-connect@203.0.113.10: Permission denied (publickey).' }),
 		);
 		const err = await t.ctl(['ping']).catch((e: unknown) => e);
 		expect(err).not.toBeInstanceOf(BoxUnavailableError);
-		expect((err as Error).message).toContain('/etc/ssh/koi-connect/authorized_keys');
+		expect((err as Error).message).toContain('/etc/ssh/previewlane-connect/authorized_keys');
 		expect((err as Error).message).toContain('Permission denied (publickey)');
 	});
 
@@ -606,7 +606,7 @@ describe('sshTransport ctl', () => {
 			const { t } = transport(() => scripted({ code: 255, stderr: text }));
 			const err = await t.ctl(['ping']).catch((e: unknown) => e);
 			expect(err).toBeInstanceOf(BoxUnavailableError);
-			expect((err as Error).message).toContain('cannot connect to 203.0.113.10 as koi-connect');
+			expect((err as Error).message).toContain('cannot connect to 203.0.113.10 as previewlane-connect');
 		}
 	});
 
@@ -627,7 +627,7 @@ describe('sshTransport ctl', () => {
 		stop.abort();
 		const err = await call.catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(UnknownOutcomeError);
-		expect((err as Error).message).toContain('koid ctl down may have run on 203.0.113.10');
+		expect((err as Error).message).toContain('previewlaned ctl down may have run on 203.0.113.10');
 		expect(p.killed).toBe(true);
 	});
 
@@ -640,7 +640,7 @@ describe('sshTransport ctl', () => {
 	});
 
 	test('a ctl with no limit of its own ends at the default, naming it', async () => {
-		// ssh keeps the session up for as long as sshd does, so a koid that
+		// ssh keeps the session up for as long as sshd does, so a previewlaned that
 		// hangs would hold the call for good. The default, shortened here,
 		// ends it; the defaults as shipped are pinned below.
 		const p = scripted({ hang: true });
@@ -648,7 +648,7 @@ describe('sshTransport ctl', () => {
 		const err = await t.ctl(['list']).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(UnknownOutcomeError);
 		expect((err as Error).message).toBe(
-			'koid ctl list may have run on 203.0.113.10 (target team): koi stopped waiting for its result after 50 ms, so its outcome is unknown',
+			'previewlaned ctl list may have run on 203.0.113.10 (target team): previewlane stopped waiting for its result after 50 ms, so its outcome is unknown',
 		);
 		expect(p.killed).toBe(true);
 		expect(SSH_DEFAULT_LIMITS).toEqual({
@@ -671,7 +671,7 @@ describe('sshTransport ctl', () => {
 describe('sshTransport describe and ensureAwake', () => {
 	const info = hostInfoFor('previews.example.com');
 
-	test("describe returns koid's descriptor, and reports an old koid as a missing capability", async () => {
+	test("describe returns previewlaned's descriptor, and reports an old previewlaned as a missing capability", async () => {
 		const { t, requests } = transport(() => scripted({ stdout: `${JSON.stringify(info)}\n` }));
 		expect(await t.describe()).toEqual(info);
 		expect(ctlArgsOf(requests[0] as SpawnRequest)).toEqual(['describe']);
@@ -687,7 +687,7 @@ describe('sshTransport describe and ensureAwake', () => {
 		expect(p.killed).toBe(true);
 	});
 
-	test('ensureAwake asks for the descriptor and returns once koid answers', async () => {
+	test('ensureAwake asks for the descriptor and returns once previewlaned answers', async () => {
 		const progress: string[] = [];
 		const { t, requests } = transport(() => scripted({ stdout: `${JSON.stringify(info)}\n` }));
 		await t.ensureAwake((m) => progress.push(m));
@@ -695,7 +695,7 @@ describe('sshTransport describe and ensureAwake', () => {
 		expect(progress).toEqual([]);
 	});
 
-	test('waits for a koid that is starting, every 3 seconds, saying so once', async () => {
+	test('waits for a previewlaned that is starting, every 3 seconds, saying so once', async () => {
 		const progress: string[] = [];
 		const slept: number[] = [];
 		let calls = 0;
@@ -703,7 +703,7 @@ describe('sshTransport describe and ensureAwake', () => {
 			() =>
 				scripted(
 					calls++ < 2
-						? { code: CTL_EXIT.unavailable, stderr: 'koid ctl: cannot reach koid: ECONNREFUSED\n' }
+						? { code: CTL_EXIT.unavailable, stderr: 'previewlaned ctl: cannot reach previewlaned: ECONNREFUSED\n' }
 						: { stdout: `${JSON.stringify(info)}\n` },
 				),
 			{
@@ -715,7 +715,7 @@ describe('sshTransport describe and ensureAwake', () => {
 		await t.ensureAwake((m) => progress.push(m));
 		expect(calls).toBe(3);
 		expect(slept).toEqual([3000, 3000]);
-		expect(progress).toEqual(['waiting for koid on 203.0.113.10 to start']);
+		expect(progress).toEqual(['waiting for previewlaned on 203.0.113.10 to start']);
 	});
 
 	test('a host that does not take the connection is for its operator to start', async () => {
@@ -728,7 +728,7 @@ describe('sshTransport describe and ensureAwake', () => {
 		const err = await t.ensureAwake(() => {}).catch((e: unknown) => e);
 		expect(err).not.toBeInstanceOf(BoxUnavailableError);
 		expect((err as Error).message).toBe(
-			"cannot connect to 203.0.113.10 as koi-connect: ssh: connect to host 203.0.113.10 port 22: Connection refused; target team does not manage the host's power (power: always-on), so koi cannot start it; its operator must",
+			"cannot connect to 203.0.113.10 as previewlane-connect: ssh: connect to host 203.0.113.10 port 22: Connection refused; target team does not manage the host's power (power: always-on), so previewlane cannot start it; its operator must",
 		);
 	});
 
@@ -744,7 +744,7 @@ describe('sshTransport describe and ensureAwake', () => {
 			},
 		);
 		await expect(t.ensureAwake(() => {})).rejects.toThrow(
-			'koid on 203.0.113.10 (target team) did not answer within 5 minutes: starting',
+			'previewlaned on 203.0.113.10 (target team) did not answer within 5 minutes: starting',
 		);
 	});
 
@@ -783,14 +783,14 @@ describe('sshTransport describe and ensureAwake', () => {
 		);
 	});
 
-	test('a koid from before the descriptor is refused, not taken at its word', async () => {
+	test('a previewlaned from before the descriptor is refused, not taken at its word', async () => {
 		const { t } = transport(() => scripted({ code: CTL_EXIT.usage, stderr: CTL_USAGE }));
 		const err = await t.ensureAwake(() => {}).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(UnsupportedCapabilityError);
-		expect((err as Error).message).toContain('an SSH target needs the current koid');
+		expect((err as Error).message).toContain('an SSH target needs the current previewlaned');
 	});
 
-	test('a refusal from koid is not waited out', async () => {
+	test('a refusal from previewlaned is not waited out', async () => {
 		const { t } = transport(() =>
 			scripted({ code: CTL_EXIT.refused, stderr: '{"error":"no such thing"}' }),
 		);
@@ -801,7 +801,7 @@ describe('sshTransport describe and ensureAwake', () => {
 describe('sshTransport logs and channel', () => {
 	test('follows a build log by polling status, as the AWS transport does', async () => {
 		const record = previewRecord({ status: 'running', attempt: 'b'.repeat(20) });
-		// Two lines from offset 0, then nothing past them, as koid pages.
+		// Two lines from offset 0, then nothing past them, as previewlaned pages.
 		const { t, requests } = transport((req) =>
 			scripted({
 				stdout: JSON.stringify({
@@ -843,7 +843,7 @@ describe('sshTransport logs and channel', () => {
 	});
 });
 
-// A relay to a unix socket, as a tunnel-v1 session is to koid's control
+// A relay to a unix socket, as a tunnel-v1 session is to previewlaned's control
 // socket: bytes written go to the socket, bytes from it come out of stdout.
 // `code` and `stderr` are what the process reports once the socket closes.
 // With `breakAfterReplies` the connection drops once that many replies
@@ -919,9 +919,9 @@ function refusedTunnel(code: number, stderr: string): SshProcess & { killed: boo
 
 type Handler = (req: Request) => Promise<Response> | Response;
 
-// koid's upload API as a script: each request takes the next handler.
-async function koid(handlers: Handler[]) {
-	const dir = await mkdtemp(join(tmpdir(), 'koi-ssh-koid-'));
+// previewlaned's upload API as a script: each request takes the next handler.
+async function previewlaned(handlers: Handler[]) {
+	const dir = await mkdtemp(join(tmpdir(), 'previewlane-ssh-previewlaned-'));
 	const sock = join(dir, 'k.sock');
 	const seen: string[] = [];
 	const server = Bun.serve({
@@ -965,7 +965,7 @@ function request(): UpRequest {
 }
 
 async function tarball(size = 3 * 1024 ** 2 + 123) {
-	const dir = await mkdtemp(join(tmpdir(), 'koi-ssh-src-'));
+	const dir = await mkdtemp(join(tmpdir(), 'previewlane-ssh-src-'));
 	const bytes = Buffer.alloc(size);
 	for (let i = 0; i < size; i++) bytes[i] = (i * 7) & 0xff;
 	const path = join(dir, 'source.tar.gz');
@@ -1004,7 +1004,7 @@ const commit: Handler = async (req) => {
 	return Response.json({ requestId: body.id, label: body.label });
 };
 
-// The descriptor koid answers describe with: the upload checks it against
+// The descriptor previewlaned answers describe with: the upload checks it against
 // the target before it opens a tunnel.
 const DESCRIPTOR = `${JSON.stringify(hostInfoFor('previews.example.com'))}\n`;
 
@@ -1030,9 +1030,9 @@ function uploader(
 }
 
 describe('sshTransport upload', () => {
-	test('asks koid for its descriptor, and checks it, before any of the source goes out', async () => {
+	test('asks previewlaned for its descriptor, and checks it, before any of the source goes out', async () => {
 		const order: string[] = [];
-		const k = await koid([
+		const k = await previewlaned([
 			(req) => {
 				order.push('POST /v1/uploads');
 				return ticket(req);
@@ -1054,7 +1054,7 @@ describe('sshTransport upload', () => {
 			expect(order).toEqual(['describe', 'POST /v1/uploads']);
 			expect(requests.map(commandOf)[0]).toStartWith('ctl-b64 ');
 			expect(ctlArgsOf(requests[0] as SpawnRequest)).toEqual(['describe']);
-			// Checked once: the next upload describes again (koid must be up)
+			// Checked once: the next upload describes again (previewlaned must be up)
 			// but is not held to a second check, and a wake after it neither.
 			await t.upload(request(), src.path);
 			await t.ensureAwake(() => {});
@@ -1066,7 +1066,7 @@ describe('sshTransport upload', () => {
 	});
 
 	test('a host that serves another domain gets no source, and no tunnel is opened', async () => {
-		const k = await koid([ticket]);
+		const k = await previewlaned([ticket]);
 		const src = await tarball(1000);
 		try {
 			const other = `${JSON.stringify(hostInfoFor('other.example.com'))}\n`;
@@ -1089,8 +1089,8 @@ describe('sshTransport upload', () => {
 		}
 	});
 
-	test('waits for a koid that is starting before it uploads, and says so', async () => {
-		const k = await koid([() => Response.json({ committed: true, requestId: ID })]);
+	test('waits for a previewlaned that is starting before it uploads, and says so', async () => {
+		const k = await previewlaned([() => Response.json({ committed: true, requestId: ID })]);
 		const src = await tarball(1000);
 		try {
 			const progress: string[] = [];
@@ -1099,14 +1099,14 @@ describe('sshTransport upload', () => {
 				describe: () =>
 					scripted(
 						calls++ === 0
-							? { code: CTL_EXIT.unavailable, stderr: 'koid ctl: cannot reach koid\n' }
+							? { code: CTL_EXIT.unavailable, stderr: 'previewlaned ctl: cannot reach previewlaned\n' }
 							: { stdout: DESCRIPTOR },
 					),
 				progress: (m) => progress.push(m),
 			});
 			await t.upload(request(), src.path);
 			expect(calls).toBe(2);
-			expect(progress).toEqual(['waiting for koid on 203.0.113.10 to start']);
+			expect(progress).toEqual(['waiting for previewlaned on 203.0.113.10 to start']);
 			expect(k.seen).toEqual(['POST /v1/uploads']);
 		} finally {
 			await k.stop();
@@ -1116,7 +1116,7 @@ describe('sshTransport upload', () => {
 
 	test('a ticket, the archive streamed in pieces, then the commit, over one tunnel', async () => {
 		const chunks: number[] = [];
-		const k = await koid([ticket, receive(chunks), commit]);
+		const k = await previewlaned([ticket, receive(chunks), commit]);
 		const src = await tarball();
 		try {
 			const { t, tunnels } = uploader(() => relayTo(k.sock));
@@ -1137,7 +1137,7 @@ describe('sshTransport upload', () => {
 	});
 
 	test('content the host already holds is not sent again', async () => {
-		const k = await koid([() => Response.json({ committed: true, requestId: ID })]);
+		const k = await previewlaned([() => Response.json({ committed: true, requestId: ID })]);
 		const src = await tarball(1000);
 		try {
 			const { t } = uploader(() => relayTo(k.sock));
@@ -1154,11 +1154,11 @@ describe('sshTransport upload', () => {
 		try {
 			for (const [status, error, expected] of [
 				[409, 'request x was already uploaded with different content', 'already holds request'],
-				[413, 'the source is 5 bytes; koid takes at most 2', 'refuses the source of hello-pr-7'],
+				[413, 'the source is 5 bytes; previewlaned takes at most 2', 'refuses the source of hello-pr-7'],
 				[507, 'the upload spool has 9 of its 10 bytes in use', 'has no room for the source'],
 				[418, 'teapot', 'answered POST /v1/uploads with 418: teapot'],
 			] as const) {
-				const k = await koid([() => Response.json({ error }, { status })]);
+				const k = await previewlaned([() => Response.json({ error }, { status })]);
 				try {
 					const { t } = uploader(() => relayTo(k.sock));
 					const err = await t.upload(request(), src.path).catch((e: unknown) => e);
@@ -1191,7 +1191,7 @@ describe('sshTransport upload', () => {
 					'received 999 bytes with digest aaaa',
 				],
 			] as const) {
-				const k = await koid([ticket, handler]);
+				const k = await previewlaned([ticket, handler]);
 				try {
 					const { t } = uploader(() => relayTo(k.sock));
 					const err = await t.upload(request(), src.path).catch((e: unknown) => e);
@@ -1206,7 +1206,7 @@ describe('sshTransport upload', () => {
 		}
 	});
 
-	test('a commit koid could not make durable is sent again, then given up', async () => {
+	test('a commit previewlaned could not make durable is sent again, then given up', async () => {
 		const src = await tarball(1000);
 		const notDurable = () =>
 			Response.json(
@@ -1214,7 +1214,7 @@ describe('sshTransport upload', () => {
 				{ status: 500 },
 			);
 		try {
-			const ok = await koid([ticket, receive([]), notDurable, notDurable, commit]);
+			const ok = await previewlaned([ticket, receive([]), notDurable, notDurable, commit]);
 			try {
 				const { t } = uploader(() => relayTo(ok.sock));
 				await t.upload(request(), src.path);
@@ -1222,7 +1222,7 @@ describe('sshTransport upload', () => {
 			} finally {
 				await ok.stop();
 			}
-			const never = await koid([ticket, receive([]), notDurable, notDurable, notDurable]);
+			const never = await previewlaned([ticket, receive([]), notDurable, notDurable, notDurable]);
 			try {
 				const { t } = uploader(() => relayTo(never.sock));
 				await expect(t.upload(request(), src.path)).rejects.toThrow(
@@ -1239,7 +1239,7 @@ describe('sshTransport upload', () => {
 
 	test('a commit refused for good is not repeated', async () => {
 		const src = await tarball(1000);
-		const k = await koid([
+		const k = await previewlaned([
 			ticket,
 			receive([]),
 			() => Response.json({ error: 'committed with different content' }, { status: 409 }),
@@ -1260,7 +1260,7 @@ describe('sshTransport upload', () => {
 		const src = await tarball(1000);
 		// The first tunnel drops once the source is received, so its commit
 		// never goes out; the second starts over from the ticket.
-		const k = await koid([ticket, receive([]), ticket, receive([]), commit]);
+		const k = await previewlaned([ticket, receive([]), ticket, receive([]), commit]);
 		try {
 			let opened = 0;
 			const { t, tunnels } = uploader(() =>
@@ -1283,7 +1283,7 @@ describe('sshTransport upload', () => {
 
 	test('a tunnel that breaks twice can pass', async () => {
 		const src = await tarball(1000);
-		const k = await koid([ticket, ticket]);
+		const k = await previewlaned([ticket, ticket]);
 		try {
 			const { t } = uploader(() => relayTo(k.sock, 0, '', 1));
 			const err = await t.upload(request(), src.path).catch((e: unknown) => e);
@@ -1308,15 +1308,15 @@ describe('sshTransport upload', () => {
 				],
 				[
 					CTL_EXIT.unavailable,
-					'koi-ssh-gateway: cannot reach koid at /run/koi/control.sock: ENOENT',
+					'previewlane-ssh-gateway: cannot reach previewlaned at /run/previewlane/control.sock: ENOENT',
 					(e: unknown) => {
 						expect(e).toBeInstanceOf(BoxUnavailableError);
-						expect((e as Error).message).toContain('is not taking uploads: koi-ssh-gateway');
+						expect((e as Error).message).toContain('is not taking uploads: previewlane-ssh-gateway');
 					},
 				],
 				[
 					CTL_EXIT.usage,
-					'koi-ssh-gateway: "tunnel-v1" is not a command of this account',
+					'previewlane-ssh-gateway: "tunnel-v1" is not a command of this account',
 					(e: unknown) => expect((e as Error).message).toContain('refused tunnel-v1'),
 				],
 			] as const) {
@@ -1340,7 +1340,7 @@ describe('sshTransport upload', () => {
 		]) {
 			// The first tunnel's ssh exits 255 after the ticket; the second
 			// starts over from the ticket, which says nothing was committed.
-			const k = await koid([ticket, ticket, receive([]), commit]);
+			const k = await previewlaned([ticket, ticket, receive([]), commit]);
 			try {
 				let tunnels = 0;
 				const { t, tunnels: opened } = uploader(() =>
@@ -1359,7 +1359,7 @@ describe('sshTransport upload', () => {
 			}
 		}
 		// Lost every time: given up after the retry, as a connection that ended.
-		const k = await koid([ticket, ticket]);
+		const k = await previewlaned([ticket, ticket]);
 		try {
 			const { t, tunnels: opened } = uploader(() =>
 				relayTo(k.sock, 255, 'client_loop: send disconnect: Broken pipe', 1),
@@ -1380,8 +1380,8 @@ describe('sshTransport upload', () => {
 		try {
 			for (const [stderr, check] of [
 				[
-					'koi-connect@203.0.113.10: Permission denied (publickey).',
-					(e: unknown) => expect((e as Error).message).toContain("refused koi's key"),
+					'previewlane-connect@203.0.113.10: Permission denied (publickey).',
+					(e: unknown) => expect((e as Error).message).toContain("refused previewlane's key"),
 				],
 				[
 					'ssh: Could not resolve hostname box.example.com: Name or service not known',
@@ -1392,7 +1392,7 @@ describe('sshTransport upload', () => {
 					(e: unknown) => expect(e).toBeInstanceOf(HostKeyError),
 				],
 			] as const) {
-				const k = await koid([ticket]);
+				const k = await previewlaned([ticket]);
 				try {
 					const { t, tunnels } = uploader(() => relayTo(k.sock, 255, stderr, 1));
 					const err = await t.upload(request(), src.path).catch((e: unknown) => e);
@@ -1419,7 +1419,7 @@ describe('sshTransport upload', () => {
 			expect(sshFailureIsTransient(lost)).toBe(true);
 		}
 		for (const stays of [
-			'koi-connect@203.0.113.10: Permission denied (publickey).',
+			'previewlane-connect@203.0.113.10: Permission denied (publickey).',
 			'Host key verification failed.',
 			'No ED25519 host key is known for team and you have requested strict checking.',
 			'ssh: Could not resolve hostname box: Name or service not known',
@@ -1433,7 +1433,7 @@ describe('sshTransport upload', () => {
 	});
 
 	test('the archive is sized and hashed within the time limit, before any tunnel', async () => {
-		const k = await koid([ticket]);
+		const k = await previewlaned([ticket]);
 		const src = await tarball(16 * 1024 ** 2);
 		try {
 			const { t, tunnels } = uploader(() => relayTo(k.sock));
@@ -1449,10 +1449,10 @@ describe('sshTransport upload', () => {
 	});
 
 	test('a limit the clock says has passed stops before ssh is started, timer or no timer', async () => {
-		const k = await koid([ticket]);
+		const k = await previewlaned([ticket]);
 		const src = await tarball(1000);
 		try {
-			// The clock jumps past the limit while koid answers describe, so
+			// The clock jumps past the limit while previewlaned answers describe, so
 			// by the time the archive is hashed the deadline has passed, with
 			// the timer that would enforce it still a minute away.
 			let clock = 0;
@@ -1493,7 +1493,7 @@ describe('sshTransport upload', () => {
 
 	test('a time limit kills the tunnel and reports the upload unfinished', async () => {
 		const src = await tarball(1000);
-		const k = await koid([ticket, () => new Promise<Response>(() => {})]);
+		const k = await previewlaned([ticket, () => new Promise<Response>(() => {})]);
 		try {
 			const tunnels: Array<ReturnType<typeof relayTo>> = [];
 			const { t } = uploader(() => {
@@ -1513,7 +1513,7 @@ describe('sshTransport upload', () => {
 
 	test('an upload with no limit of its own ends at the default', async () => {
 		const src = await tarball(1000);
-		const k = await koid([ticket, () => new Promise<Response>(() => {})]);
+		const k = await previewlaned([ticket, () => new Promise<Response>(() => {})]);
 		try {
 			const tunnels: Array<ReturnType<typeof relayTo>> = [];
 			const { t } = uploader(
@@ -1534,14 +1534,14 @@ describe('sshTransport upload', () => {
 		}
 	});
 
-	test('a tunnel that carries nothing for the idle limit is koid not answering: reported, not tried again', async () => {
-		// koid takes the ticket and the whole archive, then never answers,
+	test('a tunnel that carries nothing for the idle limit is previewlaned not answering: reported, not tried again', async () => {
+		// previewlaned takes the ticket and the whole archive, then never answers,
 		// with the session up. Nothing crosses the tunnel after the last
 		// chunk went out, so the idle limit ends the upload, well inside
 		// the upload's own limit, and no second tunnel is opened: it would
 		// stall the same way.
 		const src = await tarball(1000);
-		const k = await koid([ticket, () => new Promise<Response>(() => {})]);
+		const k = await previewlaned([ticket, () => new Promise<Response>(() => {})]);
 		try {
 			const { t, tunnels } = uploader(() => relayTo(k.sock), {
 				limits: { tunnelIdleMs: 200 },
@@ -1549,7 +1549,7 @@ describe('sshTransport upload', () => {
 			const err = await t.upload(request(), src.path).catch((e: unknown) => e);
 			expect(err).toBeInstanceOf(BoxUnavailableError);
 			expect((err as Error).message).toBe(
-				'koid on 203.0.113.10 stopped answering during the upload of hello-pr-7: nothing crossed the tunnel for 200 ms',
+				'previewlaned on 203.0.113.10 stopped answering during the upload of hello-pr-7: nothing crossed the tunnel for 200 ms',
 			);
 			expect(tunnels()).toHaveLength(1);
 			expect(k.seen).toEqual(['POST /v1/uploads', `PUT /v1/uploads/${UPLOAD_ID}/source`]);
@@ -1561,7 +1561,7 @@ describe('sshTransport upload', () => {
 
 	test('a signal stops the upload with its own reason', async () => {
 		const src = await tarball(1000);
-		const k = await koid([ticket, () => new Promise<Response>(() => {})]);
+		const k = await previewlaned([ticket, () => new Promise<Response>(() => {})]);
 		try {
 			const tunnels: Array<ReturnType<typeof relayTo>> = [];
 			const { t } = uploader(() => {

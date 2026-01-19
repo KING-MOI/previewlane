@@ -1,4 +1,4 @@
-# A repo recipe: koi builds this Dockerfile and runs it as the preview.
+# A repo recipe: previewlane builds this Dockerfile and runs it as the preview.
 port: 8080
 healthPath: /
 build:

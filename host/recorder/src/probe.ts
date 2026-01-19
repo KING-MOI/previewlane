@@ -1,5 +1,5 @@
 // Starts Chromium as the recorder does, with its own sandbox on, opens a page
-// and runs a line of script in it, closes it, and exits 0. koid runs this in
+// and runs a line of script in it, closes it, and exits 0. previewlaned runs this in
 // the recorder image under the recorder's confinement before it calls
 // verification available (packages/daemon/src/host.ts, docker.ts
 // sandboxProbeArgs), so a seccomp profile or an AppArmor policy that refuses
@@ -15,7 +15,7 @@ import { SANDBOXED } from './broker.ts';
 const CAUSE = /Check failed|FATAL|No usable sandbox|Operation not permitted|Permission denied/;
 
 async function probe(): Promise<void> {
-	const home = '/tmp/koi-probe';
+	const home = '/tmp/previewlane-probe';
 	await mkdir(home, { recursive: true, mode: 0o700 });
 	const browser = await chromium.launch({
 		...SANDBOXED,

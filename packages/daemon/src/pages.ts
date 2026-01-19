@@ -1,11 +1,11 @@
-// Pages koid shows in place of a preview. None uses status 502 or 504:
+// Pages previewlaned shows in place of a preview. None uses status 502 or 504:
 // CloudFront replaces those with the wake page, which is only right when the
 // box itself is down.
 export interface PageOptions {
 	status: number;
 	title: string;
 	message: string;
-	// Poll /__koi/health while the preview is on its way. The page reloads
+	// Poll /__previewlane/health while the preview is on its way. The page reloads
 	// once the preview answers, or once it reaches a state with a page of its
 	// own (a failed build, say), which the reload shows. After `minutes` it
 	// stops, says `timeout` and offers a refresh.
@@ -38,7 +38,7 @@ export function page(options: PageOptions): Response {
     if (Date.now() > giveUp) { stop(); } else { setTimeout(check, 3000); }
   }
   function check() {
-    fetch('/__koi/health', { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+    fetch('/__previewlane/health', { cache: 'no-store', signal: AbortSignal.timeout(10000) })
       .then(function (r) {
         if (r.ok) { location.reload(); return; }
         return r.json().then(function (body) {

@@ -2,27 +2,27 @@ import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Env } from './config.ts';
 
-// Whether koi may run in the directory it was started in.
+// Whether previewlane may run in the directory it was started in.
 //
 // Bun loads the dotenv files of the current directory into process.env, and
 // runs the preload scripts of its bunfig.toml, before any of this code runs.
-// A checkout with `KOI_CONFIG=./injected.yaml` in its .env would choose koi's
+// A checkout with `PREVIEWLANE_CONFIG=./injected.yaml` in its .env would choose previewlane's
 // config file, and with it the host, bucket and credential profile, which is
-// what the alias-only rule forbids; a preload script could do anything. koi
+// what the alias-only rule forbids; a preload script could do anything. previewlane
 // cannot undo either once it is running, and filtering process.env after the
 // fact misses Bun's other dotenv syntaxes, drops `bun --env-file` values and
-// does nothing about a preload. So koi does not try.
+// does nothing about a preload. So previewlane does not try.
 //
-// The compiled koi binary is built with --no-compile-autoload-dotenv and
+// The compiled previewlane binary is built with --no-compile-autoload-dotenv and
 // --no-compile-autoload-bunfig and loads neither file; it is the supported
-// way to run koi in any checkout. Run from source, koi refuses to go on when
+// way to run previewlane in any checkout. Run from source, previewlane refuses to go on when
 // the directory has a file Bun would have loaded. Existence is enough: the
 // file has already run, and reading it would prove nothing.
 
 export const PROC_ENVIRON = '/proc/self/environ';
 
-// Set to 1 in the shell to run koi from source in a checkout anyway.
-export const TRUST_CHECKOUT = 'KOI_TRUST_CHECKOUT';
+// Set to 1 in the shell to run previewlane from source in a checkout anyway.
+export const TRUST_CHECKOUT = 'PREVIEWLANE_TRUST_CHECKOUT';
 
 // Every file Bun autoloads from the current directory, whatever NODE_ENV
 // says: the dotenv files for each mode and their .local variants, and the
@@ -40,7 +40,7 @@ export const AUTOLOAD_FILES = [
 	'bunfig.toml',
 ] as const;
 
-// Whether this koi is a Bun compiled executable. A compiled binary's modules
+// Whether this previewlane is a Bun compiled executable. A compiled binary's modules
 // live under a virtual root, /$bunfs/ on Unix and B:\~BUN\ on Windows, and
 // Bun.main is the entry module's path there. Run from source, Bun.main is a
 // real path.
@@ -80,7 +80,7 @@ export function parseEnviron(text: string): Env {
 export interface CheckoutInput {
 	// The directory Bun autoloaded from: the current directory at start.
 	cwd: string;
-	// Whether koi is the compiled binary; isCompiledBinary() unless a test
+	// Whether previewlane is the compiled binary; isCompiledBinary() unless a test
 	// says otherwise.
 	compiled?: boolean | undefined;
 	// process.env as the runtime filled it.
@@ -91,7 +91,7 @@ export interface CheckoutInput {
 	environ?: string | undefined;
 }
 
-// Whether the shell that started koi set KOI_TRUST_CHECKOUT=1. On Linux the
+// Whether the shell that started previewlane set PREVIEWLANE_TRUST_CHECKOUT=1. On Linux the
 // kernel keeps the environment the parent passed in /proc/self/environ, where
 // a dotenv file's additions never appear, so only that file counts: a .env
 // cannot grant the override to itself. Elsewhere there is no such record and
@@ -108,8 +108,8 @@ export async function trustsCheckout(i: CheckoutInput): Promise<boolean> {
 	return parseEnviron(text)[TRUST_CHECKOUT] === '1';
 }
 
-// Throws when koi runs from source in a directory with a file Bun autoloads,
-// unless the shell set KOI_TRUST_CHECKOUT=1. Does nothing in the compiled
+// Throws when previewlane runs from source in a directory with a file Bun autoloads,
+// unless the shell set PREVIEWLANE_TRUST_CHECKOUT=1. Does nothing in the compiled
 // binary, which loads no such file.
 export async function refuseAutoloadedCheckout(i: CheckoutInput): Promise<void> {
 	if (i.compiled ?? isCompiledBinary()) return;
@@ -121,9 +121,9 @@ export async function refuseAutoloadedCheckout(i: CheckoutInput): Promise<void> 
 
 export function refusalMessage(cwd: string, files: readonly string[]): string {
 	return [
-		`koi was started from source in a checkout that has dotenv or bunfig files: ${files.join(', ')} in ${cwd}.`,
-		'Bun loads these files before koi runs, so they already took effect before koi could check them, and koi cannot tell what they changed.',
-		'Run the compiled koi binary instead (bun run --filter @koi/cli build writes packages/cli/dist/koi), which loads neither, or run koi from a directory without such files.',
-		`To run from source in a checkout you trust, export ${TRUST_CHECKOUT}=1 in the shell before starting koi.`,
+		`previewlane was started from source in a checkout that has dotenv or bunfig files: ${files.join(', ')} in ${cwd}.`,
+		'Bun loads these files before previewlane runs, so they already took effect before previewlane could check them, and previewlane cannot tell what they changed.',
+		'Run the compiled previewlane binary instead (bun run --filter @previewlane/cli build writes packages/cli/dist/previewlane), which loads neither, or run previewlane from a directory without such files.',
+		`To run from source in a checkout you trust, export ${TRUST_CHECKOUT}=1 in the shell before starting previewlane.`,
 	].join(' ');
 }

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LoginKeySchema, RecipeSchema } from '@koi/shared';
+import { LoginKeySchema, RecipeSchema } from '@previewlane/shared';
 import { loadConfig } from '../src/config.ts';
 import { cliDocker, runArgs } from '../src/docker.ts';
 import { CA_BUNDLE_PATH, CA_CERT_PATH, egressEnv, loadEgress } from '../src/egress-config.ts';
@@ -31,8 +31,8 @@ const loginRecipe = (over: Record<string, unknown> = {}) => ({
 
 const EGRESS = {
 	proxy: 'http://172.19.0.1:3128',
-	caBundle: 'SYSTEM\nKOI-CA\n',
-	caCert: 'KOI-CA\n',
+	caBundle: 'SYSTEM\nPREVIEWLANE-CA\n',
+	caCert: 'PREVIEWLANE-CA\n',
 };
 
 describe('login keys', () => {
@@ -165,10 +165,10 @@ describe('egress', () => {
 	});
 
 	test('loadEgress joins the system bundle and the proxy CA, and refuses non-PEM', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koid-eg-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlaned-eg-'));
 		await writeFile(
 			join(dir, 'ca.pem'),
-			'-----BEGIN CERTIFICATE-----\nKOI\n-----END CERTIFICATE-----\n',
+			'-----BEGIN CERTIFICATE-----\nPREVIEWLANE\n-----END CERTIFICATE-----\n',
 		);
 		await writeFile(
 			join(dir, 'system.pem'),
@@ -180,7 +180,7 @@ describe('egress', () => {
 			join(dir, 'system.pem'),
 		);
 		expect(e.caBundle).toContain('SYS');
-		expect(e.caBundle).toContain('KOI');
+		expect(e.caBundle).toContain('PREVIEWLANE');
 		expect(e.caCert).not.toContain('SYS');
 		await writeFile(join(dir, 'bad.pem'), 'not a cert');
 		await expect(
@@ -209,16 +209,16 @@ describe('egress', () => {
 	});
 
 	test('config reads the egress settings, or leaves them out', () => {
-		const base = { KOI_UPLOADS_BUCKET: 'koi-uploads-1', KOI_DOMAIN: 'previews.example.net' };
+		const base = { PREVIEWLANE_UPLOADS_BUCKET: 'previewlane-uploads-1', PREVIEWLANE_DOMAIN: 'previews.example.net' };
 		expect(loadConfig(base).egressProxy).toBeUndefined();
 		const c = loadConfig({
 			...base,
-			KOI_EGRESS_PROXY: 'http://172.19.0.1:3128',
-			KOI_EGRESS_CA: '/etc/koi/egress/ca.pem',
+			PREVIEWLANE_EGRESS_PROXY: 'http://172.19.0.1:3128',
+			PREVIEWLANE_EGRESS_CA: '/etc/previewlane/egress/ca.pem',
 		});
 		expect(c.egressProxy).toBe('http://172.19.0.1:3128');
-		expect(c.egressCa).toBe('/etc/koi/egress/ca.pem');
-		expect(() => loadConfig({ ...base, KOI_EGRESS_PROXY: 'not a url' })).toThrow();
+		expect(c.egressCa).toBe('/etc/previewlane/egress/ca.pem');
+		expect(() => loadConfig({ ...base, PREVIEWLANE_EGRESS_PROXY: 'not a url' })).toThrow();
 	});
 });
 
@@ -229,7 +229,7 @@ describe('docker CLI', () => {
 			cmds.push(cmd);
 			return { code: 0, stdout: '', stderr: '', timedOut: false };
 		};
-		return { cmds, docker: cliDocker({ builder: 'koi-builder', slice, exec }) };
+		return { cmds, docker: cliDocker({ builder: 'previewlane-builder', slice, exec }) };
 	}
 
 	test('build passes named contexts', async () => {
@@ -254,11 +254,11 @@ describe('docker CLI', () => {
 		await r.docker.run({
 			name: 'c1',
 			image: 'img',
-			network: 'koi-previews',
+			network: 'previewlane-previews',
 			user: '1:1',
 			env: {},
 			labels: {},
-			files: [{ path: '/etc/koi-ca.pem', content: 'X' }],
+			files: [{ path: '/etc/previewlane-ca.pem', content: 'X' }],
 		});
 		expect(r.cmds.map((c) => c.slice(0, 2).join(' '))).toEqual([
 			'docker rm',
@@ -271,7 +271,7 @@ describe('docker CLI', () => {
 		const create = r.cmds[1] ?? [];
 		expect(create[create.indexOf('--name') + 1]).toBe('c1.creating');
 		expect(create).not.toContain('--detach');
-		expect(r.cmds[2]?.at(-1)).toBe('c1.creating:/etc/koi-ca.pem');
+		expect(r.cmds[2]?.at(-1)).toBe('c1.creating:/etc/previewlane-ca.pem');
 		expect(r.cmds[3]?.slice(2)).toEqual(['c1.creating', 'c1']);
 		expect(r.cmds[4]?.at(-1)).toBe('c1');
 	});
@@ -283,16 +283,16 @@ describe('docker CLI', () => {
 			const fails = cmd[1] === 'cp';
 			return { code: fails ? 1 : 0, stdout: '', stderr: fails ? 'no space' : '', timedOut: false };
 		};
-		const docker = cliDocker({ builder: 'koi-builder', exec });
+		const docker = cliDocker({ builder: 'previewlane-builder', exec });
 		await expect(
 			docker.run({
 				name: 'c1',
 				image: 'img',
-				network: 'koi-previews',
+				network: 'previewlane-previews',
 				user: '1:1',
 				env: {},
 				labels: {},
-				files: [{ path: '/etc/koi-ca.pem', content: 'X' }],
+				files: [{ path: '/etc/previewlane-ca.pem', content: 'X' }],
 			}),
 		).rejects.toThrow();
 		expect(cmds.map((c) => c.slice(0, 2).join(' '))).toEqual([
@@ -308,16 +308,16 @@ describe('docker CLI', () => {
 		const o = {
 			name: 'c1',
 			image: 'img',
-			network: 'koi-previews',
+			network: 'previewlane-previews',
 			user: '1:1',
 			env: {},
 			labels: {},
 		};
-		for (const files of [[{ path: '/etc/koi-ca.pem', content: 'X' }], undefined]) {
-			const r = recorder('koi.slice');
+		for (const files of [[{ path: '/etc/previewlane-ca.pem', content: 'X' }], undefined]) {
+			const r = recorder('previewlane.slice');
 			await r.docker.run({ ...o, ...(files !== undefined ? { files } : {}) });
 			const first = r.cmds.find((c) => c[1] === 'run' || c[1] === 'create') ?? [];
-			expect(first[first.indexOf('--cgroup-parent') + 1]).toBe('koi.slice');
+			expect(first[first.indexOf('--cgroup-parent') + 1]).toBe('previewlane.slice');
 		}
 	});
 
@@ -337,8 +337,8 @@ describe('docker CLI', () => {
 
 	test('create keeps every confinement flag that run has, the slice included', () => {
 		const o = { name: 'c', image: 'i', network: 'n', user: '1:1', env: {}, labels: {} };
-		const run = runArgs(o, 'koi.slice').slice(3);
-		const create = runArgs(o, 'koi.slice', 'create').slice(2);
+		const run = runArgs(o, 'previewlane.slice').slice(3);
+		const create = runArgs(o, 'previewlane.slice', 'create').slice(2);
 		expect(create).toEqual(run);
 		expect(create).toContain('--cgroup-parent');
 	});

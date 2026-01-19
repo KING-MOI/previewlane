@@ -8,7 +8,7 @@ import {
 	PrNumberSchema,
 	SlugSchema,
 	VerifyIdSchema,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { z } from 'zod';
 import { TargetNameSchema } from './config.ts';
 
@@ -30,10 +30,10 @@ export type Command = (typeof COMMANDS)[number];
 export const VERIFY_COMMANDS = ['plan', 'run', 'status', 'evidence', 'cancel'] as const;
 export type VerifyCommand = (typeof VERIFY_COMMANDS)[number];
 
-// The profile koi verify plans and runs when --profile is not given.
+// The profile previewlane verify plans and runs when --profile is not given.
 export const DEFAULT_PROFILE = 'pr';
 
-// What koi verify does: plan and run take a preview name and a profile;
+// What previewlane verify does: plan and run take a preview name and a profile;
 // status, evidence and cancel take a run id; evidence takes --out.
 export interface VerifyArgs {
 	command: VerifyCommand;
@@ -53,7 +53,7 @@ export const FingerprintSchema = z
 	.string()
 	.regex(/^SHA256:[A-Za-z0-9+/]{43}$/, 'a SHA256: fingerprint as ssh-keygen -l prints it');
 
-// The most `koi lease --minutes` takes: koid's cap on a lease.
+// The most `previewlane lease --minutes` takes: previewlaned's cap on a lease.
 export const LEASE_MAX_MINUTES = LEASE_MAX_SECONDS / 60;
 
 export interface ParsedCli {
@@ -190,7 +190,7 @@ export function parseCli(argv: string[]): ParsedCli {
 
 	let tail = 200;
 	if (values.tail !== undefined) {
-		// No more than koid gives, so that koi never shows fewer lines than asked
+		// No more than previewlaned gives, so that previewlane never shows fewer lines than asked
 		// without saying so.
 		if (!/^[1-9][0-9]{0,8}$/.test(values.tail) || Number(values.tail) > LOG_TAIL_MAX_LINES) {
 			throw new Error(`--tail expects 1 to ${LOG_TAIL_MAX_LINES}`);
@@ -199,7 +199,7 @@ export function parseCli(argv: string[]): ParsedCli {
 	}
 
 	// Selectors are words, never empty: an empty one would mean "unset", and
-	// koi must not guess which.
+	// previewlane must not guess which.
 	for (const [flag, value] of [
 		['--target', values.target],
 		['--config', values.config],
@@ -318,21 +318,21 @@ function toCommand(word: string): Command {
 	return found;
 }
 
-export const USAGE = `koi: one-command preview environments
+export const USAGE = `previewlane: one-command preview environments
 
-usage: koi <command> [options]
+usage: previewlane <command> [options]
 
 commands:
   up              build the working tree (or --pr N) and run it as a preview
   list            list previews on the box
   logs NAME       a preview's container log (--build for its last build log)
   down NAME       remove a preview
-  config show     print the target koi would use, and where it comes from
+  config show     print the target previewlane would use, and where it comes from
   config import-aws --name NAME [--domain D] [--replace]
                   write the existing AWS deployment to the config file as a target
   target show NAME
                   print a target's endpoint and, for an SSH target, the host key
-                  koi trusts
+                  previewlane trusts
   target trust NAME --fingerprint SHA256:...
                   trust an SSH target's host key, once its fingerprint matches
   lease NAME      hold a preview so no build replaces it (--minutes N)
@@ -360,10 +360,10 @@ options:
   --comment       with --pr: post or update the preview comment on the pull request
   --build         with logs: show the build log
   --tail N        with logs: how many lines, at most ${LOG_TAIL_MAX_LINES} (default 200)
-  --target NAME   the target in the config file to use (then KOI_TARGET, the
-                  checkout's .koi/target.yaml, the file's defaultTarget)
-  --config PATH   the config file (then KOI_CONFIG, then
-                  $XDG_CONFIG_HOME/koi/config.yaml or ~/.config/koi/config.yaml)
+  --target NAME   the target in the config file to use (then PREVIEWLANE_TARGET, the
+                  checkout's .previewlane/target.yaml, the file's defaultTarget)
+  --config PATH   the config file (then PREVIEWLANE_CONFIG, then
+                  $XDG_CONFIG_HOME/previewlane/config.yaml or ~/.config/previewlane/config.yaml)
   --domain D      the domain the host must serve previews under, instead of the
                   target's; never changes which host is used
   --fingerprint F with target trust: the host key's SHA256 fingerprint, as the
@@ -371,14 +371,14 @@ options:
   --minutes N     with lease: how long to hold the preview, at most ${LEASE_MAX_MINUTES}
   --holder TEXT   with lease: who holds it (default: your user and host)
   --force         with down: remove the preview even while a lease holds it
-  --profile NAME  with verify plan and run: the profile in .koi/verify.yaml (default pr)
+  --profile NAME  with verify plan and run: the profile in .previewlane/verify.yaml (default pr)
   --out DIR       with verify evidence: an empty or new directory to write into
   --json          machine-readable output on stdout; progress stays on stderr
 
 environment:
-  KOI_TARGET and KOI_CONFIG, as --target and --config. KOI_DOMAIN as --domain.
-  On an AWS target, or without a config file: KOI_AWS_PROFILE (default koi-cli),
-  KOI_AWS_REGION (default us-east-1), KOI_INSTANCE_ID and KOI_BUCKET. Without a
+  PREVIEWLANE_TARGET and PREVIEWLANE_CONFIG, as --target and --config. PREVIEWLANE_DOMAIN as --domain.
+  On an AWS target, or without a config file: PREVIEWLANE_AWS_PROFILE (default previewlane-cli),
+  PREVIEWLANE_AWS_REGION (default us-east-1), PREVIEWLANE_INSTANCE_ID and PREVIEWLANE_BUCKET. Without a
   config file the rest is discovered: the box by its tags, the domain from the
   box's Domain tag, the bucket from the account. See docs/configuration.md.
 `;

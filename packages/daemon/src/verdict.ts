@@ -6,14 +6,14 @@ import {
 	type Result,
 	ResultSchema,
 	type RunOutcome,
-} from '@koi/shared';
+} from '@previewlane/shared';
 
 // The verdict rules (docs/verify.md, "Running a verification"; the design's
 // point and run decision tables), as pure functions over what the host
 // observed. Nothing here reads a file or asks a runner: the controller
 // gathers the declared assertions, the assertion events, the artifacts and
 // what it diagnosed itself, and this decides. A runner's own words are
-// claims; only evidence koid holds counts.
+// claims; only evidence previewlaned holds counts.
 
 // What a point declared: each assertion's name and the kinds of evidence
 // it must show.
@@ -32,14 +32,14 @@ export interface AssertionReport {
 
 export type Availability = 'available' | 'withheld' | 'failed' | 'expired';
 
-// What koid found when it checked an artifact's bytes on disk against its
+// What previewlaned found when it checked an artifact's bytes on disk against its
 // entry (verification-store.ts, artifactIntegrity): `verified` when they are
 // the recorded size and hash to the recorded digest, `corrupt` when they are
 // not, `missing` when there are none to check.
 export type Integrity = 'verified' | 'corrupt' | 'missing';
 
 // What an evidence reference resolves to in this run and point, or
-// undefined when it names nothing koid holds. A pass takes only an
+// undefined when it names nothing previewlaned holds. A pass takes only an
 // artifact that is available, sanitized and verified: a withheld or failed
 // redaction has no bytes a reviewer may see, and bytes that do not hash to
 // the manifest prove nothing.
@@ -73,7 +73,7 @@ export interface PointInput {
 	policyMismatch?: string | undefined;
 	// The point is required and has no proof at its revision.
 	proofMissing?: boolean | undefined;
-	// Evidence koid captured on its own for the point, kept whatever the
+	// Evidence previewlaned captured on its own for the point, kept whatever the
 	// outcome.
 	hostEvidence?: string[] | undefined;
 }
@@ -170,7 +170,7 @@ export function judgePoint(input: PointInput): PointVerdict {
 		.filter((r) => r.outcome === 'blocked')
 		.map(
 			(r) =>
-				`runner_blocked: ${r.name} reported blocked${r.detail ? ` (${r.detail})` : ''}; a claim koid could not confirm`,
+				`runner_blocked: ${r.name} reported blocked${r.detail ? ` (${r.detail})` : ''}; a claim previewlaned could not confirm`,
 		);
 
 	// Row five: review.
@@ -209,7 +209,7 @@ export function judgePoint(input: PointInput): PointVerdict {
 	};
 }
 
-// Evidence koid held for a point whose bytes on disk failed the check against
+// Evidence previewlaned held for a point whose bytes on disk failed the check against
 // their entry, and how.
 export interface LostEvidence {
 	ref: string;
@@ -440,7 +440,7 @@ function orUnavailable(value: string | undefined): string {
 	return value === undefined || value === '' ? 'unavailable' : escapeText(value, 200);
 }
 
-export const COMMENT_MARKER_PREFIX = 'koi-verification';
+export const COMMENT_MARKER_PREFIX = 'previewlane-verification';
 
 // The pull request comment, filled literally from the template. One
 // comment per run; the hidden marker is for finding it again.
@@ -455,10 +455,10 @@ export function renderComment(r: ReportInput): string {
 			: `${r.completion}${r.interruption === undefined ? '' : ` (${escapeText(r.interruption, 300)})`}`;
 	const evidence =
 		r.evidenceLink ??
-		`Not published. Export with koi verify evidence ${r.runId} --out ./koi-evidence.`;
+		`Not published. Export with previewlane verify evidence ${r.runId} --out ./previewlane-evidence.`;
 	return [
 		`<!-- ${COMMENT_MARKER_PREFIX}:${r.runId} -->`,
-		`## koi verification: ${r.outcome}`,
+		`## previewlane verification: ${r.outcome}`,
 		'',
 		`Run: ${r.runId}. Verification policy satisfied: ${r.readiness.eligibleForMergeGate ? 'yes' : `no (${list(r.readiness.reasons)})`}.`,
 		`Tested commit: ${r.commit}.`,
@@ -480,7 +480,7 @@ export function renderComment(r: ReportInput): string {
 		`Retention: ${orUnavailable(r.retainedUntil)}. Unavailable artifacts: ${list(r.unavailable)}.`,
 		'Capture limits: Text and declared secret fields were filtered. Pixels, encoded secrets, and unknown application data cannot be certified secret-free. Unsafe artifacts were withheld.',
 		'',
-		`Rerun: \`koi verify run ${r.label} --profile ${r.profile}\`.`,
+		`Rerun: \`previewlane verify run ${r.label} --profile ${r.profile}\`.`,
 		'This run checks the declared preview points. CI and code-review approvals are separate.',
 		'',
 	]

@@ -142,7 +142,7 @@ export const IMAGE: Image = {
 
 export const IHDR = ihdr(IMAGE);
 export const IDAT = idat(IMAGE)[0] as Uint8Array;
-export const TEXT = chunk('tEXt', new TextEncoder().encode('Comment\u0000made by koi'));
+export const TEXT = chunk('tEXt', new TextEncoder().encode('Comment\u0000made by previewlane'));
 export const TIME = chunk('tIME', new Uint8Array([7, 234, 10, 6, 12, 0, 0]));
 
 // A PNG with text and time metadata, and the same without.

@@ -25,7 +25,7 @@ const DOMAIN = 'previews.example.net';
 describe('wake handler', () => {
 	test('serves the wake page uncached', async () => {
 		const { deps } = fakeDeps('stopped', []);
-		const res = await createHandler(deps, { domain: DOMAIN })(get('/__koi-wake/index.html'));
+		const res = await createHandler(deps, { domain: DOMAIN })(get('/__previewlane-wake/index.html'));
 		expect(res.statusCode).toBe(200);
 		expect(res.headers['cache-control']).toBe('no-store');
 		expect(res.body).toBe(wakePage());
@@ -34,7 +34,7 @@ describe('wake handler', () => {
 	test('starts a stopped box for a known preview', async () => {
 		const { deps, calls } = fakeDeps('stopped', ['storefront-pr-2518']);
 		const res = await createHandler(deps, { domain: DOMAIN })(
-			get('/__koi-wake/wake', 'host=storefront-pr-2518.previews.example.net'),
+			get('/__previewlane-wake/wake', 'host=storefront-pr-2518.previews.example.net'),
 		);
 		expect(res.statusCode).toBe(200);
 		expect(JSON.parse(res.body)).toEqual({ known: true, instance: 'pending' });
@@ -44,7 +44,7 @@ describe('wake handler', () => {
 	test('does not start the box twice while it is already coming up', async () => {
 		const { deps, calls } = fakeDeps('pending', ['hello']);
 		const res = await createHandler(deps, { domain: DOMAIN })(
-			get('/__koi-wake/wake', 'host=hello.previews.example.net'),
+			get('/__previewlane-wake/wake', 'host=hello.previews.example.net'),
 		);
 		expect(JSON.parse(res.body)).toEqual({ known: true, instance: 'pending' });
 		expect(calls.started).toBe(0);
@@ -61,10 +61,10 @@ describe('wake handler', () => {
 			livePreviews: async () => ['hello'],
 		};
 		const h = createHandler(deps, { domain: DOMAIN });
-		const first = await h(get('/__koi-wake/wake', 'host=hello.previews.example.net'));
+		const first = await h(get('/__previewlane-wake/wake', 'host=hello.previews.example.net'));
 		expect(JSON.parse(first.body)).toEqual({ known: true, instance: 'stopping' });
 		expect(started).toBe(0);
-		const second = await h(get('/__koi-wake/wake', 'host=hello.previews.example.net'));
+		const second = await h(get('/__previewlane-wake/wake', 'host=hello.previews.example.net'));
 		expect(JSON.parse(second.body)).toEqual({ known: true, instance: 'pending' });
 		expect(started).toBe(1);
 	});
@@ -72,7 +72,7 @@ describe('wake handler', () => {
 	test('always wakes the box for the keys page', async () => {
 		const { deps, calls } = fakeDeps('stopped', []);
 		const res = await createHandler(deps, { domain: DOMAIN })(
-			get('/__koi-wake/wake', 'host=keys.previews.example.net'),
+			get('/__previewlane-wake/wake', 'host=keys.previews.example.net'),
 		);
 		expect(JSON.parse(res.body)).toEqual({ known: true, instance: 'pending' });
 		expect(calls.started).toBe(1);
@@ -81,7 +81,7 @@ describe('wake handler', () => {
 	test('refuses to wake for an unknown preview', async () => {
 		const { deps, calls } = fakeDeps('stopped', ['hello']);
 		const res = await createHandler(deps, { domain: DOMAIN })(
-			get('/__koi-wake/wake', 'host=other.previews.example.net'),
+			get('/__previewlane-wake/wake', 'host=other.previews.example.net'),
 		);
 		expect(res.statusCode).toBe(404);
 		expect(JSON.parse(res.body)).toEqual({ known: false });
@@ -91,18 +91,18 @@ describe('wake handler', () => {
 	test('rejects hosts outside the domain or with bad labels', async () => {
 		const { deps, calls } = fakeDeps('stopped', ['hello']);
 		const h = createHandler(deps, { domain: DOMAIN });
-		expect((await h(get('/__koi-wake/wake', 'host=hello.evil.example'))).statusCode).toBe(400);
-		expect((await h(get('/__koi-wake/wake', 'host=Hello.previews.example.net'))).statusCode).toBe(
+		expect((await h(get('/__previewlane-wake/wake', 'host=hello.evil.example'))).statusCode).toBe(400);
+		expect((await h(get('/__previewlane-wake/wake', 'host=Hello.previews.example.net'))).statusCode).toBe(
 			400,
 		);
-		expect((await h(get('/__koi-wake/wake'))).statusCode).toBe(400);
+		expect((await h(get('/__previewlane-wake/wake'))).statusCode).toBe(400);
 		expect(calls.started).toBe(0);
 	});
 
 	test('answers HEAD like GET', async () => {
 		const { deps } = fakeDeps('running', []);
 		const res = await createHandler(deps, { domain: DOMAIN })({
-			rawPath: '/__koi-wake/index.html',
+			rawPath: '/__previewlane-wake/index.html',
 			requestContext: { http: { method: 'HEAD' } },
 		});
 		expect(res.statusCode).toBe(200);
@@ -111,7 +111,7 @@ describe('wake handler', () => {
 
 	test('reports instance state', async () => {
 		const { deps } = fakeDeps('running', []);
-		const res = await createHandler(deps, { domain: DOMAIN })(get('/__koi-wake/status'));
+		const res = await createHandler(deps, { domain: DOMAIN })(get('/__previewlane-wake/status'));
 		expect(JSON.parse(res.body)).toEqual({ instance: 'running' });
 	});
 
@@ -119,7 +119,7 @@ describe('wake handler', () => {
 		const { deps } = fakeDeps('running', []);
 		const h = createHandler(deps, { domain: DOMAIN });
 		expect(
-			(await h({ rawPath: '/__koi-wake/wake', requestContext: { http: { method: 'POST' } } }))
+			(await h({ rawPath: '/__previewlane-wake/wake', requestContext: { http: { method: 'POST' } } }))
 				.statusCode,
 		).toBe(405);
 		expect((await h(get('/anything'))).statusCode).toBe(404);
@@ -136,7 +136,7 @@ describe('wake handler on AWS errors', () => {
 			},
 		};
 		const res = await createHandler(deps, { domain: DOMAIN })(
-			get('/__koi-wake/wake', 'host=hello.previews.example.net'),
+			get('/__previewlane-wake/wake', 'host=hello.previews.example.net'),
 		);
 		expect(res.statusCode).toBe(503);
 		expect(JSON.parse(res.body)).toEqual({ error: 'try again' });
@@ -160,7 +160,7 @@ describe('awsDeps', () => {
 
 	test('reads the instance state of the configured box', async () => {
 		const c = clients({ ec2: { Reservations: [{ Instances: [{ State: { Name: 'stopped' } }] }] } });
-		expect(await awsDeps('i-0abc', '/koi/previews', c.clients).instanceState()).toBe('stopped');
+		expect(await awsDeps('i-0abc', '/previewlane/previews', c.clients).instanceState()).toBe('stopped');
 		expect(c.sent).toEqual([
 			{ name: 'DescribeInstancesCommand', input: { InstanceIds: ['i-0abc'] } },
 		]);
@@ -184,11 +184,11 @@ describe('awsDeps', () => {
 
 	test('reads and validates the live preview list', async () => {
 		const c = clients({ ssm: { Parameter: { Value: '["hello","storefront-pr-7"]' } } });
-		expect(await awsDeps('i', '/koi/previews', c.clients).livePreviews()).toEqual([
+		expect(await awsDeps('i', '/previewlane/previews', c.clients).livePreviews()).toEqual([
 			'hello',
 			'storefront-pr-7',
 		]);
-		expect(c.sent).toEqual([{ name: 'GetParameterCommand', input: { Name: '/koi/previews' } }]);
+		expect(c.sent).toEqual([{ name: 'GetParameterCommand', input: { Name: '/previewlane/previews' } }]);
 	});
 
 	test('rejects a malformed live preview list', async () => {

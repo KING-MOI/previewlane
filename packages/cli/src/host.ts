@@ -14,7 +14,7 @@ import { sshTransport } from './transports/ssh.ts';
 // From the command line and the environment to an open, checked transport:
 // resolve the target (config.ts), build the transport for its kind, and see
 // that the host's descriptor is compared with the target before anything is
-// sent to koid: the AWS transport is wrapped for it (transport.ts), the SSH
+// sent to previewlaned: the AWS transport is wrapped for it (transport.ts), the SSH
 // transport does it itself (transports/ssh.ts).
 
 export interface OpenHostOptions {
@@ -43,18 +43,18 @@ export async function openHost(o: OpenHostOptions): Promise<OpenedHost> {
 		notice: o.notice,
 	});
 	if (resolved.kind === 'legacy') {
-		// --domain stands in for KOI_DOMAIN here; the legacy resolver reads
+		// --domain stands in for PREVIEWLANE_DOMAIN here; the legacy resolver reads
 		// only the environment.
-		const env = resolved.domain === undefined ? o.env : { ...o.env, KOI_DOMAIN: resolved.domain };
+		const env = resolved.domain === undefined ? o.env : { ...o.env, PREVIEWLANE_DOMAIN: resolved.domain };
 		const { settings, clients: c } = await resolveSettings(env, make);
-		// What koi is about to use, before anything is sent: here the host and
+		// What previewlane is about to use, before anything is sent: here the host and
 		// domain are known only once discovery has run.
 		o.notice(
-			`no koi config file at ${resolved.configPath}; using the AWS deployment as KOI_AWS_PROFILE, KOI_AWS_REGION and the box's tags describe it: aws-ssm to ${settings.instanceId} in ${settings.region}, previews under ${settings.domain}. Run koi config import-aws --name NAME to write it down (see docs/configuration.md)`,
+			`no previewlane config file at ${resolved.configPath}; using the AWS deployment as PREVIEWLANE_AWS_PROFILE, PREVIEWLANE_AWS_REGION and the box's tags describe it: aws-ssm to ${settings.instanceId} in ${settings.region}, previews under ${settings.domain}. Run previewlane config import-aws --name NAME to write it down (see docs/configuration.md)`,
 		);
 		const box = verifiedTransport(
 			awsTransport(settings, c),
-			{ name: 'the koi box', domain: settings.domain, oldDaemonOk: true },
+			{ name: 'the previewlane box', domain: settings.domain, oldDaemonOk: true },
 			o.notice,
 		);
 		return { box, domain: settings.domain, resolved };
@@ -78,9 +78,9 @@ function describeSource(source: TargetSource): string {
 		case 'flag':
 			return '--target';
 		case 'env':
-			return 'KOI_TARGET';
+			return 'PREVIEWLANE_TARGET';
 		case 'repo':
-			return '.koi/target.yaml';
+			return '.previewlane/target.yaml';
 		case 'default':
 			return 'defaultTarget';
 	}
@@ -88,8 +88,8 @@ function describeSource(source: TargetSource): string {
 
 // The transport for a target, checked against the host. Kinds the schema
 // accepts but this version cannot drive fail here with a plain message, so
-// that a config written for a newer koi is an error and not a surprise.
-// `env` is koi's environment, of which the SSH transport hands ssh its PATH
+// that a config written for a newer previewlane is an error and not a surprise.
+// `env` is previewlane's environment, of which the SSH transport hands ssh its PATH
 // and, for a key in ssh-agent, the agent's socket.
 export function transportFor(
 	name: string,
@@ -102,7 +102,7 @@ export function transportFor(
 	if (target.address.port !== 443) {
 		throw new UnsupportedCapabilityError(
 			'address',
-			`target ${quoted} serves previews on port ${target.address.port}; this version of koi supports port 443 only`,
+			`target ${quoted} serves previews on port ${target.address.port}; this version of previewlane supports port 443 only`,
 		);
 	}
 	switch (target.transport.kind) {
@@ -110,7 +110,7 @@ export function transportFor(
 			if (target.transport.channel !== undefined) {
 				throw new UnsupportedCapabilityError(
 					'channel',
-					`target ${quoted} sets an SSH channel next to SSM; this version of koi does not support it yet. Remove transport.channel`,
+					`target ${quoted} sets an SSH channel next to SSM; this version of previewlane does not support it yet. Remove transport.channel`,
 				);
 			}
 			if (target.aws === undefined) throw new Error(`target ${quoted} has no aws section`);
@@ -135,14 +135,14 @@ export function transportFor(
 			if (target.power.kind !== 'always-on') {
 				throw new UnsupportedCapabilityError(
 					'power',
-					`target ${quoted} reaches the host over ssh and manages its power with ${target.power.kind}; this version of koi can only reach an always-on host over ssh`,
+					`target ${quoted} reaches the host over ssh and manages its power with ${target.power.kind}; this version of previewlane can only reach an always-on host over ssh`,
 				);
 			}
 			const { endpoint } = target.transport;
 			const client = new SshClient({ target: endpoint, env });
 			// The SSH transport checks the host's descriptor itself, in
-			// ensureAwake and before an upload, since its uploads reach koid
-			// directly; it takes no koid from before the descriptor.
+			// ensureAwake and before an upload, since its uploads reach previewlaned
+			// directly; it takes no previewlaned from before the descriptor.
 			return sshTransport(
 				{ name, host: endpoint.host, user: endpoint.user, domain: target.domain },
 				client,
@@ -152,7 +152,7 @@ export function transportFor(
 		case 'local':
 			throw new UnsupportedCapabilityError(
 				'local',
-				`target ${quoted} uses the local transport, which this version of koi does not support yet`,
+				`target ${quoted} uses the local transport, which this version of previewlane does not support yet`,
 			);
 	}
 }

@@ -29,7 +29,7 @@ export function readRecipeFiles(dir: string): unknown[] {
 // builtins.ts imports this as a Bun macro, so it runs when Bun transpiles
 // builtins.ts: at bundle time for `bun build --compile`, and at load time for
 // `bun run` and `bun test`. Bun writes the returned list into the code in
-// place of the call, so the compiled koi binary carries every recipe and
+// place of the call, so the compiled previewlane binary carries every recipe and
 // reads no recipes/ directory at run time.
 export function builtinRecipeFiles(): unknown[] {
 	return readRecipeFiles(RECIPES_DIR);

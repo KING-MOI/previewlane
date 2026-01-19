@@ -18,8 +18,8 @@ export interface Egress {
 // Directly in /etc: docker cp does not create a missing directory, and Docker
 // makes /etc in every container (for hosts, hostname and resolv.conf), even
 // one whose image has no /etc, such as a static binary FROM scratch.
-export const CA_BUNDLE_PATH = '/etc/koi-ca-bundle.pem';
-export const CA_CERT_PATH = '/etc/koi-ca.pem';
+export const CA_BUNDLE_PATH = '/etc/previewlane-ca-bundle.pem';
+export const CA_CERT_PATH = '/etc/previewlane-ca.pem';
 
 const SYSTEM_BUNDLE = '/etc/ssl/certs/ca-certificates.crt';
 

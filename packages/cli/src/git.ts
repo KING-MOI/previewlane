@@ -4,10 +4,10 @@ import { join, sep } from 'node:path';
 import { ExecError, type ExecOptions, type ExecResult, exec, execOk, FULL_OUTPUT } from './exec.ts';
 
 // How long a fetch from the remote may take: a stalled network or credential
-// helper fails koi up with an error rather than holding it forever.
+// helper fails previewlane up with an error rather than holding it forever.
 export const FETCH_TIMEOUT_MS = 5 * 60_000;
 
-// What `koi up` needs from git, run in the user's checkout. Every call passes
+// What `previewlane up` needs from git, run in the user's checkout. Every call passes
 // arguments as an array; nothing goes through a shell.
 export interface Git {
 	root(): Promise<string>;
@@ -67,7 +67,7 @@ export function cliGit(
 		return result;
 	};
 	// Commands run at the top of the work tree, found once from the directory
-	// koi was started in. ls-files prints paths relative to the directory it
+	// previewlane was started in. ls-files prints paths relative to the directory it
 	// runs in, and the packer joins them to the root.
 	let top: Promise<string> | undefined;
 	const root = () => {
@@ -118,15 +118,15 @@ export function cliGit(
 		},
 		async fetchPullRequest(pr) {
 			// One fetch takes every ref under refs/pull/N/ (GitHub keeps head and
-			// merge there) into refs of koi's own. FETCH_HEAD is shared, and
-			// another fetch in this repository can replace it before koi reads it.
+			// merge there) into refs of previewlane's own. FETCH_HEAD is shared, and
+			// another fetch in this repository can replace it before previewlane reads it.
 			//
 			// A pattern, not the two names: git fails a fetch of a named ref that
 			// origin lacks with the same exit code as a network or sign-in
 			// failure, but a pattern that matches nothing is no error. So a failed
 			// fetch here always means git could not fetch, and a ref origin lacks
 			// is just missing afterwards.
-			const prefix = `refs/koi/pr-${pr}-${randomSuffix()}`;
+			const prefix = `refs/previewlane/pr-${pr}-${randomSuffix()}`;
 			const args = ['fetch', '--quiet', '--no-tags', 'origin', `+refs/pull/${pr}/*:${prefix}/*`];
 			await ok(await at(args), { timeoutMs: FETCH_TIMEOUT_MS });
 			const fetched = (await git('for-each-ref', '--format=%(refname)', `${prefix}/`))
@@ -188,7 +188,7 @@ export function cliGit(
 			if (r.code !== 0) {
 				// The parent is missing, as in a shallow checkout: one more commit
 				// along the merge ref brings both parents, then the diff can run.
-				const ref = `refs/koi/pr-${pr}-${randomSuffix()}/merge`;
+				const ref = `refs/previewlane/pr-${pr}-${randomSuffix()}/merge`;
 				const args = [
 					'fetch',
 					'--quiet',
@@ -241,15 +241,15 @@ async function defaultBranchBase(
 	return undefined;
 }
 
-// The directory koi reserves in every source tarball for files of its own.
+// The directory previewlane reserves in every source tarball for files of its own.
 // The build may read them (a recipe can seed or trim the preview from
 // changed-files.txt); they are not part of the repository, and a tree that
-// has the directory is refused (see finishTarball). The project's own .koi/
-// is not touched: that is where a project keeps its koi.yaml and its
+// has the directory is refused (see finishTarball). The project's own .previewlane/
+// is not touched: that is where a project keeps its previewlane.yaml and its
 // verification files.
-export const RUNTIME_DIR = '.koi-runtime';
+export const RUNTIME_DIR = '.previewlane-runtime';
 
-export function koiFiles(changed: string[]): Record<string, string> {
+export function previewlaneFiles(changed: string[]): Record<string, string> {
 	return { 'changed-files.txt': `${changed.join('\n')}\n` };
 }
 
@@ -304,12 +304,12 @@ export async function packWorkingTree(root: string, files: string[], out: string
 	}
 	if (refused.length > 0) {
 		throw new Error(
-			`refusing to pack files under a directory that is a symlink or resolves outside the repository, because tar would read them from outside it:\n${listed(refused)}\nMake those directories real ones inside the repository again, or remove the files from git (git rm --cached), then run koi up again.`,
+			`refusing to pack files under a directory that is a symlink or resolves outside the repository, because tar would read them from outside it:\n${listed(refused)}\nMake those directories real ones inside the repository again, or remove the files from git (git rm --cached), then run previewlane up again.`,
 		);
 	}
 	if (repositories.length > 0) {
 		throw new Error(
-			`refusing to pack a checkout with initialized submodules or other git repositories inside it, because koi would leave out their files:\n${listed(repositories)}\nCopy the files the build needs into the repository, or remove what it does not need (git submodule deinit for a submodule), then run koi up again.`,
+			`refusing to pack a checkout with initialized submodules or other git repositories inside it, because previewlane would leave out their files:\n${listed(repositories)}\nCopy the files the build needs into the repository, or remove what it does not need (git submodule deinit for a submodule), then run previewlane up again.`,
 		);
 	}
 	await execOk(['tar', '-cf', out, '-C', root, '--null', '--no-recursion', '--files-from=-'], {
@@ -319,10 +319,10 @@ export async function packWorkingTree(root: string, files: string[], out: string
 	return present.length;
 }
 
-// Adds koi's own files under .koi-runtime/ and gzips the tarball in place:
-// <tar> becomes <tar>.gz. The tree's own files, .koi/ included, stay as they
-// are. A tree with a .koi-runtime/ of its own is refused: the recipe reads
-// what is there as koi's, so nothing there may come from the pull request.
+// Adds previewlane's own files under .previewlane-runtime/ and gzips the tarball in place:
+// <tar> becomes <tar>.gz. The tree's own files, .previewlane/ included, stay as they
+// are. A tree with a .previewlane-runtime/ of its own is refused: the recipe reads
+// what is there as previewlane's, so nothing there may come from the pull request.
 // The listing is the one check for both build kinds, since a pull request
 // build comes from git archive and never passes through packWorkingTree.
 export async function finishTarball(tar: string, extra: Record<string, string>): Promise<string> {
@@ -333,13 +333,13 @@ export async function finishTarball(tar: string, extra: Record<string, string>):
 	const reserved = listing.stdout.split('\n').filter(isRuntimePath);
 	if (reserved.length > 0) {
 		throw new Error(
-			`refusing to pack a tree that has ${RUNTIME_DIR}/, which koi reserves for files it adds to every build:\n${listed(reserved)}\nRemove it from the repository (a project's own koi files belong under .koi/), then run koi up again.`,
+			`refusing to pack a tree that has ${RUNTIME_DIR}/, which previewlane reserves for files it adds to every build:\n${listed(reserved)}\nRemove it from the repository (a project's own previewlane files belong under .previewlane/), then run previewlane up again.`,
 		);
 	}
 	const dir = `${tar}.extra`;
 	await execOk(['mkdir', '-p', `${dir}/${RUNTIME_DIR}`]);
 	for (const [name, text] of Object.entries(extra)) {
-		if (!/^[a-z0-9-]+\.[a-z]+$/.test(name)) throw new Error(`bad koi file name ${name}`);
+		if (!/^[a-z0-9-]+\.[a-z]+$/.test(name)) throw new Error(`bad previewlane file name ${name}`);
 		await Bun.write(`${dir}/${RUNTIME_DIR}/${name}`, text);
 	}
 	await execOk(['tar', '-rf', tar, '-C', dir, RUNTIME_DIR]);

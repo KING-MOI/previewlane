@@ -19,7 +19,7 @@ interface FakeComment {
 	user: { login: string } | null;
 }
 
-// gh as koi-bot: who is signed in, the comment list, and a reply to any write.
+// gh as previewlane-bot: who is signed in, the comment list, and a reply to any write.
 function fakeRun(comments: FakeComment[]) {
 	const calls: string[][] = [];
 	const options: Array<ExecOptions | undefined> = [];
@@ -27,14 +27,14 @@ function fakeRun(comments: FakeComment[]) {
 		calls.push(cmd);
 		options.push(opts);
 		const ok = (stdout: string) => ({ code: 0, stdout, stderr: '', timedOut: false });
-		if (cmd[2] === 'user') return ok('koi-bot\n');
+		if (cmd[2] === 'user') return ok('previewlane-bot\n');
 		if (cmd.includes('--paginate')) return ok(JSON.stringify([comments]));
 		return ok(
 			JSON.stringify({
 				id: 9,
 				body: '',
 				html_url: 'https://x/comment',
-				user: { login: 'koi-bot' },
+				user: { login: 'previewlane-bot' },
 			}),
 		);
 	};
@@ -42,7 +42,7 @@ function fakeRun(comments: FakeComment[]) {
 	return { run, calls, options, write };
 }
 
-const me = { login: 'koi-bot' };
+const me = { login: 'previewlane-bot' };
 const someoneElse = { login: 'mallory' };
 
 describe('upsertComment', () => {
@@ -130,7 +130,7 @@ describe('pullRequestFiles', () => {
 	// gh as a program that prints `stdout`, run through the real exec with the
 	// options pullRequestFiles passes, so exec's output limit applies.
 	async function ghPrinting(stdout: string) {
-		const file = join(await mkdtemp(join(tmpdir(), 'koi-gh-')), 'out');
+		const file = join(await mkdtemp(join(tmpdir(), 'previewlane-gh-')), 'out');
 		await writeFile(file, stdout);
 		const calls: string[][] = [];
 		const run = (cmd: string[], opts?: ExecOptions) => {
@@ -265,7 +265,7 @@ describe('commentBody', () => {
 			status: 'running',
 			keysUrl: 'https://keys.previews.example.net',
 		});
-		expect(body.startsWith('<!-- koi-preview:hello-pr-7 -->')).toBe(true);
+		expect(body.startsWith('<!-- previewlane-preview:hello-pr-7 -->')).toBe(true);
 		expect(body).toContain('**Preview:** https://hello-pr-7.previews.example.net');
 		expect(body).toContain(
 			'Built from #7 (abcdef1) merged into main (1234567), merge commit 89abcde. The first visit',
@@ -278,10 +278,10 @@ describe('commentBody', () => {
 			url: 'https://storefront-pr-7.example.dev',
 			built,
 			status: 'running',
-			loginKey: 'koi-abcdefghijklmnopqrstuvwx',
+			loginKey: 'previewlane-abcdefghijklmnopqrstuvwx',
 			keysUrl: 'https://keys.example.dev/?for=storefront-pr-7',
 		});
-		expect(body).toContain('**Login key:** `koi-abcdefghijklmnopqrstuvwx`');
+		expect(body).toContain('**Login key:** `previewlane-abcdefghijklmnopqrstuvwx`');
 		expect(body).toContain('open https://keys.example.dev/?for=storefront-pr-7,');
 		expect(body).toContain('The tokens work only in this preview');
 		expect(body).not.toContain('previews.example.net');

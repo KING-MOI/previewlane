@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ArtifactKindSchema } from './evidence.ts';
 import { DigestSchema, PointIdSchema } from './verify.ts';
 
-// The recorder's control API, as koid reads its replies (docs/verify.md,
+// The recorder's control API, as previewlaned reads its replies (docs/verify.md,
 // "Recorder and evidence"). The recorder (host/recorder) serves it on TCP
 // 4318 inside the run network; every request carries the host-only run
 // capability as a bearer token. The server is written against these shapes
@@ -13,7 +13,7 @@ import { DigestSchema, PointIdSchema } from './verify.ts';
 export const RECORDER_BROWSER_PORT = 4317;
 export const RECORDER_CONTROL_PORT = 4318;
 
-// What the recorder keeps a capture under until koid acknowledges it.
+// What the recorder keeps a capture under until previewlaned acknowledges it.
 export const RecorderCaptureIdSchema = z.string().regex(/^c[1-9][0-9]*$/);
 
 // An opaque id the recorder gives a context or a page.
@@ -49,7 +49,7 @@ export const RecorderContextSchema = z.strictObject({
 
 export type RecorderContext = z.infer<typeof RecorderContextSchema>;
 
-// A capture the recorder holds in its tmpfs: raw bytes, which koid reads,
+// A capture the recorder holds in its tmpfs: raw bytes, which previewlaned reads,
 // sanitizes and only then keeps. Size and hash are of the raw bytes, for
 // the transfer check; the artifact's own are computed again after
 // sanitization.
@@ -67,7 +67,7 @@ export const RecorderCaptureSchema = z.strictObject({
 	}),
 	capturedAt: z.iso.datetime(),
 	// What the recorder itself could not promise about the capture, in its
-	// own words. koid scrubs and bounds each before it joins the artifact's
+	// own words. previewlaned scrubs and bounds each before it joins the artifact's
 	// limitations.
 	limitations: z.array(z.string()).max(50).optional(),
 });
@@ -77,12 +77,12 @@ export type RecorderCapture = z.infer<typeof RecorderCaptureSchema>;
 // What the recorder puts in place of an event field over its length limit
 // (host/recorder/src/events.ts, OVERLONG_FIELD): the field is discarded
 // whole, since the recorder cannot redact and a cut could keep most of a
-// secret. The event's `truncatedFields` names the fields. koid records a
+// secret. The event's `truncatedFields` names the fields. previewlaned records a
 // limitation when it reads one.
-export const RECORDER_OVERLONG_FIELD = '[koi: a field over 4096 characters was discarded]';
+export const RECORDER_OVERLONG_FIELD = '[previewlane: a field over 4096 characters was discarded]';
 
 // One entry of the recorder's event feed. The envelope is fixed; what each
-// type carries is the recorder's own, and koid bounds and scrubs it before
+// type carries is the recorder's own, and previewlaned bounds and scrubs it before
 // it is written.
 export const RecorderEventSchema = z.looseObject({
 	seq: z.number().int().positive(),
@@ -103,8 +103,8 @@ export const RecorderEventsPageSchema = z.strictObject({
 	// The sequence number the next read starts after.
 	next: z.number().int().nonnegative(),
 	// Events after the read's `after` that the recorder's buffer lost before
-	// this read: ones koid never got and now cannot. Not zero: a gap in
-	// observation, which the run records. An eviction of an event koid had
+	// this read: ones previewlaned never got and now cannot. Not zero: a gap in
+	// observation, which the run records. An eviction of an event previewlaned had
 	// read is not counted.
 	dropped: z.number().int().nonnegative(),
 });
@@ -114,7 +114,7 @@ export type RecorderEventsPage = z.infer<typeof RecorderEventsPageSchema>;
 // -- Capture contents ---------------------------------------------------------
 
 // What a network capture and a state read hold, as the recorder writes them
-// (host/recorder/src/broker.ts). koid parses every line with these before
+// (host/recorder/src/broker.ts). previewlaned parses every line with these before
 // its sanitizer projects it, so a record it cannot read is refused, never
 // cast and kept.
 
@@ -145,7 +145,7 @@ export const RecorderDroppedLineSchema = z.strictObject({
 });
 
 // A state read: what the recorder asked the app for from inside the point's
-// context, and what came back, the body as base64 up to the bound koid gave.
+// context, and what came back, the body as base64 up to the bound previewlaned gave.
 export const RecorderStateReadSchema = z.strictObject({
 	request: z.strictObject({ method: z.enum(['GET', 'HEAD']), url: z.string() }),
 	response: z.strictObject({
@@ -169,7 +169,7 @@ export const RecorderErrorSchema = z.object({
 		.optional(),
 });
 
-// What koid sends to open a point's context.
+// What previewlaned sends to open a point's context.
 export const RecorderOpenContextSchema = z.strictObject({
 	pointId: PointIdSchema,
 	attempt: z.number().int().positive(),
@@ -177,14 +177,14 @@ export const RecorderOpenContextSchema = z.strictObject({
 	open: z.string().startsWith('/').max(2048).optional(),
 });
 
-// What koid sends to capture.
+// What previewlaned sends to capture.
 export const RecorderCaptureRequestSchema = z.strictObject({
 	kind: z.enum(['screenshot', 'aria', 'console', 'network']),
 	label: z.string().min(1).max(64),
 	pageId: RecorderObjectIdSchema.optional(),
 });
 
-// What koid sends for a state read: the recorder requests the path from the
+// What previewlaned sends for a state read: the recorder requests the path from the
 // app itself, from inside the point's context, and keeps what came back.
 export const RecorderReadRequestSchema = z.strictObject({
 	method: z.enum(['GET', 'HEAD']),

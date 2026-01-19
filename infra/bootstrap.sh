@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Creates or updates the koi stack. Run with an admin session, for example:
+# Creates or updates the previewlane stack. Run with an admin session, for example:
 #   aws login --profile <admin>
 #   AWS_PROFILE=<admin> infra/bootstrap.sh
 #
 # 1. Creates the state bucket (OpenTofu cannot manage its own backend).
 # 2. Builds the wake function, writes a plan, shows it, and applies exactly
 #    that plan.
-# 3. Creates an access key for koi-cli and writes it to ~/.aws/credentials as
-#    profile koi-cli. The key never enters state.
+# 3. Creates an access key for previewlane-cli and writes it to ~/.aws/credentials as
+#    profile previewlane-cli. The key never enters state.
 #
-# Re-runnable: every step checks before it creates. Set KOI_PLAN_ONLY=1 to stop
+# Re-runnable: every step checks before it creates. Set PREVIEWLANE_PLAN_ONLY=1 to stop
 # after printing the plan.
 set -euo pipefail
 
@@ -17,7 +17,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/.." && pwd)
 region=us-east-1
 account=$(aws sts get-caller-identity --query Account --output text)
-bucket="koi-tfstate-${account}"
+bucket="previewlane-tfstate-${account}"
 
 if ! aws s3api head-bucket --bucket "$bucket" 2>/dev/null; then
 	echo "creating state bucket $bucket"
@@ -36,22 +36,22 @@ fi
 # `tofu -chdir=infra init -backend-config=backend.hcl` works by hand too.
 cat >"$here/backend.hcl" <<HCL
 bucket       = "$bucket"
-key          = "koi.tfstate"
+key          = "previewlane.tfstate"
 region       = "$region"
 use_lockfile = true
 HCL
 
-plan="$here/koi.tfplan"
+plan="$here/previewlane.tfplan"
 trap 'rm -f "$plan"' EXIT
 tofu -chdir="$here" init -input=false -backend-config=backend.hcl
 tofu -chdir="$here" plan -input=false -out="$plan"
-if [ "${KOI_PLAN_ONLY:-0}" = "1" ]; then
-	echo "KOI_PLAN_ONLY=1: stopping before apply"
+if [ "${PREVIEWLANE_PLAN_ONLY:-0}" = "1" ]; then
+	echo "PREVIEWLANE_PLAN_ONLY=1: stopping before apply"
 	exit 0
 fi
 tofu -chdir="$here" apply -input=false "$plan"
 
-user=koi-cli
+user=previewlane-cli
 if [ -z "$(aws iam list-access-keys --user-name "$user" --query 'AccessKeyMetadata[].AccessKeyId' --output text)" ]; then
 	echo "creating access key for $user"
 	key=$(aws iam create-access-key --user-name "$user" --query 'AccessKey.[AccessKeyId,SecretAccessKey]' --output text)

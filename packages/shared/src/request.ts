@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { PreviewLabelSchema, PrNumberSchema, PullRequestMergeSchema } from './preview.ts';
 import { ProjectNameSchema, RepoRecipeSchema } from './recipe.ts';
 
-// What `koi up` asks the daemon to do. The CLI writes it to the uploads bucket
+// What `previewlane up` asks the daemon to do. The CLI writes it to the uploads bucket
 // next to the source tarball; the SSM command that wakes the daemon carries
 // only the request id, so no caller-supplied text is ever interpreted by a
 // shell on the box.

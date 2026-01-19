@@ -29,18 +29,18 @@ const req = (path: string, host = 'hello.previews.example.net') =>
 describe('health', () => {
 	test('reports the box healthy for a non-preview host', async () => {
 		const { opts } = options({ kind: 'unknown' });
-		const res = await handle(req('/__koi/health', 'origin.previews.example.net.evil'), opts);
+		const res = await handle(req('/__previewlane/health', 'origin.previews.example.net.evil'), opts);
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({ ok: true, version: DAEMON_VERSION });
 	});
 
 	test('is ok only when the preview is running, and wakes a stopped one', async () => {
 		const running = options({ kind: 'running' });
-		expect((await handle(req('/__koi/health'), running.opts)).status).toBe(200);
+		expect((await handle(req('/__previewlane/health'), running.opts)).status).toBe(200);
 		const stopped = options({ kind: 'stopped' });
-		expect((await handle(req('/__koi/health'), stopped.opts)).status).toBe(503);
+		expect((await handle(req('/__previewlane/health'), stopped.opts)).status).toBe(503);
 		expect(stopped.started).toEqual(['hello']);
-		expect((await handle(req('/__koi/health'), options({ kind: 'unknown' }).opts)).status).toBe(
+		expect((await handle(req('/__previewlane/health'), options({ kind: 'unknown' }).opts)).status).toBe(
 			404,
 		);
 	});
@@ -107,7 +107,7 @@ describe('fallback pages', () => {
 	});
 });
 
-describe('koi pages', () => {
+describe('previewlane pages', () => {
 	test('keys.<domain> goes to the keys page, never to a preview, and is not a visit', async () => {
 		const { opts, visits, started } = options({ kind: 'unknown' });
 		const seen: string[] = [];
@@ -130,7 +130,7 @@ describe('koi pages', () => {
 
 	test('health on keys.<domain> reports the box, so the wake page reloads into the keys page', async () => {
 		const { opts } = options({ kind: 'unknown' });
-		const res = await handle(req('/__koi/health', 'keys.previews.example.net'), opts);
+		const res = await handle(req('/__previewlane/health', 'keys.previews.example.net'), opts);
 		expect(res.status).toBe(200);
 		expect(((await res.json()) as { ok: boolean }).ok).toBe(true);
 	});

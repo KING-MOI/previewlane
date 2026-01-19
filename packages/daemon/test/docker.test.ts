@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DockerHostConfigSchema } from '@koi/shared';
+import { DockerHostConfigSchema } from '@previewlane/shared';
 import {
 	cliDocker,
 	isPreview,
@@ -28,7 +28,7 @@ import { type ExecResult, exec } from '../src/exec.ts';
 function recorded(stdout = '') {
 	const calls: string[][] = [];
 	const docker = cliDocker({
-		builder: 'koi-builder',
+		builder: 'previewlane-builder',
 		exec: async (cmd): Promise<ExecResult> => {
 			calls.push(cmd);
 			return { code: 0, stdout, stderr: '', timedOut: false };
@@ -41,7 +41,7 @@ describe('the calls a run makes under its budget', () => {
 	test('hand their signal to each docker command, so the end of the budget kills it', async () => {
 		const seen: Array<AbortSignal | undefined> = [];
 		const docker = cliDocker({
-			builder: 'koi-builder',
+			builder: 'previewlane-builder',
 			exec: async (_cmd, options): Promise<ExecResult> => {
 				seen.push(options?.signal);
 				return { code: 0, stdout: '', stderr: '', timedOut: false };
@@ -68,26 +68,26 @@ describe('the calls a run makes under its budget', () => {
 
 describe('runArgs', () => {
 	const args = runArgs({
-		name: 'koi-hello-abc',
-		image: 'koi-preview/hello:abc',
-		network: 'koi-previews',
+		name: 'previewlane-hello-abc',
+		image: 'previewlane-preview/hello:abc',
+		network: 'previewlane-previews',
 		user: '65534:65534',
-		env: { KOI_PREVIEW_URL: 'https://hello.previews.example.net', MODE: 'a b; rm -rf /' },
-		labels: { 'koi.preview': 'hello' },
+		env: { PREVIEWLANE_PREVIEW_URL: 'https://hello.previews.example.net', MODE: 'a b; rm -rf /' },
+		labels: { 'previewlane.preview': 'hello' },
 	});
 
-	test('sets koi.role to nothing, so a label the image carries never reaches the container', () => {
+	test('sets previewlane.role to nothing, so a label the image carries never reaches the container', () => {
 		// Docker copies the image's labels onto the container, and the
 		// flag's value wins over the image's. The name makes it a preview
 		// either way (isPreview); this keeps the label from claiming a role.
-		expect(args.filter((a) => a.startsWith('koi.role'))).toEqual(['koi.role=']);
-		expect(args[args.indexOf('koi.role=') - 1]).toBe('--label');
-		expect(args.filter((a) => a.startsWith('koi.preview'))).toEqual(['koi.preview=hello']);
+		expect(args.filter((a) => a.startsWith('previewlane.role'))).toEqual(['previewlane.role=']);
+		expect(args[args.indexOf('previewlane.role=') - 1]).toBe('--label');
+		expect(args.filter((a) => a.startsWith('previewlane.preview'))).toEqual(['previewlane.preview=hello']);
 	});
 
 	test('confines the container', () => {
 		const joined = args.join(' ');
-		expect(joined).toContain('--network koi-previews');
+		expect(joined).toContain('--network previewlane-previews');
 		expect(joined).toContain('--user 65534:65534');
 		expect(joined).toContain('--cap-drop ALL');
 		expect(joined).toContain('--security-opt no-new-privileges');
@@ -116,39 +116,39 @@ describe('runArgs', () => {
 	test("runs the container in the slice when one is given, and in Docker's default otherwise", () => {
 		expect(args).not.toContain('--cgroup-parent');
 		const sliced = runArgs(
-			{ name: 'n', image: 'i', network: 'koi-previews', user: '1:1', env: {}, labels: {} },
-			'koi.slice',
+			{ name: 'n', image: 'i', network: 'previewlane-previews', user: '1:1', env: {}, labels: {} },
+			'previewlane.slice',
 		);
 		expect(
 			sliced.slice(sliced.indexOf('--cgroup-parent'), sliced.indexOf('--cgroup-parent') + 2),
-		).toEqual(['--cgroup-parent', 'koi.slice']);
+		).toEqual(['--cgroup-parent', 'previewlane.slice']);
 		expect(sliced.at(-1)).toBe('i');
 	});
 
 	test('passes env values as single arguments, never through a shell', () => {
 		expect(args).toContain('MODE=a b; rm -rf /');
-		expect(args.at(-1)).toBe('koi-preview/hello:abc');
+		expect(args.at(-1)).toBe('previewlane-preview/hello:abc');
 	});
 });
 
 describe('run network and helper flags', () => {
 	const RUN = 'abcdefghijklmnop0123';
 	const common = {
-		network: `koi-v-${RUN}`,
+		network: `previewlane-v-${RUN}`,
 		runId: RUN,
 		appHost: { name: `app.${RUN}.invalid`, ip: '10.213.0.18' },
 		dns: '10.213.0.17',
-		env: { KOI_RUN_ID: RUN, KOI_PREVIEW_URL: `http://app.${RUN}.invalid:8080` },
+		env: { PREVIEWLANE_RUN_ID: RUN, PREVIEWLANE_PREVIEW_URL: `http://app.${RUN}.invalid:8080` },
 	};
 
 	test('a run network is internal, IPv4 only, without inter-container traffic, on a named bridge', () => {
 		expect(
 			networkArgs({
-				name: `koi-v-${RUN}`,
+				name: `previewlane-v-${RUN}`,
 				bridge: 'kv0123456789ab',
 				subnet: '10.213.0.16/28',
 				gateway: '10.213.0.17',
-				labels: { 'koi.run': RUN },
+				labels: { 'previewlane.run': RUN },
 			}),
 		).toEqual([
 			'docker',
@@ -169,8 +169,8 @@ describe('run network and helper flags', () => {
 			'--opt',
 			'com.docker.network.bridge.name=kv0123456789ab',
 			'--label',
-			`koi.run=${RUN}`,
-			`koi-v-${RUN}`,
+			`previewlane.run=${RUN}`,
+			`previewlane-v-${RUN}`,
 		]);
 	});
 
@@ -179,21 +179,21 @@ describe('run network and helper flags', () => {
 			recorderArgs(
 				{
 					...common,
-					name: `koi-verify-${RUN}-recorder`,
-					image: `koi-recorder@sha256:${'1'.repeat(64)}`,
+					name: `previewlane-verify-${RUN}-recorder`,
+					image: `previewlane-recorder@sha256:${'1'.repeat(64)}`,
 					ip: '10.213.0.19',
 					mac: '02:4b:0a:d5:00:13',
-					seccompProfile: '/etc/koi/verify/chromium.json',
+					seccompProfile: '/etc/previewlane/verify/chromium.json',
 				},
-				'koi.slice',
+				'previewlane.slice',
 			),
 		).toEqual([
 			'docker',
 			'create',
 			'--name',
-			`koi-verify-${RUN}-recorder`,
+			`previewlane-verify-${RUN}-recorder`,
 			'--network',
-			`koi-v-${RUN}`,
+			`previewlane-v-${RUN}`,
 			'--ip',
 			'10.213.0.19',
 			'--mac-address',
@@ -231,24 +231,24 @@ describe('run network and helper flags', () => {
 			'--add-host',
 			`app.${RUN}.invalid:10.213.0.18`,
 			'--label',
-			'koi.preview=',
+			'previewlane.preview=',
 			'--label',
-			'koi.role=recorder',
+			'previewlane.role=recorder',
 			'--label',
-			`koi.run=${RUN}`,
+			`previewlane.run=${RUN}`,
 			'--cgroup-parent',
-			'koi.slice',
+			'previewlane.slice',
 			'--env',
-			`KOI_RUN_ID=${RUN}`,
+			`PREVIEWLANE_RUN_ID=${RUN}`,
 			'--env',
-			`KOI_PREVIEW_URL=http://app.${RUN}.invalid:8080`,
+			`PREVIEWLANE_PREVIEW_URL=http://app.${RUN}.invalid:8080`,
 			'--tmpfs',
 			'/tmp:rw,nosuid,nodev,noexec,size=512m,uid=10001,gid=10001',
 			'--shm-size',
 			'256m',
 			'--security-opt',
-			'seccomp=/etc/koi/verify/chromium.json',
-			`koi-recorder@sha256:${'1'.repeat(64)}`,
+			'seccomp=/etc/previewlane/verify/chromium.json',
+			`previewlane-recorder@sha256:${'1'.repeat(64)}`,
 		]);
 	});
 
@@ -256,20 +256,20 @@ describe('run network and helper flags', () => {
 		const args = verifierArgs(
 			{
 				...common,
-				name: `koi-verify-${RUN}-verifier`,
+				name: `previewlane-verify-${RUN}-verifier`,
 				image: `curlimages/curl@sha256:${'2'.repeat(64)}`,
 				ip: '10.213.0.20',
 				mac: '02:4b:0a:d5:00:14',
-				command: ['sh', '.koi/runners/home.sh'],
+				command: ['sh', '.previewlane/runners/home.sh'],
 			},
-			'koi.slice',
+			'previewlane.slice',
 		);
 		const joined = args.join(' ');
 		expect(joined).toContain('--user 10002:10002');
 		expect(joined).toContain('--memory 1g --memory-swap 1g --cpus 1 --pids-limit 256');
 		expect(joined).toContain('--tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m,uid=10002,gid=10002');
 		expect(joined).toContain('--tmpfs /work:rw,nosuid,nodev,noexec,size=128m,uid=10002,gid=10002');
-		expect(joined).toContain('--label koi.role=verifier');
+		expect(joined).toContain('--label previewlane.role=verifier');
 		expect(joined).toContain('--log-driver none');
 		expect(args).toContain('--interactive');
 		expect(args).not.toContain('--tty');
@@ -277,7 +277,7 @@ describe('run network and helper flags', () => {
 		expect(args.slice(-3)).toEqual([
 			`curlimages/curl@sha256:${'2'.repeat(64)}`,
 			'sh',
-			'.koi/runners/home.sh',
+			'.previewlane/runners/home.sh',
 		]);
 		// Without a command, the image's entrypoint runs.
 		const plain = verifierArgs({
@@ -299,14 +299,14 @@ describe('run network and helper flags', () => {
 			ip: '10.213.0.20',
 			mac: '02:4b:0a:d5:00:14',
 			volumes: [
-				{ name: 'koi-verify-r-inputs-koi', destination: '/koi' },
-				{ name: 'koi-verify-r-inputs-workspace', destination: '/workspace' },
+				{ name: 'previewlane-verify-r-inputs-previewlane', destination: '/previewlane' },
+				{ name: 'previewlane-verify-r-inputs-workspace', destination: '/workspace' },
 			],
 		});
 		const mounts = args.flatMap((a, i) => (a === '--mount' ? [args[i + 1]] : []));
 		expect(mounts).toEqual([
-			'type=volume,source=koi-verify-r-inputs-koi,target=/koi,volume-nocopy,readonly',
-			'type=volume,source=koi-verify-r-inputs-workspace,target=/workspace,volume-nocopy,readonly',
+			'type=volume,source=previewlane-verify-r-inputs-previewlane,target=/previewlane,volume-nocopy,readonly',
+			'type=volume,source=previewlane-verify-r-inputs-workspace,target=/workspace,volume-nocopy,readonly',
 		]);
 		// The root stays read-only with the volumes on it, and no bind mount
 		// of the host appears.
@@ -317,28 +317,28 @@ describe('run network and helper flags', () => {
 
 	test('the staging container is writable, on no network, and labelled for cleanup', () => {
 		const args = stagingArgs({
-			name: 'koi-verify-r-staging',
+			name: 'previewlane-verify-r-staging',
 			image: 'img',
 			runId: 'r',
-			volumes: [{ name: 'koi-verify-r-inputs-koi', destination: '/koi' }],
+			volumes: [{ name: 'previewlane-verify-r-inputs-previewlane', destination: '/previewlane' }],
 		});
 		expect(args).toEqual([
 			'docker',
 			'create',
 			'--name',
-			'koi-verify-r-staging',
+			'previewlane-verify-r-staging',
 			'--network',
 			'none',
 			'--entrypoint',
 			'true',
 			'--label',
-			'koi.preview=',
+			'previewlane.preview=',
 			'--label',
-			'koi.role=staging',
+			'previewlane.role=staging',
 			'--label',
-			'koi.run=r',
+			'previewlane.run=r',
 			'--mount',
-			'type=volume,source=koi-verify-r-inputs-koi,target=/koi,volume-nocopy',
+			'type=volume,source=previewlane-verify-r-inputs-previewlane,target=/previewlane,volume-nocopy',
 			'img',
 		]);
 		// `docker cp` is refused on a read-only root; this one must take it.
@@ -362,12 +362,12 @@ describe('run network and helper flags', () => {
 		});
 		for (const args of [recorder, verifier]) {
 			expect(args[1]).toBe('create');
-			// koi.preview is set to nothing, over whatever the image carries.
+			// previewlane.preview is set to nothing, over whatever the image carries.
 			// The name makes the helper no preview (isPreview); this keeps
 			// the label from saying otherwise, and cleanup takes it for
-			// koid's (helperOf).
-			expect(args.filter((a) => a.startsWith('koi.preview'))).toEqual(['koi.preview=']);
-			expect(args[args.indexOf('koi.preview=') - 1]).toBe('--label');
+			// previewlaned's (helperOf).
+			expect(args.filter((a) => a.startsWith('previewlane.preview'))).toEqual(['previewlane.preview=']);
+			expect(args[args.indexOf('previewlane.preview=') - 1]).toBe('--label');
 			for (const flag of [
 				'-p',
 				'--publish',
@@ -393,9 +393,9 @@ describe('run network and helper flags', () => {
 	});
 
 	test("the sandbox probe runs under the recorder's confinement, with nothing added", () => {
-		const seccomp = '/usr/local/share/koi/recorder-seccomp.json';
-		const image = `koi-recorder@sha256:${'1'.repeat(64)}`;
-		const args = sandboxProbeArgs('koi-sandbox-probe-abc', image, seccomp);
+		const seccomp = '/usr/local/share/previewlane/recorder-seccomp.json';
+		const image = `previewlane-recorder@sha256:${'1'.repeat(64)}`;
+		const args = sandboxProbeArgs('previewlane-sandbox-probe-abc', image, seccomp);
 		const recorder = recorderArgs(
 			{
 				...common,
@@ -405,14 +405,14 @@ describe('run network and helper flags', () => {
 				mac: '02:4b:0a:d5:00:13',
 				seccompProfile: seccomp,
 			},
-			'koi.slice',
+			'previewlane.slice',
 		);
 		expect(args.slice(0, 7)).toEqual([
 			'docker',
 			'run',
 			'--rm',
 			'--name',
-			'koi-sandbox-probe-abc',
+			'previewlane-sandbox-probe-abc',
 			'--label',
 			SANDBOX_PROBE_LABEL,
 		]);
@@ -453,11 +453,11 @@ describe('run network and helper flags', () => {
 });
 
 describe('parseNetworks', () => {
-	test('reads the fields koid checks on a run network, one JSON object per line', () => {
+	test('reads the fields previewlaned checks on a run network, one JSON object per line', () => {
 		const text = [
 			JSON.stringify({
 				Id: 'abc',
-				Name: 'koi-v-run',
+				Name: 'previewlane-v-run',
 				Driver: 'bridge',
 				Internal: true,
 				EnableIPv6: false,
@@ -465,11 +465,11 @@ describe('parseNetworks', () => {
 					'com.docker.network.bridge.enable_icc': 'false',
 					'com.docker.network.bridge.name': 'kv0123456789ab',
 				},
-				Labels: { 'koi.run': 'run1234567890abcdef' },
+				Labels: { 'previewlane.run': 'run1234567890abcdef' },
 				IPAM: { Config: [{ Subnet: '10.213.0.16/28', Gateway: '10.213.0.17' }] },
 				Containers: {
-					c1: { Name: 'koi-app', EndpointID: 'e1' },
-					c2: { Name: 'koi-verify-run-recorder', EndpointID: 'e2' },
+					c1: { Name: 'previewlane-app', EndpointID: 'e1' },
+					c2: { Name: 'previewlane-verify-run-recorder', EndpointID: 'e2' },
 				},
 			}),
 			JSON.stringify({
@@ -499,7 +499,7 @@ describe('parseNetworks', () => {
 		expect(parseNetworks(text)).toEqual([
 			{
 				id: 'abc',
-				name: 'koi-v-run',
+				name: 'previewlane-v-run',
 				driver: 'bridge',
 				internal: true,
 				ipv6: false,
@@ -507,7 +507,7 @@ describe('parseNetworks', () => {
 				bridge: 'kv0123456789ab',
 				subnets: ['10.213.0.16/28'],
 				run: 'run1234567890abcdef',
-				containers: ['koi-app', 'koi-verify-run-recorder'],
+				containers: ['previewlane-app', 'previewlane-verify-run-recorder'],
 			},
 			{
 				id: 'def',
@@ -540,12 +540,12 @@ describe('parseInspect', () => {
 			State: { Running: true },
 			NetworkSettings: {
 				Networks: {
-					'koi-previews': { IPAddress: '172.19.0.9' },
+					'previewlane-previews': { IPAddress: '172.19.0.9' },
 					bridge: { IPAddress: '172.17.0.2' },
 				},
 			},
 		});
-		expect(parseInspect(json, 'koi-previews')).toEqual({
+		expect(parseInspect(json, 'previewlane-previews')).toEqual({
 			exists: true,
 			running: true,
 			ip: '172.19.0.9',
@@ -554,23 +554,23 @@ describe('parseInspect', () => {
 
 	test('reports a stopped container without an address', () => {
 		const json = JSON.stringify({ State: { Running: false }, NetworkSettings: { Networks: {} } });
-		expect(parseInspect(json, 'koi-previews')).toEqual({ exists: true, running: false });
+		expect(parseInspect(json, 'previewlane-previews')).toEqual({ exists: true, running: false });
 	});
 
 	test('reads a container on no network', () => {
 		const json = JSON.stringify({ State: { Running: true }, NetworkSettings: { Networks: null } });
-		expect(parseInspect(json, 'koi-previews')).toEqual({ exists: true, running: true });
+		expect(parseInspect(json, 'previewlane-previews')).toEqual({ exists: true, running: true });
 	});
 
 	test('refuses output whose fields have another shape, rather than read it as stopped', () => {
 		const json = JSON.stringify({
 			State: { Running: 'true' },
-			NetworkSettings: { Networks: { 'koi-previews': { IPAddress: 9 } } },
+			NetworkSettings: { Networks: { 'previewlane-previews': { IPAddress: 9 } } },
 		});
-		expect(() => parseInspect(json, 'koi-previews')).toThrow(
-			/docker container inspect printed what koid cannot read: State\.Running: .*; NetworkSettings\.Networks\.koi-previews\.IPAddress: /,
+		expect(() => parseInspect(json, 'previewlane-previews')).toThrow(
+			/docker container inspect printed what previewlaned cannot read: State\.Running: .*; NetworkSettings\.Networks\.previewlane-previews\.IPAddress: /,
 		);
-		expect(() => parseInspect('{"State":', 'koi-previews')).toThrow('something other than JSON');
+		expect(() => parseInspect('{"State":', 'previewlane-previews')).toThrow('something other than JSON');
 	});
 });
 
@@ -585,7 +585,7 @@ describe('DockerHostConfigSchema', () => {
 			LogConfig: { Type: 'none', Config: {} },
 			Tmpfs: { '/tmp': 'rw,nosuid,nodev,noexec,size=512m,uid=10001,gid=10001' },
 			RestartPolicy: { Name: 'no', MaximumRetryCount: 0 },
-			NetworkMode: 'koi-v-0123456789ab',
+			NetworkMode: 'previewlane-v-0123456789ab',
 		};
 		const json = JSON.stringify({ ...reply, Binds: null, Privileged: false });
 		expect(parseDockerJson(DockerHostConfigSchema, json, 'docker container inspect')).toEqual(
@@ -601,18 +601,18 @@ describe('DockerHostConfigSchema', () => {
 				JSON.stringify({ ...reply, ReadonlyRootfs: 'true' }),
 				'docker container inspect',
 			),
-		).toThrow(/docker container inspect printed what koid cannot read: ReadonlyRootfs: /);
+		).toThrow(/docker container inspect printed what previewlaned cannot read: ReadonlyRootfs: /);
 	});
 });
 
 describe('cliDocker', () => {
-	test('builds in the koi builder and loads the result into Docker', async () => {
+	test('builds in the previewlane builder and loads the result into Docker', async () => {
 		const { calls, docker } = recorded();
 		await docker.build({
 			dockerfile: '/work/src/Dockerfile',
 			context: '/work/src',
-			tag: 'koi-preview/hello:abc',
-			labels: { 'koi.preview': 'hello' },
+			tag: 'previewlane-preview/hello:abc',
+			labels: { 'previewlane.preview': 'hello' },
 			timeoutMs: 1000,
 			onLine: () => {},
 		});
@@ -622,15 +622,15 @@ describe('cliDocker', () => {
 				'buildx',
 				'build',
 				'--builder',
-				'koi-builder',
+				'previewlane-builder',
 				'--load',
 				'--progress=plain',
 				'--file',
 				'/work/src/Dockerfile',
 				'--tag',
-				'koi-preview/hello:abc',
+				'previewlane-preview/hello:abc',
 				'--label',
-				'koi.preview=hello',
+				'previewlane.preview=hello',
 				'/work/src',
 			],
 		]);
@@ -639,38 +639,38 @@ describe('cliDocker', () => {
 	test('runs previews in the slice it was given', async () => {
 		const calls: string[][] = [];
 		const docker = cliDocker({
-			builder: 'koi-builder',
-			slice: 'koi.slice',
+			builder: 'previewlane-builder',
+			slice: 'previewlane.slice',
 			exec: async (cmd): Promise<ExecResult> => {
 				calls.push(cmd);
 				return { code: 0, stdout: '', stderr: '', timedOut: false };
 			},
 		});
 		await docker.run({
-			name: 'koi-hello-abc',
-			image: 'koi-preview/hello:abc',
-			network: 'koi-previews',
+			name: 'previewlane-hello-abc',
+			image: 'previewlane-preview/hello:abc',
+			network: 'previewlane-previews',
 			user: '65534:65534',
 			env: {},
 			labels: {},
 		});
-		expect(calls[0]?.join(' ')).toContain('--cgroup-parent koi.slice');
+		expect(calls[0]?.join(' ')).toContain('--cgroup-parent previewlane.slice');
 	});
 
 	test('reads the slice a running container is in from its systemd scope', async () => {
 		const calls: string[][] = [];
 		const answers = new Map([
 			['docker', `${'c0'.repeat(32)} true\n`],
-			['systemctl', 'koi.slice\n'],
+			['systemctl', 'previewlane.slice\n'],
 		]);
 		const docker = cliDocker({
-			builder: 'koi-builder',
+			builder: 'previewlane-builder',
 			exec: async (cmd): Promise<ExecResult> => {
 				calls.push(cmd);
 				return { code: 0, stdout: answers.get(cmd[0] ?? '') ?? '', stderr: '', timedOut: false };
 			},
 		});
-		expect(await docker.slice('koi-hello-abc')).toBe('koi.slice');
+		expect(await docker.slice('previewlane-hello-abc')).toBe('previewlane.slice');
 		expect(calls[1]).toEqual([
 			'systemctl',
 			'show',
@@ -679,22 +679,22 @@ describe('cliDocker', () => {
 			`docker-${'c0'.repeat(32)}.scope`,
 		]);
 		answers.set('docker', `${'c0'.repeat(32)} false\n`);
-		expect(await docker.slice('koi-hello-abc')).toBeUndefined();
+		expect(await docker.slice('previewlane-hello-abc')).toBeUndefined();
 	});
 
 	test('reads an image id as its digest, and refuses anything else', async () => {
 		const id = `sha256:${'a'.repeat(64)}`;
 		const { calls, docker } = recorded(`${id}\n`);
-		expect(await docker.imageDigest('koi-preview/hello:abc')).toBe(id);
+		expect(await docker.imageDigest('previewlane-preview/hello:abc')).toBe(id);
 		expect(calls).toEqual([
-			['docker', 'image', 'inspect', '--format', '{{.Id}}', 'koi-preview/hello:abc'],
+			['docker', 'image', 'inspect', '--format', '{{.Id}}', 'previewlane-preview/hello:abc'],
 		]);
-		await expect(recorded('latest\n').docker.imageDigest('koi-preview/hello:abc')).rejects.toThrow(
+		await expect(recorded('latest\n').docker.imageDigest('previewlane-preview/hello:abc')).rejects.toThrow(
 			'not a sha256 image id',
 		);
 	});
 
-	test('trims the build cache of the koi builder', async () => {
+	test('trims the build cache of the previewlane builder', async () => {
 		const { calls, docker } = recorded();
 		await docker.pruneBuildCache('30gb');
 		expect(calls).toEqual([
@@ -703,7 +703,7 @@ describe('cliDocker', () => {
 				'buildx',
 				'prune',
 				'--builder',
-				'koi-builder',
+				'previewlane-builder',
 				'--force',
 				'--max-used-space',
 				'30gb',
@@ -713,54 +713,54 @@ describe('cliDocker', () => {
 
 	test('removes a container together with its anonymous volumes', async () => {
 		const { calls, docker } = recorded();
-		await docker.remove('koi-hello-abc');
-		expect(calls).toEqual([['docker', 'rm', '--force', '--volumes', 'koi-hello-abc']]);
+		await docker.remove('previewlane-hello-abc');
+		expect(calls).toEqual([['docker', 'rm', '--force', '--volumes', 'previewlane-hello-abc']]);
 	});
 
-	test('lists only previews: a non-empty koi.preview under a name that is not a helper', async () => {
-		// docker ps --filter label=koi.preview matches the key whatever its
-		// value. Here: a preview, a run's helper (koi.preview set to nothing
-		// over its image's), a helper whose koi.preview an image forged, and
+	test('lists only previews: a non-empty previewlane.preview under a name that is not a helper', async () => {
+		// docker ps --filter label=previewlane.preview matches the key whatever its
+		// value. Here: a preview, a run's helper (previewlane.preview set to nothing
+		// over its image's), a helper whose previewlane.preview an image forged, and
 		// a container with the key and no value. Only the name and
-		// koi.preview are asked for: koi.role and koi.run on a preview are
+		// previewlane.preview are asked for: previewlane.role and previewlane.run on a preview are
 		// its image's, and the row must carry nothing an image chose.
 		const run = 'r'.repeat(16);
 		const previews = recorded(
 			[
-				'koi-hello-abc\thello',
-				`koi-verify-${run}-recorder\t`,
-				`koi-verify-${run}-verifier\tx`,
+				'previewlane-hello-abc\thello',
+				`previewlane-verify-${run}-recorder\t`,
+				`previewlane-verify-${run}-verifier\tx`,
 				'bare\t',
 				'',
 			].join('\n'),
 		);
-		expect(await previews.docker.list()).toEqual([{ name: 'koi-hello-abc', label: 'hello' }]);
-		expect(previews.calls[0]).toContain('label=koi.preview');
-		expect(previews.calls[0]?.at(-1)).toBe('{{.Names}}\t{{.Label "koi.preview"}}');
+		expect(await previews.docker.list()).toEqual([{ name: 'previewlane-hello-abc', label: 'hello' }]);
+		expect(previews.calls[0]).toContain('label=previewlane.preview');
+		expect(previews.calls[0]?.at(-1)).toBe('{{.Names}}\t{{.Label "previewlane.preview"}}');
 	});
 
-	test('lists what carries koi.run with its labels, from JSON, so a label cannot forge a row', async () => {
+	test('lists what carries previewlane.run with its labels, from JSON, so a label cannot forge a row', async () => {
 		const calls: string[][] = [];
-		// A recorder, and a preview whose image set koi.run and koi.role with
+		// A recorder, and a preview whose image set previewlane.run and previewlane.role with
 		// a line break and a tab in the value.
 		const inspected = [
 			JSON.stringify({
-				Name: '/koi-verify-r-recorder',
-				Labels: { 'koi.role': 'recorder', 'koi.run': 'r' },
+				Name: '/previewlane-verify-r-recorder',
+				Labels: { 'previewlane.role': 'recorder', 'previewlane.run': 'r' },
 			}),
 			JSON.stringify({
-				Name: '/koi-hello-abc',
+				Name: '/previewlane-hello-abc',
 				Labels: {
-					'koi.preview': 'hello',
-					'koi.run': 'r\n/koi-verify-r-verifier\tr\tverifier',
-					'koi.role': 'recorder',
+					'previewlane.preview': 'hello',
+					'previewlane.run': 'r\n/previewlane-verify-r-verifier\tr\tverifier',
+					'previewlane.role': 'recorder',
 				},
 			}),
 			JSON.stringify({ Name: '/bare', Labels: null }),
 			'',
 		].join('\n');
 		const docker = cliDocker({
-			builder: 'koi-builder',
+			builder: 'previewlane-builder',
 			exec: async (cmd): Promise<ExecResult> => {
 				calls.push(cmd);
 				const stdout = cmd[1] === 'ps' ? 'id1\nid2\nid3\n' : inspected;
@@ -768,18 +768,18 @@ describe('cliDocker', () => {
 			},
 		});
 		expect(await docker.listRun()).toEqual([
-			{ name: 'koi-verify-r-recorder', labels: { 'koi.role': 'recorder', 'koi.run': 'r' } },
+			{ name: 'previewlane-verify-r-recorder', labels: { 'previewlane.role': 'recorder', 'previewlane.run': 'r' } },
 			{
-				name: 'koi-hello-abc',
+				name: 'previewlane-hello-abc',
 				labels: {
-					'koi.preview': 'hello',
-					'koi.run': 'r\n/koi-verify-r-verifier\tr\tverifier',
-					'koi.role': 'recorder',
+					'previewlane.preview': 'hello',
+					'previewlane.run': 'r\n/previewlane-verify-r-verifier\tr\tverifier',
+					'previewlane.role': 'recorder',
 				},
 			},
 			{ name: 'bare', labels: {} },
 		]);
-		expect(calls[0]).toEqual(['docker', 'ps', '--all', '--quiet', '--filter', 'label=koi.run']);
+		expect(calls[0]).toEqual(['docker', 'ps', '--all', '--quiet', '--filter', 'label=previewlane.run']);
 		expect(calls[1]).toEqual([
 			'docker',
 			'container',
@@ -794,10 +794,10 @@ describe('cliDocker', () => {
 		expect(await recorded('').docker.listRun()).toEqual([]);
 		// A line that is not a container's JSON is an error, not a row.
 		const odd = cliDocker({
-			builder: 'koi-builder',
+			builder: 'previewlane-builder',
 			exec: async (cmd): Promise<ExecResult> => ({
 				code: 0,
-				stdout: cmd[1] === 'ps' ? 'id1\n' : 'koi-verify-r-recorder\tr\trecorder\n',
+				stdout: cmd[1] === 'ps' ? 'id1\n' : 'previewlane-verify-r-recorder\tr\trecorder\n',
 				stderr: '',
 				timedOut: false,
 			}),
@@ -808,12 +808,12 @@ describe('cliDocker', () => {
 	test("reads a container's attachment to one network, created or running", async () => {
 		const running = recorded(
 			JSON.stringify({
-				'koi-previews': {
+				'previewlane-previews': {
 					IPAddress: '172.19.0.2',
 					MacAddress: '02:42:ac:13:00:02',
 					EndpointID: 'e1',
 				},
-				'koi-v-run': {
+				'previewlane-v-run': {
 					IPAddress: '10.213.0.18',
 					MacAddress: '02:42:0a:d5:00:12',
 					EndpointID: 'e2',
@@ -821,24 +821,24 @@ describe('cliDocker', () => {
 				},
 			}),
 		);
-		expect(await running.docker.endpoint('koi-app', 'koi-v-run')).toEqual({
+		expect(await running.docker.endpoint('previewlane-app', 'previewlane-v-run')).toEqual({
 			ip: '10.213.0.18',
 			mac: '02:42:0a:d5:00:12',
 			endpointId: 'e2',
 		});
-		expect(await running.docker.endpoint('koi-app', 'other')).toBeUndefined();
+		expect(await running.docker.endpoint('previewlane-app', 'other')).toBeUndefined();
 		expect(running.calls[0]).toEqual([
 			'docker',
 			'container',
 			'inspect',
 			'--format',
 			'{{json .NetworkSettings.Networks}}',
-			'koi-app',
+			'previewlane-app',
 		]);
 		// Created, not started: the address it was asked to take, no endpoint yet.
 		const created = recorded(
 			JSON.stringify({
-				'koi-v-run': {
+				'previewlane-v-run': {
 					IPAddress: '',
 					MacAddress: '02:4b:0a:d5:00:13',
 					EndpointID: '',
@@ -846,13 +846,13 @@ describe('cliDocker', () => {
 				},
 			}),
 		);
-		expect(await created.docker.endpoint('r', 'koi-v-run')).toEqual({
+		expect(await created.docker.endpoint('r', 'previewlane-v-run')).toEqual({
 			ip: '10.213.0.19',
 			mac: '02:4b:0a:d5:00:13',
 		});
-		expect(await recorded('null').docker.endpoint('r', 'koi-v-run')).toBeUndefined();
+		expect(await recorded('null').docker.endpoint('r', 'previewlane-v-run')).toBeUndefined();
 		await expect(
-			recorded('{"koi-v-run": {"IPAddress": 5}}').docker.endpoint('r', 'koi-v-run'),
+			recorded('{"previewlane-v-run": {"IPAddress": 5}}').docker.endpoint('r', 'previewlane-v-run'),
 		).rejects.toThrow('cannot read');
 	});
 
@@ -885,8 +885,8 @@ describe('cliDocker', () => {
 
 	test('makes, lists and removes volumes, and copies an archive to a path in a container', async () => {
 		const { calls, docker } = recorded();
-		await docker.createVolume('koi-verify-r-inputs-koi', { 'koi.run': 'r', 'koi.role': 'inputs' });
-		await docker.removeVolume('koi-verify-r-inputs-koi');
+		await docker.createVolume('previewlane-verify-r-inputs-previewlane', { 'previewlane.run': 'r', 'previewlane.role': 'inputs' });
+		await docker.removeVolume('previewlane-verify-r-inputs-previewlane');
 		await docker.copyIn('s', new Uint8Array(0), '/');
 		expect(calls).toEqual([
 			[
@@ -894,12 +894,12 @@ describe('cliDocker', () => {
 				'volume',
 				'create',
 				'--label',
-				'koi.run=r',
+				'previewlane.run=r',
 				'--label',
-				'koi.role=inputs',
-				'koi-verify-r-inputs-koi',
+				'previewlane.role=inputs',
+				'previewlane-verify-r-inputs-previewlane',
 			],
-			['docker', 'volume', 'rm', 'koi-verify-r-inputs-koi'],
+			['docker', 'volume', 'rm', 'previewlane-verify-r-inputs-previewlane'],
 			['docker', 'cp', '-', 's:/'],
 		]);
 		expect(await docker.listRunVolumes()).toEqual([]);
@@ -910,14 +910,14 @@ describe('cliDocker', () => {
 				if (cmd.includes('ls')) return { code: 0, stdout: 'a\nb\n', stderr: '', timedOut: false };
 				return {
 					code: 0,
-					stdout: '{"Name":"a","Labels":{"koi.run":"r"}}\n{"Name":"b","Labels":null}\n',
+					stdout: '{"Name":"a","Labels":{"previewlane.run":"r"}}\n{"Name":"b","Labels":null}\n',
 					stderr: '',
 					timedOut: false,
 				};
 			},
 		});
 		expect(await listed.listRunVolumes()).toEqual([
-			{ name: 'a', labels: { 'koi.run': 'r' } },
+			{ name: 'a', labels: { 'previewlane.run': 'r' } },
 			{ name: 'b', labels: {} },
 		]);
 
@@ -941,33 +941,33 @@ describe('cliDocker', () => {
 
 	test('attaches and detaches containers and removes networks, quietly when they are already gone', async () => {
 		const { calls, docker } = recorded();
-		await docker.connect('koi-v-run', 'koi-app', '10.213.0.18');
-		await docker.disconnect('koi-v-run', 'koi-app');
-		await docker.removeNetwork('koi-v-run');
+		await docker.connect('previewlane-v-run', 'previewlane-app', '10.213.0.18');
+		await docker.disconnect('previewlane-v-run', 'previewlane-app');
+		await docker.removeNetwork('previewlane-v-run');
 		expect(calls).toEqual([
-			['docker', 'network', 'connect', '--ip', '10.213.0.18', 'koi-v-run', 'koi-app'],
-			['docker', 'network', 'disconnect', 'koi-v-run', 'koi-app'],
-			['docker', 'network', 'rm', 'koi-v-run'],
+			['docker', 'network', 'connect', '--ip', '10.213.0.18', 'previewlane-v-run', 'previewlane-app'],
+			['docker', 'network', 'disconnect', 'previewlane-v-run', 'previewlane-app'],
+			['docker', 'network', 'rm', 'previewlane-v-run'],
 		]);
 		const failing = (stderr: string) =>
 			cliDocker({
 				builder: 'b',
 				exec: async (): Promise<ExecResult> => ({ code: 1, stdout: '', stderr, timedOut: false }),
 			});
-		await failing('Error response from daemon: network koi-v-run not found').removeNetwork(
-			'koi-v-run',
+		await failing('Error response from daemon: network previewlane-v-run not found').removeNetwork(
+			'previewlane-v-run',
 		);
 		await failing(
-			'Error response from daemon: container koi-app is not connected to network koi-v-run',
-		).disconnect('koi-v-run', 'koi-app');
-		await failing('Error: No such container: koi-app').disconnect('koi-v-run', 'koi-app');
+			'Error response from daemon: container previewlane-app is not connected to network previewlane-v-run',
+		).disconnect('previewlane-v-run', 'previewlane-app');
+		await failing('Error: No such container: previewlane-app').disconnect('previewlane-v-run', 'previewlane-app');
 		await expect(
-			failing('Error response from daemon: network koi-v-run has active endpoints').removeNetwork(
-				'koi-v-run',
+			failing('Error response from daemon: network previewlane-v-run has active endpoints').removeNetwork(
+				'previewlane-v-run',
 			),
 		).rejects.toThrow('active endpoints');
 		await expect(
-			failing('permission denied').connect('koi-v-run', 'koi-app', '10.213.0.18'),
+			failing('permission denied').connect('previewlane-v-run', 'previewlane-app', '10.213.0.18'),
 		).rejects.toThrow('permission denied');
 	});
 
@@ -992,12 +992,12 @@ describe('cliDocker', () => {
 				const stdout =
 					cmd[2] === 'ls'
 						? 'abc\ndef\n'
-						: `${network('abc', 'koi-v-run')}\n${network('def', 'bridge')}\n`;
+						: `${network('abc', 'previewlane-v-run')}\n${network('def', 'bridge')}\n`;
 				return { code: 0, stdout, stderr: '', timedOut: false };
 			},
 		});
 		const networks = await docker.networks();
-		expect(networks.map((n) => n.name)).toEqual(['koi-v-run', 'bridge']);
+		expect(networks.map((n) => n.name)).toEqual(['previewlane-v-run', 'bridge']);
 		expect(calls[0]).toEqual(['docker', 'network', 'ls', '--quiet']);
 		expect(calls[1]?.slice(0, 4)).toEqual(['docker', 'network', 'inspect', '--format']);
 		expect(calls[1]?.slice(-2)).toEqual(['abc', 'def']);
@@ -1007,26 +1007,26 @@ describe('cliDocker', () => {
 	describe('diskUsage', () => {
 		const run = 'r'.repeat(16);
 		const df = [
-			'container\tkoi-a\trunning\t4.1kB',
-			'container\tkoi-b\texited\t1GB',
+			'container\tpreviewlane-a\trunning\t4.1kB',
+			'container\tpreviewlane-b\texited\t1GB',
 			'container\tother\trunning\t2MB (virtual 7.74MB)',
-			`container\tkoi-verify-${run}-recorder\texited\t3GB`,
-			`container\tkoi-verify-${run}-verifier\texited\t3GB`,
+			`container\tpreviewlane-verify-${run}-recorder\texited\t3GB`,
+			`container\tpreviewlane-verify-${run}-verifier\texited\t3GB`,
 			'volume\tv1\t16.78MB',
 			'volume\tv2\tN/A',
 			'volume\tv3\t1GB',
 			'',
 		].join('\n');
-		// Name, koi.preview, then the volumes. Two previews; a container
-		// without the label; a run's helper, with koi.preview set to
-		// nothing over its image's; and a helper whose koi.preview an image
+		// Name, previewlane.preview, then the volumes. Two previews; a container
+		// without the label; a run's helper, with previewlane.preview set to
+		// nothing over its image's; and a helper whose previewlane.preview an image
 		// forged, which its name keeps out all the same.
 		const inspected = [
-			'/koi-a\ta\tv1\tv2',
-			'/koi-b\tb',
+			'/previewlane-a\ta\tv1\tv2',
+			'/previewlane-b\tb',
 			'/other\t\tv3',
-			`/koi-verify-${run}-recorder\t`,
-			`/koi-verify-${run}-verifier\tx\tv3`,
+			`/previewlane-verify-${run}-recorder\t`,
+			`/previewlane-verify-${run}-verifier\tx\tv3`,
 			'',
 		].join('\n');
 
@@ -1035,7 +1035,7 @@ describe('cliDocker', () => {
 		function scripted(inspect: Partial<ExecResult>) {
 			const calls: string[][] = [];
 			const docker = cliDocker({
-				builder: 'koi-builder',
+				builder: 'previewlane-builder',
 				exec: async (cmd): Promise<ExecResult> => {
 					calls.push(cmd);
 					return cmd[1] === 'system'
@@ -1046,22 +1046,22 @@ describe('cliDocker', () => {
 			return { calls, docker };
 		}
 
-		test('adds the volumes a koi container mounts to its writable layer, running or not', async () => {
+		test('adds the volumes a previewlane container mounts to its writable layer, running or not', async () => {
 			const { calls, docker } = scripted({});
 			expect(await docker.diskUsage()).toEqual([
-				{ name: 'koi-a', label: 'a', bytes: 4_100 + 16_780_000, running: true },
-				{ name: 'koi-b', label: 'b', bytes: 1_000_000_000, running: false },
+				{ name: 'previewlane-a', label: 'a', bytes: 4_100 + 16_780_000, running: true },
+				{ name: 'previewlane-b', label: 'b', bytes: 1_000_000_000, running: false },
 			]);
 			expect(calls.map((c) => c.slice(0, 4))).toEqual([
 				['docker', 'system', 'df', '--verbose'],
 				['docker', 'container', 'inspect', '--format'],
 			]);
 			expect(calls[1]?.slice(5)).toEqual([
-				'koi-a',
-				'koi-b',
+				'previewlane-a',
+				'previewlane-b',
 				'other',
-				`koi-verify-${run}-recorder`,
-				`koi-verify-${run}-verifier`,
+				`previewlane-verify-${run}-recorder`,
+				`previewlane-verify-${run}-verifier`,
 			]);
 		});
 
@@ -1077,10 +1077,10 @@ describe('cliDocker', () => {
 	// on the box.
 	describe('reads all of an output longer than 256 KiB', () => {
 		async function printing(outputs: (cmd: string[]) => string) {
-			const dir = await mkdtemp(join(tmpdir(), 'koid-docker-'));
+			const dir = await mkdtemp(join(tmpdir(), 'previewlaned-docker-'));
 			let n = 0;
 			return cliDocker({
-				builder: 'koi-builder',
+				builder: 'previewlane-builder',
 				exec: async (cmd, options) => {
 					const file = join(dir, `${n++}.out`);
 					await writeFile(file, outputs(cmd));
@@ -1090,7 +1090,7 @@ describe('cliDocker', () => {
 		}
 		const many = Array.from(
 			{ length: 10_000 },
-			(_, i) => `koi-preview-${String(i).padStart(5, '0')}`,
+			(_, i) => `previewlane-preview-${String(i).padStart(5, '0')}`,
 		);
 
 		test('diskUsage, with ten thousand containers and volumes', async () => {
@@ -1115,11 +1115,11 @@ describe('cliDocker', () => {
 			const big = JSON.stringify({
 				State: { Running: true },
 				Config: { Env: Array.from({ length: 80 }, (_, i) => `K${i}=${'x'.repeat(4096)}`) },
-				NetworkSettings: { Networks: { 'koi-previews': { IPAddress: '172.19.0.9' } } },
+				NetworkSettings: { Networks: { 'previewlane-previews': { IPAddress: '172.19.0.9' } } },
 			});
 			expect(big.length).toBeGreaterThan(256 * 1024);
 			const docker = await printing(() => big);
-			expect(await docker.inspect('koi-a', 'koi-previews')).toEqual({
+			expect(await docker.inspect('previewlane-a', 'previewlane-previews')).toEqual({
 				exists: true,
 				running: true,
 				ip: '172.19.0.9',
@@ -1130,7 +1130,7 @@ describe('cliDocker', () => {
 			const docker = await printing((cmd) =>
 				cmd[1] === 'ps'
 					? many.map((name) => `${name}\t${name}\n`).join('')
-					: many.map((name) => `koi-preview/${name}:abc\n`).join(''),
+					: many.map((name) => `previewlane-preview/${name}:abc\n`).join(''),
 			);
 			expect(await docker.list()).toHaveLength(many.length);
 			expect((await docker.list())[0]).toEqual({ name: many[0] ?? '', label: many[0] ?? '' });
@@ -1138,9 +1138,9 @@ describe('cliDocker', () => {
 		});
 	});
 
-	test('lists tagged koi images only', async () => {
-		const { docker } = recorded('koi-preview/a:x\n<none>:<none>\n');
-		expect(await docker.listImages()).toEqual(['koi-preview/a:x']);
+	test('lists tagged previewlane images only', async () => {
+		const { docker } = recorded('previewlane-preview/a:x\n<none>:<none>\n');
+		expect(await docker.listImages()).toEqual(['previewlane-preview/a:x']);
 	});
 });
 
@@ -1163,42 +1163,42 @@ describe('isPreview', () => {
 	const run = 'r'.repeat(16);
 	const id = 'a'.repeat(20);
 
-	test('a preview has a non-empty koi.preview and a name that is not a helper', () => {
-		// Labels other than koi.preview are not asked: a preview an older
-		// koid made carries whatever koi.role or koi.run its image set, and
+	test('a preview has a non-empty previewlane.preview and a name that is not a helper', () => {
+		// Labels other than previewlane.preview are not asked: a preview an older
+		// previewlaned made carries whatever previewlane.role or previewlane.run its image set, and
 		// it is a preview all the same.
-		expect(isPreview(`koi-hello-pr-7-${id}`, 'hello-pr-7')).toBe(true);
+		expect(isPreview(`previewlane-hello-pr-7-${id}`, 'hello-pr-7')).toBe(true);
 		// A preview whose label starts with "verify" is still named as a
 		// preview: the id after the last dash is 16 to 40 characters, never a
 		// role.
-		expect(isPreview(`koi-verify-${id}`, 'verify')).toBe(true);
-		expect(isPreview(`koi-verify-${run}-recorder-${id}`, `verify-${run}-recorder`)).toBe(true);
-		// A run's helper, by its name: koi.preview set to nothing, as koid
+		expect(isPreview(`previewlane-verify-${id}`, 'verify')).toBe(true);
+		expect(isPreview(`previewlane-verify-${run}-recorder-${id}`, `verify-${run}-recorder`)).toBe(true);
+		// A run's helper, by its name: previewlane.preview set to nothing, as previewlaned
 		// creates it, or a value its image forged.
-		expect(isPreview(`koi-verify-${run}-recorder`, '')).toBe(false);
-		expect(isPreview(`koi-verify-${run}-verifier`, undefined)).toBe(false);
-		expect(isPreview(`koi-verify-${run}-verifier`, 'hello-pr-7')).toBe(false);
-		// No koi.preview value: not a preview, whatever the name.
-		expect(isPreview(`koi-hello-pr-7-${id}`, '')).toBe(false);
-		expect(isPreview(`koi-hello-pr-7-${id}`, undefined)).toBe(false);
+		expect(isPreview(`previewlane-verify-${run}-recorder`, '')).toBe(false);
+		expect(isPreview(`previewlane-verify-${run}-verifier`, undefined)).toBe(false);
+		expect(isPreview(`previewlane-verify-${run}-verifier`, 'hello-pr-7')).toBe(false);
+		// No previewlane.preview value: not a preview, whatever the name.
+		expect(isPreview(`previewlane-hello-pr-7-${id}`, '')).toBe(false);
+		expect(isPreview(`previewlane-hello-pr-7-${id}`, undefined)).toBe(false);
 		expect(isPreview('bare', '')).toBe(false);
 	});
 });
 
 describe('watchDeaths', () => {
 	test('reports each preview container docker events says died, and watches again when it exits', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koid-events-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlaned-events-'));
 		const fake = join(dir, 'docker');
 		// docker events, as a script: records its arguments, prints the
-		// deaths of two previews, a run's helper (koi.preview set to nothing)
-		// and a helper whose koi.preview an image forged, then exits as the
+		// deaths of two previews, a run's helper (previewlane.preview set to nothing)
+		// and a helper whose previewlane.preview an image forged, then exits as the
 		// real one does when the daemon restarts. Each line is the name and
 		// the label, as DEATH_FORMAT prints them; a helper's name keeps it
 		// out whatever the label says.
 		const run = 'r'.repeat(16);
 		await writeFile(
 			fake,
-			`#!/bin/sh\necho "$@" >> ${join(dir, 'args')}\nprintf 'koi-a-1\\thello\\nkoi-verify-${run}-recorder\\t\\nkoi-b-2\\tbye\\nkoi-verify-${run}-verifier\\tx\\n'\n`,
+			`#!/bin/sh\necho "$@" >> ${join(dir, 'args')}\nprintf 'previewlane-a-1\\thello\\npreviewlane-verify-${run}-recorder\\t\\npreviewlane-b-2\\tbye\\npreviewlane-verify-${run}-verifier\\tx\\n'\n`,
 			{ mode: 0o755 },
 		);
 		const events: Array<string | undefined> = [];
@@ -1216,15 +1216,15 @@ describe('watchDeaths', () => {
 		stop();
 		expect(events.slice(0, 6)).toEqual([
 			undefined,
-			'koi-a-1',
-			'koi-b-2',
+			'previewlane-a-1',
+			'previewlane-b-2',
 			undefined,
-			'koi-a-1',
-			'koi-b-2',
+			'previewlane-a-1',
+			'previewlane-b-2',
 		]);
 		expect((await Bun.file(join(dir, 'args')).text()).split('\n')[0]).toBe(
-			'events --filter type=container --filter event=die --filter label=koi.preview --format ' +
-				'{{.Actor.Attributes.name}}\t{{index .Actor.Attributes "koi.preview"}}',
+			'events --filter type=container --filter event=die --filter label=previewlane.preview --format ' +
+				'{{.Actor.Attributes.name}}\t{{index .Actor.Attributes "previewlane.preview"}}',
 		);
 		expect(logs[0]).toContain('docker events stopped; watching again');
 	});
@@ -1247,10 +1247,10 @@ describe('parseImageInfo', () => {
 			'docker image inspect of img printed something other than JSON',
 		);
 		expect(() => parseImageInfo(`${ID}\t{"PATH":"/usr/bin"}\n`, 'img')).toThrow(
-			'docker image inspect of img printed what koid cannot read',
+			'docker image inspect of img printed what previewlaned cannot read',
 		);
 		expect(() => parseImageInfo(`${ID}\t["PATH=/usr/bin",7]\n`, 'img')).toThrow(
-			'docker image inspect of img printed what koid cannot read: 1: ',
+			'docker image inspect of img printed what previewlaned cannot read: 1: ',
 		);
 	});
 });

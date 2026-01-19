@@ -3,15 +3,15 @@ import { randomUUID } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { RECORDER_BROWSER_PORT, RECORDER_CONTROL_PORT } from '@koi/shared';
+import { RECORDER_BROWSER_PORT, RECORDER_CONTROL_PORT } from '@previewlane/shared';
 import { cliDocker, sandboxProbeArgs } from '../src/docker.ts';
 import { exec } from '../src/exec.ts';
 import { httpRecorder, newRecorderTokens, recorderEnv } from '../src/recorder.ts';
 import { helperMac, privateHost } from '../src/verification-network.ts';
 
-// Real Docker, opt in with KOI_DOCKER_TESTS=1. Builds the recorder image
+// Real Docker, opt in with PREVIEWLANE_DOCKER_TESTS=1. Builds the recorder image
 // from host/recorder (minutes, and it downloads the pinned base image and
-// packages), runs the sandbox probe koid runs before it calls verification
+// packages), runs the sandbox probe previewlaned runs before it calls verification
 // available, starts it with the production flags on a throwaway network
 // next to a tiny static app, and checks the control port: health, a
 // context opened at the app's root, a screenshot and an aria snapshot of
@@ -26,21 +26,21 @@ import { helperMac, privateHost } from '../src/verification-network.ts';
 //
 // Every name is unique to this run, and cleanup removes only what this run
 // created. The subnet is in TEST-NET-2, which nothing routes.
-const enabled = process.env.KOI_DOCKER_TESTS === '1';
+const enabled = process.env.PREVIEWLANE_DOCKER_TESTS === '1';
 const run = randomUUID().replace(/-/g, '').slice(0, 10);
 const runId = `it${run}${run}`;
-const network = `koi-it-rec-${run}`;
+const network = `previewlane-it-rec-${run}`;
 // Not kv+: a provisioned box drops traffic on those bridges from everyone
-// but koid, and this test runs as whoever runs it.
+// but previewlaned, and this test runs as whoever runs it.
 const bridge = `kr${run}00`;
 const subnet = '198.51.100.0/28';
 const gateway = '198.51.100.1';
 const appIp = '198.51.100.2';
 const recorderIp = '198.51.100.3';
-const image = `koi-it-recorder:${run}`;
-const appName = `koi-it-rec-app-${run}`;
-const recorderName = `koi-verify-${runId}-recorder`;
-const probeNames = ['ok', 'nochroot', 'noclone'].map((p) => `koi-sandbox-probe-it${run}${p}`) as [
+const image = `previewlane-it-recorder:${run}`;
+const appName = `previewlane-it-rec-app-${run}`;
+const recorderName = `previewlane-verify-${runId}-recorder`;
+const probeNames = ['ok', 'nochroot', 'noclone'].map((p) => `previewlane-sandbox-probe-it${run}${p}`) as [
 	string,
 	string,
 	string,
@@ -89,7 +89,7 @@ test.skipIf(!enabled)(
 		// frame's document has no quotes: the page goes through sh in single
 		// quotes.
 		const page =
-			'<!doctype html><title>hello</title><body style="margin:0"><h1 style="position:absolute;left:10px;top:200px;margin:0">hello from koi</h1>' +
+			'<!doctype html><title>hello</title><body style="margin:0"><h1 style="position:absolute;left:10px;top:200px;margin:0">hello from previewlane</h1>' +
 			'<input type="password" value="secret-value-123" style="position:absolute;left:10px;top:10px;width:100px;height:20px;border:0;color:#f00;background:#f00">' +
 			'<iframe style="position:absolute;left:10px;top:100px;width:300px;height:60px;border:0" srcdoc="<body style=margin:0><input type=password value=secret-in-frame style=position:absolute;left:10px;top:10px;width:100px;height:20px;border:0;color:#f00;background:#f00>"></iframe></body>';
 		await must([
@@ -108,7 +108,7 @@ test.skipIf(!enabled)(
 			`mkdir -p /www && printf '%s' '${page}' > /www/index.html && exec httpd -f -p 8080 -h /www`,
 		]);
 		const appHost = privateHost(runId);
-		// The check koid makes before it calls verification available: Chromium
+		// The check previewlaned makes before it calls verification available: Chromium
 		// starts with its sandbox under the recorder's confinement, and does not
 		// under a seccomp profile that refuses chroot, as this one did before, or
 		// one that allows namespaces through unshare but not through clone,
@@ -126,7 +126,7 @@ test.skipIf(!enabled)(
 			for (const [i, rule] of profile.syscalls.entries()) {
 				if (rules === 'all' || i === 0) rule.names = rule.names.filter((n) => n !== syscall);
 			}
-			const path = join(tmpdir(), `koi-it-seccomp-${run}-${syscall}.json`);
+			const path = join(tmpdir(), `previewlane-it-seccomp-${run}-${syscall}.json`);
 			await writeFile(path, JSON.stringify(profile));
 			return exec(sandboxProbeArgs(name, image, path), { timeoutMs: 120_000 });
 		};
@@ -147,7 +147,7 @@ test.skipIf(!enabled)(
 			runId,
 			appHost: { name: appHost, ip: appIp },
 			dns: gateway,
-			env: { KOI_RUN_ID: runId, KOI_PREVIEW_URL: `http://${appHost}:8080`, ...recorderEnv(tokens) },
+			env: { PREVIEWLANE_RUN_ID: runId, PREVIEWLANE_PREVIEW_URL: `http://${appHost}:8080`, ...recorderEnv(tokens) },
 			seccompProfile: seccomp,
 		});
 		await docker.start(recorderName);
@@ -191,11 +191,11 @@ test.skipIf(!enabled)(
 		expect(png.length).toBe(shot.size);
 		const aria = await api.capture(context.contextId, { kind: 'aria', label: 'tree' });
 		const tree = await new Response(await api.bytes(aria.captureId)).text();
-		expect(tree).toContain('hello from koi');
+		expect(tree).toContain('hello from previewlane');
 		// Raw captures live in the recorder's memory, never under /tmp, which
 		// Chromium shares.
 		const tmp = await must(['docker', 'exec', recorderName, 'find', '/tmp', '-type', 'f']);
-		expect(tmp.split('\n').filter((f) => f.includes('koi-recorder/captures'))).toEqual([]);
+		expect(tmp.split('\n').filter((f) => f.includes('previewlane-recorder/captures'))).toEqual([]);
 		await api.acknowledge(shot.captureId);
 		await api.acknowledge(aria.captureId);
 		await expect(api.bytes(shot.captureId)).rejects.toThrow();
@@ -208,7 +208,7 @@ test.skipIf(!enabled)(
 			response: { status: number; bodyBase64: string };
 		};
 		expect(state.response.status).toBe(200);
-		expect(Buffer.from(state.response.bodyBase64, 'base64').toString()).toContain('hello from koi');
+		expect(Buffer.from(state.response.bodyBase64, 'base64').toString()).toContain('hello from previewlane');
 		await api.acknowledge(read.captureId);
 
 		// The verifier's path.
@@ -226,7 +226,7 @@ test.skipIf(!enabled)(
 			const home = pages.find((p) => p.url().startsWith(`http://${appHost}:8080`));
 			if (home === undefined)
 				throw new Error(`no page of the app among ${pages.map((p) => p.url()).join(', ')}`);
-			expect(await home.textContent('h1')).toBe('hello from koi');
+			expect(await home.textContent('h1')).toBe('hello from previewlane');
 			// The screenshot taken above, read back pixel by pixel in the page:
 			// the password field in the page and the one in the child frame are
 			// both black, which only the mask paints; the page beside them is

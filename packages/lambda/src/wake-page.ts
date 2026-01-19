@@ -24,7 +24,7 @@ export function wakePage(): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Waking up koi</title>
+<title>Waking up previewlane</title>
 <style>
   body { font: 16px/1.5 system-ui, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: #111; color: #eee; }
   main { max-width: 32rem; padding: 2rem; }
@@ -36,7 +36,7 @@ export function wakePage(): string {
 </head>
 <body>
 <main>
-  <h1><span class="dot" id="dot"></span><span id="title">Waking up koi</span></h1>
+  <h1><span class="dot" id="dot"></span><span id="title">Waking up previewlane</span></h1>
   <p id="msg">The preview box is starting. This usually takes about a minute.</p>
   <p>You asked for <code id="host"></code>.</p>
 </main>
@@ -56,7 +56,7 @@ export function wakePage(): string {
   // failing cannot restart the clock or loop for ever. Any other visit (the
   // preview loaded fine and failed later, or the reviewer came back) starts
   // afresh.
-  var KEY = 'koi-wake:' + host;
+  var KEY = 'previewlane-wake:' + host;
   var state = null;
   try { state = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch (e) { state = null; }
   var now = Date.now();
@@ -92,7 +92,7 @@ export function wakePage(): string {
 
   function round() {
     if (done) { return; }
-    get('/__koi-wake/wake?host=' + encodeURIComponent(host))
+    get('/__previewlane-wake/wake?host=' + encodeURIComponent(host))
       .then(function (r) { return r.json(); })
       .then(function (j) {
         if (done) { return; }
@@ -100,16 +100,16 @@ export function wakePage(): string {
         // address); an error without it is temporary and worth retrying.
         if (j.known !== false && j.error) { setTimeout(round, POLL_MS); return; }
         if (!j.known) {
-          stop('No preview here', 'Nothing is deployed at this address. Ask the author to run koi up.');
+          stop('No preview here', 'Nothing is deployed at this address. Ask the author to run previewlane up.');
           return;
         }
-        return get('/__koi/health')
+        return get('/__previewlane/health')
           .then(function (r) { return r.ok; }, function () { return false; })
           .then(function (ok) {
             if (done) { return; }
             if (!ok) { setTimeout(round, POLL_MS); return; }
             if (state.reloads >= MAX_RELOADS) {
-              stop('The preview is not answering', 'The box is up, but the preview keeps failing to load. Ask the author to check koi logs.');
+              stop('The preview is not answering', 'The box is up, but the preview keeps failing to load. Ask the author to check previewlane logs.');
               return;
             }
             state.reloads += 1;

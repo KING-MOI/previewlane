@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { egressControl, proxyPreviews } from '../src/egress.ts';
 
-const TOKEN = `koi_${'a'.repeat(32)}`;
+const TOKEN = `previewlane_${'a'.repeat(32)}`;
 const LABEL = 'storefront-pr-7';
 
 const servers: Server[] = [];
@@ -23,7 +23,7 @@ async function proxy(
 	answer: (line: string, socket: Socket) => void,
 	connected: (socket: Socket) => void = () => {},
 ) {
-	const path = join(await mkdtemp(join(tmpdir(), 'koid-egress-')), 'control.sock');
+	const path = join(await mkdtemp(join(tmpdir(), 'previewlaned-egress-')), 'control.sock');
 	const requests: unknown[] = [];
 	const closed: Array<Promise<void>> = [];
 	const server = createServer((socket) => {
@@ -161,7 +161,7 @@ describe('egressControl connections', () => {
 	});
 
 	test('rejects at once when the socket is missing or refuses the connection', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koid-egress-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlaned-egress-'));
 		// A file that is not a listening socket refuses connections, as a
 		// socket left behind by a proxy that has exited does.
 		const refusing = join(dir, 'plain');
@@ -201,7 +201,7 @@ describe('proxyPreviews', () => {
 	});
 
 	test('resolves when nothing listens: no policy is loaded, and no map with it', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koid-egress-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlaned-egress-'));
 		const refusing = join(dir, 'plain');
 		await writeFile(refusing, '');
 		for (const path of [join(dir, 'missing.sock'), refusing]) {

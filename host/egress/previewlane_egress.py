@@ -1,4 +1,4 @@
-"""koi egress policy for preview containers (mitmproxy addon).
+"""previewlane egress policy for preview containers (mitmproxy addon).
 
 Previews have no route to the internet. Their HTTP(S)_PROXY points here, and
 this addon decides what they may reach: allowlisted hostnames only, on 443
@@ -7,7 +7,7 @@ this addon decides what they may reach: allowlisted hostnames only, on 443
 The CONNECT hostname alone proves little: sites behind one CDN answer for each
 other, so a tunnel opened to pypi.org could carry TLS and HTTP for any other
 site on that CDN. So the proxy intercepts TLS in every tunnel (previews trust
-koi's CA through SSL_CERT_FILE and friends) and holds three names to the one
+previewlane's CA through SSL_CERT_FILE and friends) and holds three names to the one
 the CONNECT gave: the TLS server name (SNI), which must match or the handshake
 fails, and the Host header and :authority of every request inside, which must
 match or the connection is killed. The upstream connection is opened only for
@@ -24,15 +24,15 @@ mitmproxy reloads this file after it changed, it turns the server off and
 closes every open connection first. So a file that fails to load leaves the
 proxy down, never open.
 
-On requests to LLM provider APIs, a koi token in the request is swapped for
+On requests to LLM provider APIs, a previewlane token in the request is swapped for
 the reviewer's real key on the way out. The preview's code only ever holds the
 token; the real key exists in the reviewer's browser and in this process's
-memory, nowhere else. Keys are registered by koid over a unix socket (the keys
-page talks to koid, koid talks to this socket), and for each key this proxy
+memory, nowhere else. Keys are registered by previewlaned over a unix socket (the keys
+page talks to previewlaned, previewlaned talks to this socket), and for each key this proxy
 derives a token that stands for that key, its provider and one preview: an
 HMAC of the three under a secret kept on the box (see derive_token), so the
 same key registered again for the same preview gets the same token, after a
-reload, a restart or a sleep. koid also tells it which container address
+reload, a restart or a sleep. previewlaned also tells it which container address
 runs which preview, and a token works only in requests from its own
 preview's container. Nothing here writes a key, a token or the secret to
 disk or to a log. Tokens, keys and the container map live in this addon's
@@ -46,7 +46,7 @@ and the proxy stays down. Deleting the file invalidates every token: the
 next registration of each key gets a new one.
 
 Log lines never carry text a preview chose, such as a hostname: it can hold a
-key or a koi token.
+key or a previewlane token.
 """
 
 import asyncio
@@ -69,7 +69,7 @@ from mitmproxy import connection, ctx, http, tcp, tls
 from mitmproxy.net.http import url
 from OpenSSL import SSL
 
-log = logging.getLogger("koi_egress")
+log = logging.getLogger("previewlane_egress")
 
 ALLOWED_PORTS = {443, 80}
 
@@ -147,7 +147,7 @@ AUTH = {
     "perplexity": {"headers": BEARER},
 }
 
-TOKEN_RE = re.compile(r"koi_[a-z0-9]{32}")
+TOKEN_RE = re.compile(r"previewlane_[a-z0-9]{32}")
 # Some apps check a key's prefix before they send anything, and refuse one
 # that does not begin the way the provider's keys do: "sk-ant" for
 # Anthropic, "sk-" for DeepSeek, "xai-" for xAI. So the keys page shows each
@@ -156,29 +156,29 @@ TOKEN_RE = re.compile(r"koi_[a-z0-9]{32}")
 # TOKEN_PREFIXES in packages/shared/src/providers.ts.
 TOKEN_PREFIXES = {"openai": "sk-", "anthropic": "sk-ant-", "deepseek": "sk-", "xai": "xai-"}
 _PREFIX = "|".join(re.escape(p) for p in sorted(set(TOKEN_PREFIXES.values()), key=len, reverse=True))
-PASTED_RE = re.compile(rf"(?:{_PREFIX})?(koi_[a-z0-9]{{32}})")
-BEARER_RE = re.compile(rf"Bearer +(?:{_PREFIX})?(koi_[a-z0-9]{{32}})", re.IGNORECASE)
-# The token secret: this many random bytes in a file (koi_secret). A token
+PASTED_RE = re.compile(rf"(?:{_PREFIX})?(previewlane_[a-z0-9]{{32}})")
+BEARER_RE = re.compile(rf"Bearer +(?:{_PREFIX})?(previewlane_[a-z0-9]{{32}})", re.IGNORECASE)
+# The token secret: this many random bytes in a file (previewlane_secret). A token
 # is the first TOKEN_BYTES of an HMAC-SHA256 under it, in lowercase base32
 # (a-z and 2-7): 20 bytes, 160 bits, are 32 characters with no padding, so
 # a token matches TOKEN_RE like the random ones before it did. The domain
 # string starts the HMAC's message, so no other use of the secret can make
 # a token.
 SECRET_BYTES = 32
-SECRET_PATH = "/etc/koi/egress/private/token-secret"
+SECRET_PATH = "/etc/previewlane/egress/private/token-secret"
 TOKEN_BYTES = 20
-TOKEN_DOMAIN = b"koi token v1"
+TOKEN_DOMAIN = b"previewlane token v1"
 # A preview's label, as packages/shared checks it (PreviewLabelSchema).
 LABEL_RE = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 REQUESTS_PER_HOUR = 600
 REGISTRATION_TTL_SECONDS = 24 * 3600
-# Tokens held at once, in all and from one source (the address koid saw the
+# Tokens held at once, in all and from one source (the address previewlaned saw the
 # registration come from), and how often expired ones are removed. One
 # registration makes a token per provider key in it.
 MAX_TOKENS = 5000
 MAX_TOKENS_PER_SOURCE = 200
 SWEEP_SECONDS = 600
-# Container addresses koid may map to previews at once.
+# Container addresses previewlaned may map to previews at once.
 MAX_PREVIEWS = 1000
 
 
@@ -263,7 +263,7 @@ def field(value):
 
 
 def derive_token(secret, provider, label, key):
-    """The koi token for key, registered for provider in the preview label.
+    """The previewlane token for key, registered for provider in the preview label.
 
     HMAC-SHA256 under the secret of TOKEN_DOMAIN and the three fields, each
     length-prefixed, cut to TOKEN_BYTES and written in lowercase base32. The
@@ -275,7 +275,7 @@ def derive_token(secret, provider, label, key):
         raise ValueError("the key proxy has no token secret")
     message = TOKEN_DOMAIN + field(provider) + field(label) + field(key)
     digest = hmac.new(secret, message, hashlib.sha256).digest()
-    return "koi_" + base64.b32encode(digest[:TOKEN_BYTES]).decode().lower()
+    return "previewlane_" + base64.b32encode(digest[:TOKEN_BYTES]).decode().lower()
 
 
 def load_secret(path):
@@ -290,7 +290,7 @@ def load_secret(path):
     and the problem, never the contents.
     """
     if not path:
-        raise ValueError("no token secret file is set (koi_secret)")
+        raise ValueError("no token secret file is set (previewlane_secret)")
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
         st = os.fstat(fd)
@@ -318,7 +318,7 @@ def address(text):
 
 
 def token_in(header, value):
-    """The koi token that is the whole credential in a provider auth header's value, prefix and all, or None."""
+    """The previewlane token that is the whole credential in a provider auth header's value, prefix and all, or None."""
     if value is None:
         return None
     if header == "authorization":
@@ -348,7 +348,7 @@ def verified(flow, tunnel, host):
 
 
 def carries_token(request):
-    """True if a koi token appears in the request's URL or any header."""
+    """True if a previewlane token appears in the request's URL or any header."""
     return TOKEN_RE.search(request.url) is not None or any(
         TOKEN_RE.search(value) for _, value in request.headers.items(multi=True)
     )
@@ -461,13 +461,13 @@ class Registry:
         self.sweep()
         new = [t for t in tokens.values() if t not in self.entries]
         if len(self.entries) + len(new) > MAX_TOKENS:
-            raise ValueError("the key proxy holds as many koi tokens as it can; try again later")
+            raise ValueError("the key proxy holds as many previewlane tokens as it can; try again later")
         # A token registered again from another address moves to this one,
         # and counts here from now on; one registered again from the same
         # address is free.
         moving = [t for t in tokens.values() if t in self.entries and self.entries[t]["source"] != source]
         if self.held_by(source) + len(new) + len(moving) > MAX_TOKENS_PER_SOURCE:
-            raise ValueError("too many koi tokens are registered from this address")
+            raise ValueError("too many previewlane tokens are registered from this address")
         now = self.clock()
         for provider, token in tokens.items():
             entry = self.entries.setdefault(token, {"window": now, "count": 0})
@@ -529,22 +529,22 @@ class Registry:
         if entry is None or entry["expires"] < now:
             self.entries.pop(token, None)
             return None, (
-                "this koi token is not registered on the box; open the keys page from the pull request's "
+                "this previewlane token is not registered on the box; open the keys page from the pull request's "
                 "preview comment, which registers your keys again with the same tokens"
             )
         if label is None or entry["label"] != label:
-            return None, "this koi token is for another preview"
+            return None, "this previewlane token is for another preview"
         if entry["provider"] != provider:
-            return None, f"this koi token is for {entry['provider']}, not {provider}"
+            return None, f"this previewlane token is for {entry['provider']}, not {provider}"
         if now - entry["window"] >= 3600:
             entry["window"], entry["count"] = now, 0
         if entry["count"] >= REQUESTS_PER_HOUR:
-            return None, f"this koi token has made {REQUESTS_PER_HOUR} requests this hour; try again later"
+            return None, f"this previewlane token has made {REQUESTS_PER_HOUR} requests this hour; try again later"
         entry["count"] += 1
         return entry["key"], None
 
 
-class KoiEgress:
+class PreviewlaneEgress:
     def __init__(self, registry=None):
         self.exact = set()
         self.suffixes = set()
@@ -562,7 +562,7 @@ class KoiEgress:
         self.tunnels = {}
         # Client connection ids refused mid-way; nothing more passes on them.
         self.refused = set()
-        # Container address -> the label of the preview it runs, as koid
+        # Container address -> the label of the preview it runs, as previewlaned
         # last said (op "previews"). A token works only from its preview.
         self.previews = {}
         # Client connection ids whose checked request was upgraded (101): the
@@ -573,12 +573,12 @@ class KoiEgress:
         self.ready = False
 
     def load(self, loader):
-        loader.add_option("koi_allow", str, "/etc/koi/egress/allow.txt", "allowlist file")
-        loader.add_option("koi_control", str, "", "unix socket for token registration (empty: off)")
+        loader.add_option("previewlane_allow", str, "/etc/previewlane/egress/allow.txt", "allowlist file")
+        loader.add_option("previewlane_control", str, "", "unix socket for token registration (empty: off)")
         # The default is where install.sh puts it, so a running mitmdump that
         # loads this file again finds the secret before the service restarts
         # with the option set.
-        loader.add_option("koi_secret", str, SECRET_PATH, "file holding the token secret (see load_secret)")
+        loader.add_option("previewlane_secret", str, SECRET_PATH, "file holding the token secret (see load_secret)")
 
     def configure(self, updated):
         wrong = {
@@ -588,20 +588,20 @@ class KoiEgress:
         }
         if wrong:
             ctx.options.update(**wrong)
-        if "koi_allow" in updated:
-            self.exact, self.suffixes = load_allowlist(ctx.options.koi_allow)
+        if "previewlane_allow" in updated:
+            self.exact, self.suffixes = load_allowlist(ctx.options.previewlane_allow)
             self.exact |= set(PROVIDERS)
-            log.info("koi egress: %d hosts, %d suffixes", len(self.exact), len(self.suffixes))
+            log.info("previewlane egress: %d hosts, %d suffixes", len(self.exact), len(self.suffixes))
             self.ready = True
-        if "koi_secret" in updated:
+        if "previewlane_secret" in updated:
             # A secret that cannot be used leaves the registry without one,
             # and running() then keeps the proxy down. The log names the
             # file and what is wrong with it, never what is in it.
             self.registry.secret = None
             try:
-                self.registry.secret = load_secret(ctx.options.koi_secret)
+                self.registry.secret = load_secret(ctx.options.previewlane_secret)
             except (OSError, ValueError) as e:
-                log.error("koi egress: no usable token secret (%s); the proxy stays down", e)
+                log.error("previewlane egress: no usable token secret (%s); the proxy stays down", e)
 
     def running(self):
         # mitmproxy calls this once the file has loaded and configure has run,
@@ -609,13 +609,13 @@ class KoiEgress:
         # async). Only now does the proxy listen, and only once the control
         # socket is bound, so a setup that fails leaves it down.
         if not self.ready or self.registry.secret is None:
-            log.error("koi egress: policy not set up; the proxy stays down")
+            log.error("previewlane egress: policy not set up; the proxy stays down")
             return
-        path = ctx.options.koi_control
+        path = ctx.options.previewlane_control
         if path:
             self.listen_control(path)
         ctx.options.update(server=True)
-        log.info("koi egress: policy active, proxy listening")
+        log.info("previewlane egress: policy active, proxy listening")
 
     def listen_control(self, path):
         """Bind the control socket now, and serve it on the event loop."""
@@ -629,7 +629,7 @@ class KoiEgress:
             asyncio.start_unix_server(self.handle_control, sock=sock)
         )
         self.control_sock = sock
-        log.info("koi egress control on %s", path)
+        log.info("previewlane egress control on %s", path)
 
     def close_control(self):
         """Stop taking registrations: the control socket goes with this addon."""
@@ -659,7 +659,7 @@ class KoiEgress:
         server = ctx.master.addons.get("proxyserver")
         for handler in list(getattr(server, "connections", {}).values()):
             close(handler.client)
-        log.warning("koi egress: policy unloaded; the proxy is down until it loads again")
+        log.warning("previewlane egress: policy unloaded; the proxy is down until it loads again")
 
     async def handle_control(self, reader, writer):
         """One JSON request per line, one JSON reply.
@@ -669,7 +669,7 @@ class KoiEgress:
             has in that preview (the same one each time it is registered)
         {"op": "forget", "token": ...} -> {"ok": true}
         {"op": "previews", "previews": {address: label}} -> {"ok": true}, every
-            preview container's address, replacing what koid said before
+            preview container's address, replacing what previewlaned said before
         Anything refused -> {"ok": false, "error": ...}
         """
         try:
@@ -714,7 +714,7 @@ class KoiEgress:
     def deny(self, flow, why):
         # The log names the preview by its address, never the host it asked
         # for: the preview chose that text, and it can carry a key or token.
-        log.warning("koi egress denied a request from %s (%s)", peer(flow.client_conn), why)
+        log.warning("previewlane egress denied a request from %s (%s)", peer(flow.client_conn), why)
         if has_body(flow.request):
             # mitmproxy sends a response only after reading the whole request,
             # and would hold the body until then. Cut it off at its headers.
@@ -722,12 +722,12 @@ class KoiEgress:
             return
         # A fixed body, for the same reason: no preview-chosen text in it.
         flow.response = http.Response.make(
-            403, b"koi: egress is not allowed\n", {"content-type": "text/plain"}
+            403, b"previewlane: egress is not allowed\n", {"content-type": "text/plain"}
         )
 
     def refuse(self, client: connection.Client, why):
         """Refuse a client connection for good: nothing more on it reaches upstream."""
-        log.warning("koi egress refused a connection from %s (%s)", peer(client), why)
+        log.warning("previewlane egress refused a connection from %s (%s)", peer(client), why)
         self.refused.add(client.id)
 
     def http_connect(self, flow: http.HTTPFlow):
@@ -795,7 +795,7 @@ class KoiEgress:
         return None
 
     def swap_keys(self, flow: http.HTTPFlow, tunnel):
-        """Swap koi tokens for keys in the provider's own auth fields; False if the request was refused.
+        """Swap previewlane tokens for keys in the provider's own auth fields; False if the request was refused.
 
         A token anywhere else (another header, another query parameter, the
         body, or a field of another provider) is left as it is: it is not a
@@ -814,12 +814,12 @@ class KoiEgress:
             return True
         if "upgrade" in flow.request.headers:
             if carries_token(flow.request):
-                self.answer(flow, 403, "koi tokens do not work for WebSocket APIs; use the provider's HTTP API")
+                self.answer(flow, 403, "previewlane tokens do not work for WebSocket APIs; use the provider's HTTP API")
                 return False
             return True
         if not verified(flow, tunnel, host):
             if carries_token(flow.request):
-                self.answer(flow, 403, "a koi token works only over HTTPS to its provider")
+                self.answer(flow, 403, "a previewlane token works only over HTTPS to its provider")
                 return False
             return True
         auth = AUTH[provider]
@@ -853,8 +853,8 @@ class KoiEgress:
         """The key behind a token, or None after refusing the request.
 
         The token must have been registered for the preview whose container
-        sent the request: the client address must be one koid mapped to the
-        token's label. An address koid did not map is no preview's.
+        sent the request: the client address must be one previewlaned mapped to the
+        token's label. An address previewlaned did not map is no preview's.
         """
         try:
             label = self.previews.get(address(peer(flow.client_conn)))
@@ -873,13 +873,13 @@ class KoiEgress:
         dropped; anything larger or of unknown length is cut off at its
         headers, as deny does.
         """
-        log.warning("koi egress refused a request from %s (%d)", peer(flow.client_conn), status)
+        log.warning("previewlane egress refused a request from %s (%d)", peer(flow.client_conn), status)
         length = flow.request.headers.get("content-length", "0").strip()
         small = "transfer-encoding" not in flow.request.headers and length.isdigit() and int(length) <= 64 * 1024
         if not small:
             cut(flow)
             return
-        flow.response = http.Response.make(status, f"koi: {message}\n".encode(), {"content-type": "text/plain"})
+        flow.response = http.Response.make(status, f"previewlane: {message}\n".encode(), {"content-type": "text/plain"})
 
     def responseheaders(self, flow: http.HTTPFlow):
         # Stream every response to the preview as it arrives, model weights
@@ -894,7 +894,7 @@ class KoiEgress:
             # A key went up in a request that was not an upgrade (see
             # swap_keys), and the provider switched protocols anyway. What
             # follows would be relayed as bytes nobody scrubs.
-            log.warning("koi egress dropped an upgrade for %s", peer(flow.client_conn))
+            log.warning("previewlane egress dropped an upgrade for %s", peer(flow.client_conn))
             flow.kill()
             return
         # A key went upstream in this request. Whatever comes back, a
@@ -903,7 +903,7 @@ class KoiEgress:
         response = flow.response
         encoding = response.headers.get("content-encoding", "identity").strip().lower()
         if encoding not in ("", "identity"):
-            log.warning("koi egress dropped an encoded response for %s", peer(flow.client_conn))
+            log.warning("previewlane egress dropped an encoded response for %s", peer(flow.client_conn))
             flow.kill()
             return
         response.headers.fields = tuple((scrub(n, pairs), scrub(v, pairs)) for n, v in response.headers.fields)
@@ -950,8 +950,8 @@ class KoiEgress:
             or (tunnel is not None and clean(host) != tunnel)
             or (server.sni is not None and clean(server.sni) != clean(host))
         ):
-            log.warning("koi egress stopped an upstream connection for %s", peer(client))
-            server.error = "koi: egress refused"
+            log.warning("previewlane egress stopped an upstream connection for %s", peer(client))
+            server.error = "previewlane: egress refused"
 
     def client_disconnected(self, client: connection.Client):
         self.tunnels.pop(client.id, None)
@@ -959,4 +959,4 @@ class KoiEgress:
         self.upgraded.discard(client.id)
 
 
-addons = [KoiEgress()]
+addons = [PreviewlaneEgress()]

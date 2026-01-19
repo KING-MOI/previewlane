@@ -4,7 +4,7 @@ variable "region" {
 }
 
 # No default: every deployment names its own domain. Copy
-# infra/koi.auto.tfvars.example to infra/koi.auto.tfvars and set it there.
+# infra/previewlane.auto.tfvars.example to infra/previewlane.auto.tfvars and set it there.
 variable "domain" {
   description = "Base domain; previews live at <label>.<domain>. The account must hold its Route 53 hosted zone."
   type        = string
@@ -33,7 +33,7 @@ variable "ubuntu_ami_name" {
 
 # The addresses verification run networks are carved from, a /28 each
 # (docs/verify.md, "Run network"). Provisioning writes it to the box; it must
-# not overlap the VPC or the subnets Docker gives koi-previews and koi-build
+# not overlap the VPC or the subnets Docker gives previewlane-previews and previewlane-build
 # (172.17.0.0/12 and 192.168.0.0/16 by default).
 variable "verify_pool" {
   description = "IPv4 network reserved for verification run networks, between a /16 and a /28, as its network address."
@@ -45,7 +45,7 @@ variable "verify_pool" {
     error_message = "verify_pool must be an IPv4 network between a /16 and a /28, as in 10.213.0.0/20."
   }
 
-  # koid reads the value as KOI_VERIFY_POOL and takes a network address
+  # previewlaned reads the value as PREVIEWLANE_VERIFY_POOL and takes a network address
   # alone: 10.213.0.1/20 names a host, and would make verification
   # unavailable on the box. try() passes a value that is no CIDR at all on
   # to the check above, which names that problem.

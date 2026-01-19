@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const PreviewStatusSchema = z.enum([
-	// Accepted by koid and waiting for its turn to build.
+	// Accepted by previewlaned and waiting for its turn to build.
 	'queued',
 	'building',
 	'starting',
@@ -13,7 +13,7 @@ export const PreviewStatusSchema = z.enum([
 
 export type PreviewStatus = z.infer<typeof PreviewStatusSchema>;
 
-// The statuses of a request koid is still working on. Any other status is a
+// The statuses of a request previewlaned is still working on. Any other status is a
 // verdict on the build: the preview runs, failed, was stopped or expired,
 // and its build log will not grow.
 export const IN_FLIGHT_STATUSES: ReadonlySet<PreviewStatus> = new Set<PreviewStatus>([
@@ -25,7 +25,7 @@ export const IN_FLIGHT_STATUSES: ReadonlySet<PreviewStatus> = new Set<PreviewSta
 // A hostname label as RFC 1123 allows it: 1 to 63 lowercase letters, digits and
 // dashes, no leading or trailing dash. Every preview is one label under the
 // base domain, and this is the one definition of what that label may be.
-// A preview's label: one DNS label. The egress proxy (koi_egress.py,
+// A preview's label: one DNS label. The egress proxy (previewlane_egress.py,
 // LABEL_RE) and the keys page check labels with the same pattern.
 export const PREVIEW_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
@@ -61,7 +61,7 @@ export const PullRequestMergeSchema = z.object({
 
 export type PullRequestMerge = z.infer<typeof PullRequestMergeSchema>;
 
-// Names one attempt at building a request: koid gives each acceptance of a
+// Names one attempt at building a request: previewlaned gives each acceptance of a
 // request a new one, a retry of the same request id included.
 export const AttemptSchema = z.string().regex(/^[a-z0-9]{16,40}$/);
 
@@ -72,15 +72,15 @@ export const DeploymentSchema = z.object({
 	requestId: z.string().regex(/^[a-z0-9]{16,40}$/),
 	// The attempt that built this deployment, which is its id. An attempt
 	// builds at most once, so no two deployments share one; the request id
-	// would not do, since the same request accepted again after koi down
+	// would not do, since the same request accepted again after previewlane down
 	// builds a new image under the same id. It is also the name of the
 	// build log the deployment came from. Absent in records written before
-	// koid kept it.
+	// previewlaned kept it.
 	deploymentId: AttemptSchema.optional(),
-	// The image by content: the id Docker gave the image koid built, the
+	// The image by content: the id Docker gave the image previewlaned built, the
 	// sha256 of its configuration (DigestSchema in verify.ts, which this
 	// file cannot import). Two builds of one commit are told apart by it.
-	// Absent in records written before koid kept it.
+	// Absent in records written before previewlaned kept it.
 	imageDigest: z
 		.string()
 		.regex(/^sha256:[0-9a-f]{64}$/)
@@ -90,7 +90,7 @@ export const DeploymentSchema = z.object({
 	// request (see PullRequestMergeSchema). The record's own `merge` is the
 	// latest request's, which is not what serves while that request builds
 	// or after it failed. Absent for a working tree, a pull request's head,
-	// and records written before koid kept it.
+	// and records written before previewlaned kept it.
 	merge: PullRequestMergeSchema.optional(),
 	image: z.string().min(1),
 	container: z.string().min(1),
@@ -100,7 +100,7 @@ export const DeploymentSchema = z.object({
 	user: z.string().min(1),
 	env: z.record(z.string(), z.string()),
 	deployedAt: z.iso.datetime(),
-	// Set when koid stopped this deployment for good: "disk" when its writable
+	// Set when previewlaned stopped this deployment for good: "disk" when its writable
 	// layer grew past the limit. A visit does not start it again; the next
 	// deployment replaces it.
 	halted: z.enum(['disk']).optional(),
@@ -109,7 +109,7 @@ export const DeploymentSchema = z.object({
 export type Deployment = z.infer<typeof DeploymentSchema>;
 
 // A preview's login key: random, per preview, stable across redeploys.
-export const LoginKeySchema = z.string().regex(/^koi-[a-z0-9]{24}$/);
+export const LoginKeySchema = z.string().regex(/^previewlane-[a-z0-9]{24}$/);
 
 // The most a lease may run, in seconds: two hours. Long enough for a
 // verification run, short enough that a lease nobody released does not
@@ -128,10 +128,10 @@ export const LeaseHolderSchema = z
 export const LeaseIdSchema = z.string().regex(/^[a-z0-9]{16,40}$/);
 
 // A hold on a preview, so that a verification run sees one build from start
-// to end: while it lasts, koid refuses a build for the label before building
-// anything, and koi down needs --force. A preview has at most one, bound to
+// to end: while it lasts, previewlaned refuses a build for the label before building
+// anything, and previewlane down needs --force. A preview has at most one, bound to
 // the deployment serving when it was taken. Expiry is wall clock, so the
-// lease outlives a koid restart and the box sleeping, and ends on time
+// lease outlives a previewlaned restart and the box sleeping, and ends on time
 // either way.
 export const LeaseSchema = z.object({
 	leaseId: LeaseIdSchema,
@@ -157,14 +157,14 @@ export const PreviewRecordSchema = z.object({
 	commit: z.string().regex(/^[0-9a-f]{40}$/),
 	branch: z.string().min(1),
 	pr: PrNumberSchema.optional(),
-	// Absent in records written before koid kept it, and for builds of a
+	// Absent in records written before previewlaned kept it, and for builds of a
 	// working tree or a pull request's head.
 	merge: PullRequestMergeSchema.optional(),
 	dirty: z.boolean(),
 	requestId: z.string().regex(/^[a-z0-9]{16,40}$/),
 	// Which acceptance of requestId the record describes (see AttemptSchema).
 	// A build changes the record only while it still carries the build's
-	// attempt. Empty in records written before koid kept it, until koid gives
+	// attempt. Empty in records written before previewlaned kept it, until previewlaned gives
 	// them one as it starts (PreviewStore.init); no build has that one.
 	attempt: AttemptSchema.or(z.literal('')).default(''),
 	ttlDays: z.number().int().positive(),
@@ -176,7 +176,7 @@ export const PreviewRecordSchema = z.object({
 	loginKey: LoginKeySchema.optional(),
 	deployment: DeploymentSchema.optional(),
 	// Kept until it expires or is released; an expired one is ignored and
-	// swept away (Deployer.expire). Absent in records written before koid
+	// swept away (Deployer.expire). Absent in records written before previewlaned
 	// kept it.
 	lease: LeaseSchema.optional(),
 });

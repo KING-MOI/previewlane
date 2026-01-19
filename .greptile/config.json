@@ -4,7 +4,7 @@
 	"autoReview": ["open", "push"],
 	"statusCheck": true,
 	"ignorePatterns": "bun.lock\n**/dist/**\n**/*.generated.*\n.terraform.lock.hcl\n**/__pycache__/**",
-	"instructions": "koi builds and runs code from pull requests that may be hostile, exposes the result on the public internet, and holds reviewers' provider API keys in the egress proxy's memory. Review every change with that threat model in mind. Read .greptile/rules.md and docs/design.md before reviewing. Prefer a few findings that would cause a security hole, a leaked key, a lost preview, a stuck box, or records, containers and Caddy routes disagreeing over many stylistic ones.",
+	"instructions": "previewlane builds and runs code from pull requests that may be hostile, exposes the result on the public internet, and holds reviewers' provider API keys in the egress proxy's memory. Review every change with that threat model in mind. Read .greptile/rules.md and docs/design.md before reviewing. Prefer a few findings that would cause a security hole, a leaked key, a lost preview, a stuck box, or records, containers and Caddy routes disagreeing over many stylistic ones.",
 	"rules": [
 		{
 			"id": "untrusted-input-in-shell",
@@ -14,19 +14,19 @@
 		},
 		{
 			"id": "preview-network-isolation",
-			"rule": "Preview containers must be attached only to the isolated preview network whose sole route out is the koi egress proxy. Flag any container start that uses the default bridge, host networking, extra networks, port publishing other than through Caddy, or that mounts the Docker socket or host paths.",
+			"rule": "Preview containers must be attached only to the isolated preview network whose sole route out is the previewlane egress proxy. Flag any container start that uses the default bridge, host networking, extra networks, port publishing other than through Caddy, or that mounts the Docker socket or host paths.",
 			"scope": ["packages/daemon/**", "host/**", "recipes/**"],
 			"severity": "high"
 		},
 		{
 			"id": "secrets-never-persist",
-			"rule": "Reviewer-provided provider keys may exist only in the browser and in the key proxy's memory. Flag code that writes them to disk, logs, environment files, container env, preview records, or any response body. Logging must redact anything that looks like a key or the koi token.",
+			"rule": "Reviewer-provided provider keys may exist only in the browser and in the key proxy's memory. Flag code that writes them to disk, logs, environment files, container env, preview records, or any response body. Logging must redact anything that looks like a key or the previewlane token.",
 			"scope": ["packages/**", "host/**"],
 			"severity": "high"
 		},
 		{
 			"id": "iam-least-privilege",
-			"rule": "IAM policies must name specific actions and resources, scoped by ARN or the koi resource tag. Flag Action or Resource set to \"*\" unless a comment says the action has no resource-level scoping, and flag any role or user given permissions beyond what the component uses. There is deliberately no deploy user; flag one being added.",
+			"rule": "IAM policies must name specific actions and resources, scoped by ARN or the previewlane resource tag. Flag Action or Resource set to \"*\" unless a comment says the action has no resource-level scoping, and flag any role or user given permissions beyond what the component uses. There is deliberately no deploy user; flag one being added.",
 			"scope": ["infra/**"],
 			"severity": "high"
 		},
@@ -38,13 +38,13 @@
 		},
 		{
 			"id": "hostname-validation",
-			"rule": "Every hostname label the daemon, Caddy config, or Lambda accepts must be validated against the label regex in packages/shared before use. Flag Caddy site blocks or routing that would answer for a host outside *.<domain>, the configured preview domain (var.domain in infra, KOI_DOMAIN on the box).",
+			"rule": "Every hostname label the daemon, Caddy config, or Lambda accepts must be validated against the label regex in packages/shared before use. Flag Caddy site blocks or routing that would answer for a host outside *.<domain>, the configured preview domain (var.domain in infra, PREVIEWLANE_DOMAIN on the box).",
 			"scope": ["packages/**", "host/**"],
 			"severity": "medium"
 		},
 		{
 			"id": "up-is-idempotent",
-			"rule": "Running koi up twice for the same name must replace the preview and keep the hostname. Daemon operations must be safe to retry after a crash mid-way (partial builds, half-started containers, stale records). Flag code paths that would leave a record and a container disagreeing.",
+			"rule": "Running previewlane up twice for the same name must replace the preview and keep the hostname. Daemon operations must be safe to retry after a crash mid-way (partial builds, half-started containers, stale records). Flag code paths that would leave a record and a container disagreeing.",
 			"scope": ["packages/daemon/**", "packages/cli/**"],
 			"severity": "medium"
 		},
@@ -68,7 +68,7 @@
 		},
 		{
 			"id": "egress-keys-memory-only",
-			"rule": "The egress proxy addon (host/egress/koi_egress.py) may hold reviewer keys and koi tokens only in process memory. Flag any write of a key or token to disk, a log line (including warnings and exceptions), a flow dump (-w), a response body, or an error message. Every tunnel is intercepted so its TLS server name and each request's Host can be checked against the CONNECT host: flag any path that relays a tunnel unchecked (tls_clienthello ignore_connection, raw TCP, ignore_hosts). Swapping tokens for keys must stay limited to the PROVIDERS hosts.",
+			"rule": "The egress proxy addon (host/egress/previewlane_egress.py) may hold reviewer keys and previewlane tokens only in process memory. Flag any write of a key or token to disk, a log line (including warnings and exceptions), a flow dump (-w), a response body, or an error message. Every tunnel is intercepted so its TLS server name and each request's Host can be checked against the CONNECT host: flag any path that relays a tunnel unchecked (tls_clienthello ignore_connection, raw TCP, ignore_hosts). Swapping tokens for keys must stay limited to the PROVIDERS hosts.",
 			"scope": ["host/egress/**"],
 			"severity": "high"
 		},
@@ -92,7 +92,7 @@
 		},
 		{
 			"id": "daemon-lock-order",
-			"rule": "koid's locks are taken in this order, outermost first: buildQueue (per label), builds (global semaphore), lifecycle (per label), routing (global), store mutex (per label, innermost). Flag code that takes them in another order, holds lifecycle or routing across a build, or mutates a preview record outside the store's update/upsert.",
+			"rule": "previewlaned's locks are taken in this order, outermost first: buildQueue (per label), builds (global semaphore), lifecycle (per label), routing (global), store mutex (per label, innermost). Flag code that takes them in another order, holds lifecycle or routing across a build, or mutates a preview record outside the store's update/upsert.",
 			"scope": ["packages/daemon/src/**"],
 			"severity": "high"
 		},
@@ -110,7 +110,7 @@
 		},
 		{
 			"id": "build-sandbox",
-			"rule": "Builds run only through the koi-builder BuildKit builder on the koi-build network (docker buildx build --builder). Flag a plain `docker build`, `--network host`, privileged entitlements (`--allow`), or anything that runs code from the source tree on the host.",
+			"rule": "Builds run only through the previewlane-builder BuildKit builder on the previewlane-build network (docker buildx build --builder). Flag a plain `docker build`, `--network host`, privileged entitlements (`--allow`), or anything that runs code from the source tree on the host.",
 			"scope": ["packages/daemon/**", "recipes/**"],
 			"severity": "high"
 		}

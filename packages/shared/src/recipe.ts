@@ -2,10 +2,10 @@ import { types } from 'node:util';
 import { z } from 'zod';
 import { RelativePathSchema } from './paths.ts';
 
-// A recipe tells koi how to turn a source tree into a running preview. Built-in
+// A recipe tells previewlane how to turn a source tree into a running preview. Built-in
 // recipes live in recipes/<name>/ in this repo, are installed on the box with
-// the daemon, and are matched by the source repo's git remote. A koi.yaml at a
-// repo root can describe a project koi has no recipe for. The two are parsed
+// the daemon, and are matched by the source repo's git remote. A previewlane.yaml at a
+// repo root can describe a project previewlane has no recipe for. The two are parsed
 // with different schemas because only the first is trusted.
 //
 // Every build is a Dockerfile build. Nothing from the source tree ever runs on
@@ -38,12 +38,12 @@ export const DockerfileBuildSchema = z.object({
 
 export type DockerfileBuild = z.infer<typeof DockerfileBuildSchema>;
 
-// Environment variable names a recipe may set on the preview container. KOI_
+// Environment variable names a recipe may set on the preview container. PREVIEWLANE_
 // is reserved for values the daemon sets itself.
 export const EnvNameSchema = z
 	.string()
 	.regex(/^[A-Z_][A-Z0-9_]{0,63}$/, 'uppercase letters, digits and underscores')
-	.refine((name) => !name.startsWith('KOI_'), 'KOI_ is reserved');
+	.refine((name) => !name.startsWith('PREVIEWLANE_'), 'PREVIEWLANE_ is reserved');
 
 // Linux ids are 32 bits wide and 4294967295 means "no id".
 const MAX_ID = 4_294_967_294;
@@ -92,7 +92,7 @@ const runtimeFields = {
 	// The environment variable that carries the preview's login key, for an
 	// app with a sign-in that reads the key it accepts from its environment.
 	// The daemon generates one random key per preview, keeps it across
-	// redeploys, and koi up prints it.
+	// redeploys, and previewlane up prints it.
 	loginKeyEnv: EnvNameSchema.optional(),
 	buildTimeoutMinutes: z.number().int().positive().max(MAX_BUILD_TIMEOUT_MINUTES).default(45),
 	healthTimeoutSeconds: z.number().int().positive().max(MAX_HEALTH_TIMEOUT_SECONDS).default(180),
@@ -104,7 +104,7 @@ export const MAX_RECIPE_SLICE_BYTES = 64 * 1024;
 // What a preview keeps of the project, for a recipe whose Dockerfile cuts the
 // build down to the pull request's change. The recipe owns the shape. Its own
 // build scripts read the field from the recipe.json in the "recipe" build
-// context, and koi never reads it. koi checks only that it is a JSON object of
+// context, and previewlane never reads it. previewlane checks only that it is a JSON object of
 // at most MAX_RECIPE_SLICE_BYTES, and keeps the object it was given, every key
 // included. A record schema would drop an own `__proto__` key, which
 // JSON.parse makes, before the size check saw it.
@@ -238,7 +238,7 @@ export function repoMatches(pattern: string, repoId: string): boolean {
 }
 
 // Built-in recipes in recipes/<name>/recipe.json. Reviewed and shipped with
-// koi, so they may bring their own Dockerfile.
+// previewlane, so they may bring their own Dockerfile.
 export const RecipeSchema = z.object({
 	name: ProjectNameSchema,
 	match: z
@@ -255,7 +255,7 @@ export const RecipeSchema = z.object({
 
 export type Recipe = z.infer<typeof RecipeSchema>;
 
-// A koi.yaml found in the source tree. It comes from the pull request, so it
+// A previewlane.yaml found in the source tree. It comes from the pull request, so it
 // may only point at a Dockerfile inside that tree, and it has no name: the
 // project prefix of a preview's label comes from the repo itself, never from a
 // file the pull request controls.

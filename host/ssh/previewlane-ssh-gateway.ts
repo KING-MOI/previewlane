@@ -4,15 +4,15 @@ import type { Readable, Writable } from 'node:stream';
 import { type CtlIo, ctlEncoded, socketFetch } from '../../packages/daemon/src/ctl.ts';
 import { CTL_EXIT, decodeCtlArgs } from '../../packages/shared/src/index.ts';
 
-// The forced command for the koi-connect account on a host the CLI reaches
+// The forced command for the previewlane-connect account on a host the CLI reaches
 // over SSH (packages/cli/src/transports/ssh.ts). sshd runs it for every
 // session of that account, whatever the client asked for, with the client's
 // request in SSH_ORIGINAL_COMMAND. It takes two commands and nothing else:
 //
-//   ctl-b64 <blob>   runs koid ctl with the arguments the blob encodes,
-//                    through the same client koid's own `ctl-b64` uses
+//   ctl-b64 <blob>   runs previewlaned ctl with the arguments the blob encodes,
+//                    through the same client previewlaned's own `ctl-b64` uses
 //                    (packages/daemon/src/ctl.ts), and exits as it does;
-//   tunnel-v1        copies bytes between the session and koid's control
+//   tunnel-v1        copies bytes between the session and previewlaned's control
 //                    socket until either side ends, parsing nothing. The
 //                    CLI speaks HTTP over it to the upload API.
 //
@@ -25,10 +25,10 @@ import { CTL_EXIT, decodeCtlArgs } from '../../packages/shared/src/index.ts';
 // nothing but the socket.
 //
 // Built with `bun build --compile` and installed root-owned at
-// /usr/local/libexec/koi-ssh-gateway (host/ssh/install.sh); run from source
+// /usr/local/libexec/previewlane-ssh-gateway (host/ssh/install.sh); run from source
 // with bun in tests.
 
-export const CONTROL_SOCKET = '/run/koi/control.sock';
+export const CONTROL_SOCKET = '/run/previewlane/control.sock';
 
 export type Command = { verb: 'ctl-b64'; blob: string } | { verb: 'tunnel-v1' };
 
@@ -51,7 +51,7 @@ export function parseCommand(command: string | undefined): Command {
 	if (command === 'tunnel-v1') return { verb: 'tunnel-v1' };
 	const m = CTL_B64.exec(command);
 	if (m?.[1] !== undefined) {
-		// What koid ctl-b64 would refuse is refused here, before anything
+		// What previewlaned ctl-b64 would refuse is refused here, before anything
 		// reaches it.
 		try {
 			decodeCtlArgs(m[1]);
@@ -79,7 +79,7 @@ export function socketFromArgv(argv: string[]): string {
 	if (flag === '--socket' && path !== undefined && path.startsWith('/') && rest.length === 0) {
 		return path;
 	}
-	throw new Error('usage: koi-ssh-gateway [--socket /path/to/control.sock]');
+	throw new Error('usage: previewlane-ssh-gateway [--socket /path/to/control.sock]');
 }
 
 // Removes every variable: nothing after this reads the environment, and
@@ -105,13 +105,13 @@ export async function gateway(
 	try {
 		parsed = parseCommand(command);
 	} catch (err) {
-		streams.stderr(`koi-ssh-gateway: ${message(err)}\n`);
+		streams.stderr(`previewlane-ssh-gateway: ${message(err)}\n`);
 		return CTL_EXIT.usage;
 	}
 	if (argv.length > 0) {
 		// Never reached through sshd, whose configuration is root's; kept so
 		// a wrong line there fails plainly.
-		streams.stderr('koi-ssh-gateway: unexpected arguments\n');
+		streams.stderr('previewlane-ssh-gateway: unexpected arguments\n');
 		return CTL_EXIT.usage;
 	}
 	if (parsed.verb === 'ctl-b64') {
@@ -125,9 +125,9 @@ export async function gateway(
 	return relay(socket, streams.stdin, streams.stdout, streams.stderr);
 }
 
-// Copies bytes between the session and koid's socket, both ways, until one
+// Copies bytes between the session and previewlaned's socket, both ways, until one
 // side ends. The session's end of input ends the socket's write side, so
-// koid sees the end of a request body; koid's end of output ends the relay,
+// previewlaned sees the end of a request body; previewlaned's end of output ends the relay,
 // and with it the session. Nothing in between is read.
 export function relay(
 	socket: string,
@@ -153,22 +153,22 @@ export function relay(
 		});
 		conn.on('error', (err) => {
 			if (!connected) {
-				stderr(`koi-ssh-gateway: cannot reach koid at ${socket}: ${err.message}\n`);
+				stderr(`previewlane-ssh-gateway: cannot reach previewlaned at ${socket}: ${err.message}\n`);
 				return finish(CTL_EXIT.unavailable);
 			}
-			stderr(`koi-ssh-gateway: the connection to koid failed: ${err.message}\n`);
+			stderr(`previewlane-ssh-gateway: the connection to previewlaned failed: ${err.message}\n`);
 			finish(1);
 		});
-		// koid has sent everything it will: close the relay's side too, which
+		// previewlaned has sent everything it will: close the relay's side too, which
 		// ends the socket, and with it the relay.
 		conn.on('end', () => conn.end());
 		conn.on('close', () => finish(0));
 		input.on('error', (err) => {
-			stderr(`koi-ssh-gateway: the session's input failed: ${err.message}\n`);
+			stderr(`previewlane-ssh-gateway: the session's input failed: ${err.message}\n`);
 			conn.destroy();
 			finish(1);
 		});
-		// The session is gone: nothing can take koid's bytes any more.
+		// The session is gone: nothing can take previewlaned's bytes any more.
 		output.on('error', () => {
 			conn.destroy();
 			finish(1);
@@ -189,7 +189,7 @@ if (import.meta.main) {
 		socket = socketFromArgv(argv);
 		argv = [];
 	} catch (err) {
-		process.stderr.write(`koi-ssh-gateway: ${message(err)}\n`);
+		process.stderr.write(`previewlane-ssh-gateway: ${message(err)}\n`);
 		process.exit(CTL_EXIT.usage);
 	}
 	const code = await gateway(command, argv, socket, {

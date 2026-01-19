@@ -1,4 +1,4 @@
-# Hosts preview containers may reach through the koi egress proxy, one per
+# Hosts preview containers may reach through the previewlane egress proxy, one per
 # line. "*.example.com" matches any subdomain (not example.com itself).
 # Only port 443 (CONNECT) and port 80 (plain HTTP) are allowed.
 
@@ -12,6 +12,6 @@ huggingface.co
 *.huggingface.co
 *.hf.co
 
-# LLM provider APIs are always allowed and are listed in koi_egress.py
-# (PROVIDERS), because they are also the hosts where the proxy swaps koi
+# LLM provider APIs are always allowed and are listed in previewlane_egress.py
+# (PROVIDERS), because they are also the hosts where the proxy swaps previewlane
 # tokens for real keys. Do not add them here.

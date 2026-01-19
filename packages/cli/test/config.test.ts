@@ -46,10 +46,10 @@ const AWS_TARGET = {
 	domain: 'previews.example.net',
 	transport: { kind: 'aws-ssm' },
 	aws: {
-		profile: 'koi-cli',
+		profile: 'previewlane-cli',
 		region: 'us-east-1',
 		instanceId: 'i-0123456789abcdef0',
-		uploadsBucket: 'koi-uploads-123456789012',
+		uploadsBucket: 'previewlane-uploads-123456789012',
 	},
 	power: { kind: 'ec2' },
 };
@@ -60,9 +60,9 @@ const SSH_TARGET = {
 		kind: 'ssh',
 		endpoint: {
 			host: '203.0.113.10',
-			user: 'koi-connect',
-			identityFile: '/home/operator/.ssh/koi_team_ed25519',
-			knownHostsFile: '/home/operator/.config/koi/known_hosts',
+			user: 'previewlane-connect',
+			identityFile: '/home/operator/.ssh/previewlane_team_ed25519',
+			knownHostsFile: '/home/operator/.config/previewlane/known_hosts',
 			hostKeyAlias: 'team',
 		},
 	},
@@ -70,9 +70,9 @@ const SSH_TARGET = {
 };
 
 const LOCAL_TARGET = {
-	domain: 'koi.test',
+	domain: 'previewlane.test',
 	address: { scheme: 'https', port: 443 },
-	transport: { kind: 'local', controlSocket: '/run/koi-local/control.sock' },
+	transport: { kind: 'local', controlSocket: '/run/previewlane-local/control.sock' },
 	power: { kind: 'always-on' },
 };
 
@@ -110,7 +110,7 @@ describe('schemas', () => {
 	});
 
 	test('a path in the user file is absolute, or under the home directory as ~/', () => {
-		expect(AbsPathSchema.parse('/etc/koi/x')).toBe('/etc/koi/x');
+		expect(AbsPathSchema.parse('/etc/previewlane/x')).toBe('/etc/previewlane/x');
 		expect(AbsPathSchema.parse('/a/../b')).toBe('/b');
 		expect(AbsPathSchema.parse('~/.ssh/key')).toMatch(/^\/.*\/\.ssh\/key$/);
 		expect(AbsPathSchema.parse('~/.ssh/key').startsWith('~')).toBe(false);
@@ -248,21 +248,21 @@ describe('schemas', () => {
 
 // A home directory of its own, so the default config path lands in it.
 async function home(): Promise<string> {
-	return mkdtemp(join(tmpdir(), 'koi-home-'));
+	return mkdtemp(join(tmpdir(), 'previewlane-home-'));
 }
 
 async function writeConfig(dir: string, config: unknown, mode = 0o600): Promise<string> {
-	const path = join(dir, '.config', 'koi', 'config.yaml');
-	await mkdir(join(dir, '.config', 'koi'), { recursive: true });
+	const path = join(dir, '.config', 'previewlane', 'config.yaml');
+	await mkdir(join(dir, '.config', 'previewlane'), { recursive: true });
 	await writeFile(path, typeof config === 'string' ? config : toYaml(config), { mode });
 	await chmod(path, mode);
 	return path;
 }
 
 async function checkout(alias?: string): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), 'koi-checkout-'));
+	const dir = await mkdtemp(join(tmpdir(), 'previewlane-checkout-'));
 	if (alias !== undefined) {
-		await mkdir(join(dir, '.koi'), { recursive: true });
+		await mkdir(join(dir, '.previewlane'), { recursive: true });
 		await writeFile(join(dir, REPO_TARGET_FILE), alias);
 	}
 	return dir;
@@ -274,39 +274,39 @@ function notices() {
 }
 
 describe('configPath', () => {
-	test('--config, then KOI_CONFIG, then XDG_CONFIG_HOME, then ~/.config', () => {
-		const env = { HOME: '/home/u', XDG_CONFIG_HOME: '/xdg', KOI_CONFIG: '/env/k.yaml' };
+	test('--config, then PREVIEWLANE_CONFIG, then XDG_CONFIG_HOME, then ~/.config', () => {
+		const env = { HOME: '/home/u', XDG_CONFIG_HOME: '/xdg', PREVIEWLANE_CONFIG: '/env/k.yaml' };
 		expect(configPath({ config: '/flag/k.yaml' }, env)).toEqual({
 			path: '/flag/k.yaml',
 			explicit: true,
 		});
 		expect(configPath({}, env)).toEqual({ path: '/env/k.yaml', explicit: true });
 		expect(configPath({}, { HOME: '/home/u', XDG_CONFIG_HOME: '/xdg' })).toEqual({
-			path: '/xdg/koi/config.yaml',
+			path: '/xdg/previewlane/config.yaml',
 			explicit: false,
 		});
 		expect(configPath({}, { HOME: '/home/u', XDG_CONFIG_HOME: '' })).toEqual({
-			path: '/home/u/.config/koi/config.yaml',
+			path: '/home/u/.config/previewlane/config.yaml',
 			explicit: false,
 		});
 	});
 
 	test('an empty selector is an error, not an absence', () => {
 		expect(() => configPath({ config: '' }, {})).toThrow('--config is empty');
-		expect(() => configPath({}, { KOI_CONFIG: '' })).toThrow('KOI_CONFIG is empty');
+		expect(() => configPath({}, { PREVIEWLANE_CONFIG: '' })).toThrow('PREVIEWLANE_CONFIG is empty');
 	});
 
-	test('expands a leading ~/ in --config and KOI_CONFIG to the home directory', () => {
+	test('expands a leading ~/ in --config and PREVIEWLANE_CONFIG to the home directory', () => {
 		expect(configPath({ config: '~/k.yaml' }, { HOME: '/home/u' })).toEqual({
 			path: '/home/u/k.yaml',
 			explicit: true,
 		});
-		expect(configPath({}, { HOME: '/home/u', KOI_CONFIG: '~/.config/koi/config.yaml' })).toEqual({
-			path: '/home/u/.config/koi/config.yaml',
+		expect(configPath({}, { HOME: '/home/u', PREVIEWLANE_CONFIG: '~/.config/previewlane/config.yaml' })).toEqual({
+			path: '/home/u/.config/previewlane/config.yaml',
 			explicit: true,
 		});
 		// Only ~/ is the home directory; ~name is a path like any other.
-		expect(configPath({}, { HOME: '/home/u', KOI_CONFIG: '~other/k.yaml' }).path).toBe(
+		expect(configPath({}, { HOME: '/home/u', PREVIEWLANE_CONFIG: '~other/k.yaml' }).path).toBe(
 			resolve('~other/k.yaml'),
 		);
 	});
@@ -314,7 +314,7 @@ describe('configPath', () => {
 	test('ignores a relative XDG_CONFIG_HOME, as the XDG specification says to', () => {
 		for (const xdg of ['rel/xdg', './.config', '.']) {
 			expect(configPath({}, { HOME: '/home/u', XDG_CONFIG_HOME: xdg })).toEqual({
-				path: '/home/u/.config/koi/config.yaml',
+				path: '/home/u/.config/previewlane/config.yaml',
 				explicit: false,
 			});
 		}
@@ -340,7 +340,7 @@ describe('loadUserConfig', () => {
 	});
 
 	test('a missing default file is allowed; a missing explicit one is not', async () => {
-		const path = join(await home(), '.config', 'koi', 'config.yaml');
+		const path = join(await home(), '.config', 'previewlane', 'config.yaml');
 		expect(await loadUserConfig(path, false, () => {})).toBeUndefined();
 		await expect(loadUserConfig(path, true, () => {})).rejects.toThrow(`no config file at ${path}`);
 	});
@@ -398,16 +398,16 @@ describe('loadRepoAlias', () => {
 
 	test('ignores a symlink with a warning, even one to a valid alias', async () => {
 		// A checkout may commit the file as a link to anything on the user's
-		// machine, /dev/zero included. koi must not open what the link names.
+		// machine, /dev/zero included. previewlane must not open what the link names.
 		const dir = await checkout();
-		await mkdir(join(dir, '.koi'));
+		await mkdir(join(dir, '.previewlane'));
 		await writeFile(join(dir, 'real.yaml'), 'version: 1\ntarget: team\n');
 		const path = join(dir, REPO_TARGET_FILE);
 		await symlink(join(dir, 'real.yaml'), path);
 		const n = notices();
 		expect(await loadRepoAlias(dir, n.notice)).toBeUndefined();
 		expect(n.lines).toEqual([
-			`${path} is a symlink; koi ignores it. An alias file must be a regular file`,
+			`${path} is a symlink; previewlane ignores it. An alias file must be a regular file`,
 		]);
 	});
 
@@ -420,7 +420,7 @@ describe('loadRepoAlias', () => {
 		);
 		const over = await checkout(padded(MAX_REPO_ALIAS_BYTES + 1));
 		await expect(loadRepoAlias(over, n.notice)).rejects.toThrow(
-			`${join(over, REPO_TARGET_FILE)} is ${MAX_REPO_ALIAS_BYTES + 1} bytes; an alias file holds a version and a target name, and koi reads at most ${MAX_REPO_ALIAS_BYTES}`,
+			`${join(over, REPO_TARGET_FILE)} is ${MAX_REPO_ALIAS_BYTES + 1} bytes; an alias file holds a version and a target name, and previewlane reads at most ${MAX_REPO_ALIAS_BYTES}`,
 		);
 		const huge = await checkout(padded(1024 * 1024));
 		await expect(loadRepoAlias(huge, n.notice)).rejects.toThrow(/is 1048576 bytes/);
@@ -448,10 +448,10 @@ describe('resolveTarget', () => {
 		return h;
 	}
 
-	test('--target, then KOI_TARGET, then .koi/target.yaml, then defaultTarget', async () => {
+	test('--target, then PREVIEWLANE_TARGET, then .previewlane/target.yaml, then defaultTarget', async () => {
 		const h = await configured('fallback');
 		const repo = await checkout('version: 1\ntarget: aliased\n');
-		const env = { HOME: h, KOI_TARGET: 'fromenv' };
+		const env = { HOME: h, PREVIEWLANE_TARGET: 'fromenv' };
 		const n = notices();
 		const pick = (flags: { target?: string }, e: Record<string, string>, dir = repo) =>
 			resolveTarget({ flags, env: e, checkoutDir: dir, notice: n.notice });
@@ -480,13 +480,13 @@ describe('resolveTarget', () => {
 		});
 		expect(r).toEqual({
 			kind: 'legacy',
-			configPath: join(h, '.config', 'koi', 'config.yaml'),
+			configPath: join(h, '.config', 'previewlane', 'config.yaml'),
 			domain: undefined,
 		});
-		// --domain and KOI_DOMAIN name the expected domain there too.
+		// --domain and PREVIEWLANE_DOMAIN name the expected domain there too.
 		const d = await resolveTarget({
 			flags: { domain: 'flag.example.com' },
-			env: { HOME: h, KOI_DOMAIN: 'env.example.com' },
+			env: { HOME: h, PREVIEWLANE_DOMAIN: 'env.example.com' },
 			checkoutDir: await checkout(),
 			notice: () => {},
 		});
@@ -505,7 +505,7 @@ describe('resolveTarget', () => {
 		).rejects.toThrow(/selects no target.*flagged, fromenv.*no defaultTarget/);
 	});
 
-	test('a selection without a config file points at koi config import-aws', async () => {
+	test('a selection without a config file points at previewlane config import-aws', async () => {
 		const h = await home();
 		await expect(
 			resolveTarget({
@@ -539,7 +539,7 @@ describe('resolveTarget', () => {
 		).rejects.toThrow(/names the target "stranger", but .* has only flagged, fromenv/);
 	});
 
-	test('--domain, then KOI_DOMAIN, then the target, set the expected domain', async () => {
+	test('--domain, then PREVIEWLANE_DOMAIN, then the target, set the expected domain', async () => {
 		const h = await configured('fallback');
 		const dir = await checkout();
 		const domainOf = async (flags: { domain?: string }, env: Record<string, string>) => {
@@ -547,14 +547,14 @@ describe('resolveTarget', () => {
 			return r.kind === 'target' ? r.target.domain : undefined;
 		};
 		expect(
-			await domainOf({ domain: 'flag.example.com' }, { HOME: h, KOI_DOMAIN: 'env.example.com' }),
+			await domainOf({ domain: 'flag.example.com' }, { HOME: h, PREVIEWLANE_DOMAIN: 'env.example.com' }),
 		).toBe('flag.example.com');
-		expect(await domainOf({}, { HOME: h, KOI_DOMAIN: 'env.example.com' })).toBe('env.example.com');
+		expect(await domainOf({}, { HOME: h, PREVIEWLANE_DOMAIN: 'env.example.com' })).toBe('env.example.com');
 		expect(await domainOf({}, { HOME: h })).toBe('default.example.com');
 		// On any target, SSH included: it changes the expected domain, not the host.
 		const ssh = await resolveTarget({
 			flags: { target: 'team' },
-			env: { HOME: h, KOI_DOMAIN: 'env.example.com' },
+			env: { HOME: h, PREVIEWLANE_DOMAIN: 'env.example.com' },
 			checkoutDir: dir,
 			notice: () => {},
 		});
@@ -562,7 +562,7 @@ describe('resolveTarget', () => {
 		expect(ssh.kind === 'target' && ssh.target.transport).toEqual(
 			TargetSchema.parse(SSH_TARGET).transport,
 		);
-		await expect(domainOf({}, { HOME: h, KOI_DOMAIN: 'https://x.example.com' })).rejects.toThrow(
+		await expect(domainOf({}, { HOME: h, PREVIEWLANE_DOMAIN: 'https://x.example.com' })).rejects.toThrow(
 			/overrides applied is not valid: domain/,
 		);
 	});
@@ -574,10 +574,10 @@ describe('resolveTarget', () => {
 			flags: {},
 			env: {
 				HOME: h,
-				KOI_AWS_PROFILE: 'other',
-				KOI_AWS_REGION: 'eu-west-1',
-				KOI_INSTANCE_ID: 'i-0fedcba',
-				KOI_BUCKET: 'my-bucket',
+				PREVIEWLANE_AWS_PROFILE: 'other',
+				PREVIEWLANE_AWS_REGION: 'eu-west-1',
+				PREVIEWLANE_INSTANCE_ID: 'i-0fedcba',
+				PREVIEWLANE_BUCKET: 'my-bucket',
 			},
 			checkoutDir: dir,
 			notice: () => {},
@@ -591,12 +591,12 @@ describe('resolveTarget', () => {
 		await expect(
 			resolveTarget({
 				flags: { target: 'team' },
-				env: { HOME: h, KOI_INSTANCE_ID: 'i-0fedcba' },
+				env: { HOME: h, PREVIEWLANE_INSTANCE_ID: 'i-0fedcba' },
 				checkoutDir: dir,
 				notice: () => {},
 			}),
 		).rejects.toThrow(
-			'KOI_INSTANCE_ID applies to AWS targets only, and "team" uses the ssh transport',
+			'PREVIEWLANE_INSTANCE_ID applies to AWS targets only, and "team" uses the ssh transport',
 		);
 		// An SSH target with EC2 power has an aws section, and is still not an
 		// AWS target: the overrides could point wake at another instance than
@@ -604,17 +604,17 @@ describe('resolveTarget', () => {
 		await expect(
 			resolveTarget({
 				flags: { target: 'sshwake' },
-				env: { HOME: h, KOI_INSTANCE_ID: 'i-0fedcba', KOI_AWS_PROFILE: 'other' },
+				env: { HOME: h, PREVIEWLANE_INSTANCE_ID: 'i-0fedcba', PREVIEWLANE_AWS_PROFILE: 'other' },
 				checkoutDir: dir,
 				notice: () => {},
 			}),
 		).rejects.toThrow(
-			'KOI_AWS_PROFILE, KOI_INSTANCE_ID apply to AWS targets only, and "sshwake" uses the ssh transport',
+			'PREVIEWLANE_AWS_PROFILE, PREVIEWLANE_INSTANCE_ID apply to AWS targets only, and "sshwake" uses the ssh transport',
 		);
 		await expect(
 			resolveTarget({
 				flags: {},
-				env: { HOME: h, KOI_INSTANCE_ID: 'not-an-instance' },
+				env: { HOME: h, PREVIEWLANE_INSTANCE_ID: 'not-an-instance' },
 				checkoutDir: dir,
 				notice: () => {},
 			}),
@@ -648,11 +648,11 @@ describe('resolveTarget', () => {
 		const dir = await checkout();
 		for (const [flags, env, what] of [
 			[{ target: '' }, {}, '--target'],
-			[{}, { KOI_TARGET: '' }, 'KOI_TARGET'],
+			[{}, { PREVIEWLANE_TARGET: '' }, 'PREVIEWLANE_TARGET'],
 			[{ domain: '' }, {}, '--domain'],
-			[{}, { KOI_DOMAIN: '' }, 'KOI_DOMAIN'],
-			[{}, { KOI_BUCKET: '' }, 'KOI_BUCKET'],
-			[{}, { KOI_AWS_PROFILE: '' }, 'KOI_AWS_PROFILE'],
+			[{}, { PREVIEWLANE_DOMAIN: '' }, 'PREVIEWLANE_DOMAIN'],
+			[{}, { PREVIEWLANE_BUCKET: '' }, 'PREVIEWLANE_BUCKET'],
+			[{}, { PREVIEWLANE_AWS_PROFILE: '' }, 'PREVIEWLANE_AWS_PROFILE'],
 		] as const) {
 			await expect(
 				resolveTarget({ flags, env: { HOME: h, ...env }, checkoutDir: dir, notice: () => {} }),
@@ -675,7 +675,7 @@ describe('resolveTarget', () => {
 	});
 });
 
-// EC2 and STS as koi config import-aws discovers the deployment: one box
+// EC2 and STS as previewlane config import-aws discovers the deployment: one box
 // tagged with the domain, and the account id. Every call is recorded.
 function discoveryClients(domainTag: string | null = 'previews.example.net') {
 	const calls: string[] = [];
@@ -714,7 +714,7 @@ function io() {
 	return { io: target, stdout: () => stdout, stderr: () => stderr };
 }
 
-describe('koi config import-aws', () => {
+describe('previewlane config import-aws', () => {
 	test('writes the discovered deployment as a target, 0600 in a 0700 directory', async () => {
 		const h = await home();
 		const aws = discoveryClients();
@@ -730,9 +730,9 @@ describe('koi config import-aws', () => {
 			},
 		);
 		expect(code).toBe(0);
-		const path = join(h, '.config', 'koi', 'config.yaml');
+		const path = join(h, '.config', 'previewlane', 'config.yaml');
 		expect((await stat(path)).mode & 0o777).toBe(0o600);
-		expect((await stat(join(h, '.config', 'koi'))).mode & 0o777).toBe(0o700);
+		expect((await stat(join(h, '.config', 'previewlane'))).mode & 0o777).toBe(0o700);
 		const written = Bun.YAML.parse(await readFile(path, 'utf8'));
 		expect(written).toEqual({
 			version: 1,
@@ -743,11 +743,11 @@ describe('koi config import-aws', () => {
 		expect(out.stdout()).toContain(`wrote target owner-aws in ${path} and made it the default:`);
 		expect(out.stdout()).toContain('instanceId: i-0123456789abcdef0');
 		expect(out.stdout()).toContain('domain: previews.example.net');
-		expect(aws.made).toEqual(['koi-cli@us-east-1']);
+		expect(aws.made).toEqual(['previewlane-cli@us-east-1']);
 		expect(aws.calls).toEqual(['DescribeInstancesCommand', 'GetCallerIdentityCommand']);
 	});
 
-	test('takes the domain from --domain, then KOI_DOMAIN, then the Domain tag', async () => {
+	test('takes the domain from --domain, then PREVIEWLANE_DOMAIN, then the Domain tag', async () => {
 		const h = await home();
 		const run = (argv: string[], env: Record<string, string>, tag: string | null) =>
 			configCommand(parseCli(argv), io().io, {
@@ -758,7 +758,7 @@ describe('koi config import-aws', () => {
 			});
 		const domainOf = async () => {
 			const written = Bun.YAML.parse(
-				await readFile(join(h, '.config/koi/config.yaml'), 'utf8'),
+				await readFile(join(h, '.config/previewlane/config.yaml'), 'utf8'),
 			) as {
 				targets: Record<string, { domain: string }>;
 			};
@@ -766,20 +766,20 @@ describe('koi config import-aws', () => {
 		};
 		await run(
 			['config', 'import-aws', '--name', 'x', '--domain', 'flag.example.com'],
-			{ KOI_DOMAIN: 'env.example.com' },
+			{ PREVIEWLANE_DOMAIN: 'env.example.com' },
 			null,
 		);
 		expect(await domainOf()).toBe('flag.example.com');
 		await run(
 			['config', 'import-aws', '--name', 'x', '--replace'],
-			{ KOI_DOMAIN: 'env.example.com' },
+			{ PREVIEWLANE_DOMAIN: 'env.example.com' },
 			null,
 		);
 		expect(await domainOf()).toBe('env.example.com');
 		await run(['config', 'import-aws', '--name', 'x', '--replace'], {}, 'tag.example.com');
 		expect(await domainOf()).toBe('tag.example.com');
 		await expect(run(['config', 'import-aws', '--name', 'y'], {}, null)).rejects.toThrow(
-			/no Domain tag.*KOI_DOMAIN/,
+			/no Domain tag.*PREVIEWLANE_DOMAIN/,
 		);
 		await expect(
 			run(['config', 'import-aws', '--name', 'y', '--domain', 'https://x.example.com'], {}, null),
@@ -841,7 +841,7 @@ describe('koi config import-aws', () => {
 			deps,
 		);
 		expect(JSON.parse(out.stdout())).toMatchObject({ target: 'constructor', replaced: false });
-		const path = join(h, '.config', 'koi', 'config.yaml');
+		const path = join(h, '.config', 'previewlane', 'config.yaml');
 		expect(Bun.YAML.parse(await readFile(path, 'utf8'))).toEqual({
 			version: 1,
 			defaultTarget: 'constructor',
@@ -859,7 +859,7 @@ describe('koi config import-aws', () => {
 		const names = Array.from({ length: 8 }, (_, i) => `t${i}`);
 		for (let round = 0; round < 5; round++) {
 			const h = await home();
-			const path = join(h, '.config', 'koi', 'config.yaml');
+			const path = join(h, '.config', 'previewlane', 'config.yaml');
 			const codes = await Promise.all(
 				names.map((name) =>
 					configCommand(parseCli(['config', 'import-aws', '--name', name]), io().io, {
@@ -884,7 +884,7 @@ describe('koi config import-aws', () => {
 
 	test('a held lock makes an import wait, and it goes on once the lock is released', async () => {
 		const h = await home();
-		const path = join(h, '.config', 'koi', 'config.yaml');
+		const path = join(h, '.config', 'previewlane', 'config.yaml');
 		const lock = `${path}.lock`;
 		await mkdir(lock, { recursive: true, mode: 0o700 });
 		const slept: number[] = [];
@@ -908,10 +908,10 @@ describe('koi config import-aws', () => {
 
 	test('never removes a lock it did not make, however old, and says what to do', async () => {
 		const h = await home();
-		const path = join(h, '.config', 'koi', 'config.yaml');
+		const path = join(h, '.config', 'previewlane', 'config.yaml');
 		const lock = `${path}.lock`;
 		await mkdir(lock, { recursive: true, mode: 0o700 });
-		// Left behind by a koi that died minutes ago.
+		// Left behind by a previewlane that died minutes ago.
 		const old = new Date(Date.now() - 3 * CONFIG_LOCK_WAIT_MS);
 		await utimes(lock, old, old);
 		const slept: number[] = [];
@@ -926,7 +926,7 @@ describe('koi config import-aws', () => {
 				},
 			}),
 		).rejects.toThrow(
-			`another koi config holds the lock ${lock}, and did not release it within 60 seconds. A previous koi config run may have crashed and left it behind. Check that no other koi config is running, then remove the directory ${lock} by hand and try again.`,
+			`another previewlane config holds the lock ${lock}, and did not release it within 60 seconds. A previous previewlane config run may have crashed and left it behind. Check that no other previewlane config is running, then remove the directory ${lock} by hand and try again.`,
 		);
 		// It waited the whole minute, in the sleeps it asked for, and the
 		// old lock is still the old lock.
@@ -948,11 +948,11 @@ describe('koi config import-aws', () => {
 				notice: () => {},
 				awsClients: discoveryClients().make,
 			}),
-		).rejects.toThrow(/not a koi config file/);
+		).rejects.toThrow(/not a previewlane config file/);
 		expect(await readFile(path, 'utf8')).toBe(before);
 	});
 
-	test('honours --config and KOI_CONFIG for where to write', async () => {
+	test('honours --config and PREVIEWLANE_CONFIG for where to write', async () => {
 		const h = await home();
 		const path = join(h, 'elsewhere', 'k.yaml');
 		await configCommand(
@@ -979,7 +979,7 @@ async function exists(path: string): Promise<boolean> {
 
 describe('withConfigLock', () => {
 	test('runs one task at a time, in the order the lock was taken', async () => {
-		const path = join(await home(), '.config', 'koi', 'config.yaml');
+		const path = join(await home(), '.config', 'previewlane', 'config.yaml');
 		const lock = `${path}.lock`;
 		const order: string[] = [];
 		let release!: () => void;
@@ -1014,7 +1014,7 @@ describe('withConfigLock', () => {
 	});
 
 	test('releases the lock when the task fails', async () => {
-		const path = join(await home(), '.config', 'koi', 'config.yaml');
+		const path = join(await home(), '.config', 'previewlane', 'config.yaml');
 		await expect(
 			withConfigLock(
 				path,
@@ -1028,7 +1028,7 @@ describe('withConfigLock', () => {
 	});
 });
 
-describe('koi config show', () => {
+describe('previewlane config show', () => {
 	test('prints the resolved target and where it came from, without AWS calls', async () => {
 		const h = await home();
 		const path = await writeConfig(h, {
@@ -1038,7 +1038,7 @@ describe('koi config show', () => {
 		});
 		const out = io();
 		const code = await configCommand(parseCli(['config', 'show']), out.io, {
-			env: { HOME: h, KOI_INSTANCE_ID: 'i-0fedcba' },
+			env: { HOME: h, PREVIEWLANE_INSTANCE_ID: 'i-0fedcba' },
 			checkoutDir: '/nonexistent',
 			notice: () => {},
 			awsClients: () => {
@@ -1066,25 +1066,25 @@ describe('koi config show', () => {
 		const h = await home();
 		const out = io();
 		await configCommand(parseCli(['config', 'show']), out.io, {
-			env: { HOME: h, KOI_BUCKET: 'b' },
+			env: { HOME: h, PREVIEWLANE_BUCKET: 'b' },
 			checkoutDir: '/nonexistent',
 			notice: () => {},
 		});
 		expect(out.stdout()).toContain('no target: there is no config file at');
 		expect(out.stdout()).toContain('uploadsBucket  b\n');
 		expect(out.stdout()).toContain('instanceId     (discovered at run time');
-		expect(out.stdout()).toContain('koi config import-aws --name NAME');
+		expect(out.stdout()).toContain('previewlane config import-aws --name NAME');
 		const json = io();
 		await configCommand(parseCli(['config', 'show', '--json']), json.io, {
-			env: { HOME: h, KOI_BUCKET: 'b' },
+			env: { HOME: h, PREVIEWLANE_BUCKET: 'b' },
 			checkoutDir: '/nonexistent',
 			notice: () => {},
 		});
 		expect(JSON.parse(json.stdout())).toEqual({
-			file: join(h, '.config/koi/config.yaml'),
+			file: join(h, '.config/previewlane/config.yaml'),
 			target: null,
 			legacy: {
-				profile: 'koi-cli',
+				profile: 'previewlane-cli',
 				region: 'us-east-1',
 				instanceId: null,
 				uploadsBucket: 'b',

@@ -1,7 +1,7 @@
 # Inbound is 443 from CloudFront only, so nothing on the internet can reach
 # Caddy except through the distribution. That does not make every request a
 # real visit: CloudFront forwards anyone's request for any *.<domain> name,
-# so koid decides what counts as activity (only requests for live previews).
+# so previewlaned decides what counts as activity (only requests for live previews).
 # The CLI reaches the box through SSM, never SSH, and Caddy gets its
 # certificate by DNS-01, so port 80 is not needed either.
 data "aws_ec2_managed_prefix_list" "cloudfront_origin_facing" {
@@ -9,8 +9,8 @@ data "aws_ec2_managed_prefix_list" "cloudfront_origin_facing" {
 }
 
 resource "aws_security_group" "box" {
-  name        = "koi-box"
-  description = "koi preview box: HTTPS from CloudFront only"
+  name        = "previewlane-box"
+  description = "previewlane preview box: HTTPS from CloudFront only"
   vpc_id      = data.aws_vpc.default.id
 
   # The prefix list weighs about 55 rules against the 60-rule default quota,
@@ -33,6 +33,6 @@ resource "aws_security_group" "box" {
   }
 
   tags = {
-    Name = "koi-box"
+    Name = "previewlane-box"
   }
 }

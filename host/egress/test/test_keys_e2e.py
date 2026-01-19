@@ -12,7 +12,7 @@ import pytest
 from conftest import ADDON, Proxy, Upstream, token_secret
 from test_failclosed import BROKEN, free_port, write
 
-TOKEN = "koi_" + "a" * 32
+TOKEN = "previewlane_" + "a" * 32
 LABEL = "storefront-pr-7"
 
 
@@ -30,10 +30,10 @@ def box(tmp_path):
     allow = tmp_path / "allow.txt"
     allow.write_text("pypi.org\n")
     upstream = Upstream(tmp_path)
-    script = tmp_path / "koi_egress.py"
+    script = tmp_path / "previewlane_egress.py"
     script.write_text(ADDON.read_text())
     sock = tmp_path / "control.sock"
-    proxy = Proxy(tmp_path, upstream, allow, script=script, port=free_port(), koi_control=str(sock))
+    proxy = Proxy(tmp_path, upstream, allow, script=script, port=free_port(), previewlane_control=str(sock))
     yield proxy, script, sock
     proxy.close()
     upstream.close()
@@ -81,7 +81,7 @@ def test_tokens_survive_a_proxy_restart_and_still_swap(tmp_path):
     upstream.reply = reply
 
     def start(secret_path):
-        proxy = Proxy(tmp_path, upstream, allow, port=free_port(), koi_control=str(sock), koi_secret=str(secret_path))
+        proxy = Proxy(tmp_path, upstream, allow, port=free_port(), previewlane_control=str(sock), previewlane_secret=str(secret_path))
         proxy.control = sock
         assert control(sock, {"op": "previews", "previews": {"127.0.0.1": LABEL}}) == {"ok": True}
         return proxy
@@ -134,7 +134,7 @@ def keys_proxy(tmp_path_factory):
     allow.write_text("pypi.org\n")
     upstream = Upstream(tmp)
     sock = tmp / "control.sock"
-    proxy = Proxy(tmp, upstream, allow, koi_control=str(sock))
+    proxy = Proxy(tmp, upstream, allow, previewlane_control=str(sock))
     proxy.control = sock
     # The test client's address is LABEL's container; two more are other
     # previews' (see test_a_token_works_only_from_its_own_preview).
@@ -325,7 +325,7 @@ def test_plain_http_without_a_token_still_reaches_a_provider(provider):
     assert [r[0] for r in provider.upstream.seen()[1]] == ["api.groq.com"]
 
 
-# A token works only from the preview it was registered for: koid maps each
+# A token works only from the preview it was registered for: previewlaned maps each
 # preview container's address to its label, and the proxy checks the address
 # a request comes from. On loopback, 127.0.0.2 and 127.0.0.3 stand for other
 # containers.

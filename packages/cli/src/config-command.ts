@@ -17,7 +17,7 @@ import { LOCK_WAIT_MS, withFileLock } from './lock.ts';
 import type { Io } from './main.ts';
 import { type Clients, clients, resolveSettings } from './transports/aws.ts';
 
-// `koi config`: show the target koi would use, or write the existing AWS
+// `previewlane config`: show the target previewlane would use, or write the existing AWS
 // deployment into the user's file as a named target.
 
 export interface ConfigCommandDeps {
@@ -41,11 +41,11 @@ export async function configCommand(
 		case 'import-aws':
 			return importAws(cli, io, deps);
 		default:
-			throw new Error('koi config needs a subcommand: show or import-aws');
+			throw new Error('previewlane config needs a subcommand: show or import-aws');
 	}
 }
 
-// The resolved target, as koi up would use it. The file holds no secrets by
+// The resolved target, as previewlane up would use it. The file holds no secrets by
 // design (references only), so the target prints whole; a field that ever
 // carries one must be left out here.
 async function show(cli: ParsedCli, io: Io, deps: ConfigCommandDeps): Promise<number> {
@@ -59,10 +59,10 @@ async function show(cli: ParsedCli, io: Io, deps: ConfigCommandDeps): Promise<nu
 	if (resolved.kind === 'legacy') {
 		const env = deps.env;
 		const legacy = {
-			profile: env.KOI_AWS_PROFILE ?? 'koi-cli',
-			region: env.KOI_AWS_REGION ?? 'us-east-1',
-			instanceId: env.KOI_INSTANCE_ID ?? null,
-			uploadsBucket: env.KOI_BUCKET ?? null,
+			profile: env.PREVIEWLANE_AWS_PROFILE ?? 'previewlane-cli',
+			region: env.PREVIEWLANE_AWS_REGION ?? 'us-east-1',
+			instanceId: env.PREVIEWLANE_INSTANCE_ID ?? null,
+			uploadsBucket: env.PREVIEWLANE_BUCKET ?? null,
 			domain: resolved.domain ?? null,
 		};
 		if (cli.json) {
@@ -72,13 +72,13 @@ async function show(cli: ParsedCli, io: Io, deps: ConfigCommandDeps): Promise<nu
 		const discovered = (what: string) => `(discovered at run time: ${what})`;
 		io.stdout(
 			[
-				`no target: there is no config file at ${resolved.configPath}, so koi uses the AWS deployment as the environment and discovery describe it`,
+				`no target: there is no config file at ${resolved.configPath}, so previewlane uses the AWS deployment as the environment and discovery describe it`,
 				`  profile        ${legacy.profile}`,
 				`  region         ${legacy.region}`,
-				`  instanceId     ${legacy.instanceId ?? discovered('the one instance tagged Project=koi, Name=koi-box')}`,
-				`  uploadsBucket  ${legacy.uploadsBucket ?? discovered('koi-uploads-<account id>')}`,
+				`  instanceId     ${legacy.instanceId ?? discovered('the one instance tagged Project=previewlane, Name=previewlane-box')}`,
+				`  uploadsBucket  ${legacy.uploadsBucket ?? discovered('previewlane-uploads-<account id>')}`,
 				`  domain         ${legacy.domain ?? discovered("the instance's Domain tag")}`,
-				`run koi config import-aws --name NAME to write these to ${resolved.configPath}`,
+				`run previewlane config import-aws --name NAME to write these to ${resolved.configPath}`,
 				'',
 			].join('\n'),
 		);
@@ -104,15 +104,15 @@ async function show(cli: ParsedCli, io: Io, deps: ConfigCommandDeps): Promise<nu
 function sourceWords(source: 'flag' | 'env' | 'repo' | 'default'): string {
 	return {
 		flag: '--target',
-		env: 'KOI_TARGET',
-		repo: '.koi/target.yaml',
+		env: 'PREVIEWLANE_TARGET',
+		repo: '.previewlane/target.yaml',
 		default: 'defaultTarget',
 	}[source];
 }
 
 // Writes the AWS deployment as a target: the same discovery as the legacy
 // path (profile, region, one tagged instance, the bucket from the account,
-// the domain from --domain, KOI_DOMAIN or the instance's Domain tag), then
+// the domain from --domain, PREVIEWLANE_DOMAIN or the instance's Domain tag), then
 // the per-user file, replaced in one step with mode 0600 in a 0700
 // directory. An existing target of the name stays unless --replace. The
 // file is read once before discovery, so a bad file or a taken name fails
@@ -126,7 +126,7 @@ async function importAws(cli: ParsedCli, io: Io, deps: ConfigCommandDeps): Promi
 		if (deps.env[v] === '') throw new Error(`${v} is empty`);
 	}
 	if (cli.domain === '') throw new Error('--domain is empty');
-	const env = cli.domain === undefined ? deps.env : { ...deps.env, KOI_DOMAIN: cli.domain };
+	const env = cli.domain === undefined ? deps.env : { ...deps.env, PREVIEWLANE_DOMAIN: cli.domain };
 	const taken = (loaded: Awaited<ReturnType<typeof loadUserConfig>>) =>
 		loaded !== undefined && Object.hasOwn(loaded.config.targets, name) && !cli.replace;
 	const alreadyThere = () =>
@@ -195,7 +195,7 @@ export function withConfigLock<T>(
 	sleep: (ms: number) => Promise<void>,
 	task: () => Promise<T>,
 ): Promise<T> {
-	return withFileLock(path, 'koi config', sleep, task);
+	return withFileLock(path, 'previewlane config', sleep, task);
 }
 
 // Replaces the file in one step: the new text goes to a temporary file

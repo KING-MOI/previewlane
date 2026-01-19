@@ -7,10 +7,10 @@ import {
 	type HostInfo,
 	HostInfoSchema,
 	randomId,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { createFileExclusive, removeIfEmpty, waitWhileEmpty } from './fsutil.ts';
 
-// What this koid can do for the CLI. SSM carries one bounded command at a
+// What this previewlaned can do for the CLI. SSM carries one bounded command at a
 // time, so there is no channel, no live log and no artifact transfer; those
 // come with the SSH transport.
 export const SSM_CAPABILITIES: HostCapabilities = {
@@ -23,7 +23,7 @@ export const SSM_CAPABILITIES: HostCapabilities = {
 // The name of the file under the state directory that holds the host id.
 export const HOST_ID_FILE = 'host-id';
 
-// `koid ctl describe`'s answer for this installation. The id is made on the
+// `previewlaned ctl describe`'s answer for this installation. The id is made on the
 // first call and kept in <stateDir>/host-id, so it survives restarts and a new
 // instance address, and changes only with a fresh state directory.
 export function hostDescriber(stateDir: string, domain: string): () => Promise<HostInfo> {
@@ -44,23 +44,23 @@ export function hostDescriber(stateDir: string, domain: string): () => Promise<H
 	};
 }
 
-// The id in `path`, or a new one written there. Two koids that start
+// The id in `path`, or a new one written there. Two previewlaneds that start
 // together both find no file and make an id each; the file is created
 // exclusively, so one of them wins and the other reads the winner's id. A
-// koid that arrives while the winner's file is still empty waits for its
+// previewlaned that arrives while the winner's file is still empty waits for its
 // content; see readHostId.
 //
 // A file that stays empty was left behind: where the filesystem has no hard
-// links, the file exists empty between a koid's exclusive open and its
-// write, and a koid that dies or fails to write then leaves it so. No id can
+// links, the file exists empty between a previewlaned's exclusive open and its
+// write, and a previewlaned that dies or fails to write then leaves it so. No id can
 // have come from an empty file, so it is removed, if it is still empty, and
-// the creation tried once more. Without that, every later koid would stop
+// the creation tried once more. Without that, every later previewlaned would stop
 // on the file for good. Any other content that is not an id is an error,
 // and the file is left alone: the id is what tells the CLI this is the host
-// it configured, and koid cannot tell whether that content was ever handed
+// it configured, and previewlaned cannot tell whether that content was ever handed
 // out, so a new id must never appear by accident. `fs` is for tests; see
-// removeIfEmpty. One koid owns a state directory (the preview store has the
-// same assumption), so two koids racing over this file is not a case this
+// removeIfEmpty. One previewlaned owns a state directory (the preview store has the
+// same assumption), so two previewlaneds racing over this file is not a case this
 // handles.
 export async function loadHostId(
 	path: string,
@@ -73,9 +73,9 @@ export async function loadHostId(
 	await mkdir(dirname(path), { recursive: true });
 	if (await createFileExclusive(path, `${id}\n`)) return id;
 	const won = await readHostId(path);
-	if (won.kind === 'absent') throw new Error(`${path} was created and removed while koid started`);
+	if (won.kind === 'absent') throw new Error(`${path} was created and removed while previewlaned started`);
 	if (won.kind === 'empty') {
-		throw new Error(`${path} was created and left empty again while koid started`);
+		throw new Error(`${path} was created and left empty again while previewlaned started`);
 	}
 	return won.id;
 }
@@ -84,12 +84,12 @@ export async function loadHostId(
 // empty for about a second.
 type HostIdFile = { kind: 'id'; id: string } | { kind: 'absent' } | { kind: 'empty' };
 
-// An empty file is most likely another koid's, opened exclusively and not
+// An empty file is most likely another previewlaned's, opened exclusively and not
 // written yet, which is how createFileExclusive leaves it for a moment where
 // link() is refused. The read waits for its content as the loser of that
 // open does, rather than call the file bad; one that stays empty is reported
 // as such for loadHostId to judge. Other content that is not an id is an
-// error whose message says what to do, since koid will not touch that file.
+// error whose message says what to do, since previewlaned will not touch that file.
 async function readHostId(path: string): Promise<HostIdFile> {
 	let text = await readText(path);
 	if (text === '') {
@@ -101,7 +101,7 @@ async function readHostId(path: string): Promise<HostIdFile> {
 	const parsed = HostIdSchema.safeParse(text.trim());
 	if (!parsed.success) {
 		throw new Error(
-			`${path} does not hold a host id. koid will not replace the file, since it cannot tell whether its content was ever handed out as this host's id. To let koid make a new id on its next command, remove the file by hand.`,
+			`${path} does not hold a host id. previewlaned will not replace the file, since it cannot tell whether its content was ever handed out as this host's id. To let previewlaned make a new id on its next command, remove the file by hand.`,
 		);
 	}
 	return { kind: 'id', id: parsed.data };

@@ -21,22 +21,22 @@ import {
 	RunRequestSchema,
 	SlugSchema,
 	VerifyIdSchema,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { keepEnd } from './buildlog.ts';
 
-// `koid ctl <command>`: the client for the control socket. The CLI runs it on
-// the box through SSM as `koid ctl-b64 <blob>`, with the arguments encoded
+// `previewlaned ctl <command>`: the client for the control socket. The CLI runs it on
+// the box through SSM as `previewlaned ctl-b64 <blob>`, with the arguments encoded
 // (see ctlEncoded). Arguments are validated before anything is sent, and
 // output is the server's JSON (or log text) on stdout.
 //
-// It exits with CTL_EXIT: refused when koid answered with an error,
-// unavailable when koid did not answer.
+// It exits with CTL_EXIT: refused when previewlaned answered with an error,
+// unavailable when previewlaned did not answer.
 //
 // SSM returns only the first 24,000 characters of a command's output. The
 // JSON replies are bounded by the server; log text is cut here to its last
 // LOG_TEXT_MAX characters.
-export const CTL_USAGE = `usage: koid ctl <command>
-  ping                     prints {"ok":true} once koid takes commands
+export const CTL_USAGE = `usage: previewlaned ctl <command>
+  ping                     prints {"ok":true} once previewlaned takes commands
   describe                 the host descriptor: protocol, host id, domain, address
                            and capabilities, for the CLI to check its target
   up <request-id>          build and run the request uploaded under that id
@@ -92,7 +92,7 @@ export interface CtlIo {
 }
 
 export function socketFetch(socket: string): CtlIo['fetch'] {
-	return (path, init) => fetch(`http://koid${path}`, { ...init, unix: socket } as RequestInit);
+	return (path, init) => fetch(`http://previewlaned${path}`, { ...init, unix: socket } as RequestInit);
 }
 
 export async function ctl(args: string[], io: CtlIo): Promise<number> {
@@ -103,7 +103,7 @@ export async function ctl(args: string[], io: CtlIo): Promise<number> {
 	try {
 		switch (command) {
 			case 'ping':
-				// koid answers at once when it is up; a hung one counts as not ready.
+				// previewlaned answers at once when it is up; a hung one counts as not ready.
 				path = '/health';
 				init = { signal: AbortSignal.timeout(10_000) };
 				break;
@@ -181,14 +181,14 @@ export async function ctl(args: string[], io: CtlIo): Promise<number> {
 				return 2;
 		}
 	} catch (err) {
-		io.stderr(`koid ctl: ${err instanceof Error ? err.message : String(err)}\n${CTL_USAGE}`);
+		io.stderr(`previewlaned ctl: ${err instanceof Error ? err.message : String(err)}\n${CTL_USAGE}`);
 		return 2;
 	}
 	let res: Response;
 	try {
 		res = await io.fetch(path, init);
 	} catch (err) {
-		io.stderr(`koid ctl: cannot reach koid: ${err instanceof Error ? err.message : String(err)}\n`);
+		io.stderr(`previewlaned ctl: cannot reach previewlaned: ${err instanceof Error ? err.message : String(err)}\n`);
 		return CTL_EXIT.unavailable;
 	}
 	const body = await res.text();
@@ -306,7 +306,7 @@ function parseFlags(args: string[], known: string[]): Record<string, string> {
 	return flags;
 }
 
-// `koid ctl-b64 <blob>`: koid ctl with the arguments encoded by the CLI's
+// `previewlaned ctl-b64 <blob>`: previewlaned ctl with the arguments encoded by the CLI's
 // encodeCtlArgs, so that the shell running the SSM command sees only base64.
 // A blob that does not decode to a list of arguments is refused like a bad
 // argument.
@@ -317,7 +317,7 @@ export async function ctlEncoded(args: string[], io: CtlIo): Promise<number> {
 		if (blob === undefined || rest.length > 0) throw new Error('expected one argument');
 		decoded = decodeCtlArgs(blob);
 	} catch (err) {
-		io.stderr(`koid ctl-b64: ${err instanceof Error ? err.message : String(err)}\n`);
+		io.stderr(`previewlaned ctl-b64: ${err instanceof Error ? err.message : String(err)}\n`);
 		return CTL_EXIT.usage;
 	}
 	return ctl(decoded, io);

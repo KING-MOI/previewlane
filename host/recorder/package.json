@@ -1,10 +1,10 @@
 {
-	"name": "@koi/recorder",
+	"name": "@previewlane/recorder",
 	"version": "0.0.0",
 	"private": true,
 	"license": "MIT",
 	"type": "module",
-	"description": "The browser koi records a verification run with: a Playwright server and a capture API inside the run network.",
+	"description": "The browser previewlane records a verification run with: a Playwright server and a capture API inside the run network.",
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
 		"start": "node dist/server.js"

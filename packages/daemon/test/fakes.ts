@@ -4,7 +4,7 @@ import * as fsp from 'node:fs/promises';
 import { type FileHandle, mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Recipe, UpRequest } from '@koi/shared';
+import type { Recipe, UpRequest } from '@previewlane/shared';
 import { Activity } from '../src/activity.ts';
 import { BuildLogs, type LogFile, type LogFiles } from '../src/buildlog.ts';
 import type { Route } from '../src/caddy.ts';
@@ -67,8 +67,8 @@ interface FakeNetwork {
 	info: NetworkInfo;
 }
 
-// A verifier as a test's script drives it once koid attaches: what it was
-// created with, what koid copied in, its output streams, and the lines koid
+// A verifier as a test's script drives it once previewlaned attaches: what it was
+// created with, what previewlaned copied in, its output streams, and the lines previewlaned
 // writes to its stdin.
 export interface FakeVerifier {
 	name: string;
@@ -76,19 +76,19 @@ export interface FakeVerifier {
 	options: VerifierOptions;
 	// What the container sees at its paths: the root filesystem's copied
 	// files and the mounted volumes' contents, by path without the leading
-	// slash (koi/supervisor.py, workspace/koi.yaml, fixtures/...).
+	// slash (previewlane/supervisor.py, workspace/previewlane.yaml, fixtures/...).
 	files: Map<string, FakeFile>;
 	// Writes a line, or raw bytes, to the container's stdout or stderr.
 	out(text: string): void;
 	err(text: string): void;
 	write(bytes: Uint8Array): void;
-	// The next line koid wrote to stdin, as it arrives.
+	// The next line previewlaned wrote to stdin, as it arrives.
 	nextLine(): Promise<string>;
-	// Resolves once koid stops the container.
+	// Resolves once previewlaned stops the container.
 	stopped: Promise<void>;
-	// Whether koid ended the attachment.
+	// Whether previewlaned ended the attachment.
 	detached: boolean;
-	// The key in koid's start line, once it came.
+	// The key in previewlaned's start line, once it came.
 	key: string | undefined;
 	// Leaves the output streams open past the script's end, as a client that
 	// never reports their end would.
@@ -119,7 +119,7 @@ export function signedSupervisorLine(
 const TO_SIGN = '{"sign-as-the-supervisor":';
 
 // A supervisor line for a script to print with v.out, which signs it with
-// the key koid sent and the next number, as the real supervisor does. A
+// the key previewlaned sent and the next number, as the real supervisor does. A
 // script that means to forge one prints its own line.
 export function supervisorLine(fields: Record<string, unknown>): string {
 	return `${TO_SIGN}${JSON.stringify(fields)}}`;
@@ -144,7 +144,7 @@ export function supervisorExit(
 
 // The steps a verifier's point file declares, each as a step that exited 0.
 export function declaredSteps(v: FakeVerifier): Array<Record<string, unknown>> {
-	const pointFile = JSON.parse(v.files.get('koi/point.json')?.content ?? '{}') as {
+	const pointFile = JSON.parse(v.files.get('previewlane/point.json')?.content ?? '{}') as {
 		steps?: Record<string, unknown>;
 	};
 	return ['setup', 'run', 'cleanup']
@@ -199,7 +199,7 @@ export class FakeDocker implements Docker {
 	networksMade = new Map<string, FakeNetwork>();
 	// Networks the box has besides those, as the preview networks are.
 	otherNetworks: NetworkInfo[] = [];
-	// The recorder and verifier options koid created helpers with, in order.
+	// The recorder and verifier options previewlaned created helpers with, in order.
 	helpers: Array<{ role: 'recorder' | 'verifier'; options: RecorderOptions | VerifierOptions }> =
 		[];
 	// Mounts every helper created from now on gets, as from an image's VOLUME.
@@ -208,11 +208,11 @@ export class FakeDocker implements Docker {
 	imageInfos = new Map<string, ImageInfo>();
 	// Named volumes, by name.
 	volumes = new Map<string, FakeVolume>();
-	// The staging containers koid created, in order.
+	// The staging containers previewlaned created, in order.
 	stagings: StagingOptions[] = [];
-	// What a verifier does once koid attaches to it.
+	// What a verifier does once previewlaned attaches to it.
 	verifierScript: VerifierScript | undefined;
-	// The verifiers koid attached to, in order.
+	// The verifiers previewlaned attached to, in order.
 	verifiers: FakeVerifier[] = [];
 	// An attached container is running only after this many inspects, as
 	// a container Docker is still starting; 0 means at once.
@@ -232,7 +232,7 @@ export class FakeDocker implements Docker {
 	// The signals createVolume, createStaging and copyIn were given, in order.
 	prepareSignals: Array<AbortSignal | undefined> = [];
 	// Labels an image carries, by image: as Docker does, a container made
-	// from it gets them, under the labels koid sets.
+	// from it gets them, under the labels previewlaned sets.
 	imageLabels = new Map<string, Record<string, string>>();
 	// Fails the next createNetwork with this message.
 	createNetworkError: string | undefined;
@@ -279,7 +279,7 @@ export class FakeDocker implements Docker {
 	// The signal each stop was given, in order.
 	stopSignals: Array<AbortSignal | undefined> = [];
 	// The slice a container runs in once it starts, as Docker's default.
-	startSlice = 'koi.slice';
+	startSlice = 'previewlane.slice';
 	// What every container's log says; by default, which container it is.
 	containerLogs: string | undefined;
 	// Lines every build prints after its first.
@@ -302,7 +302,7 @@ export class FakeDocker implements Docker {
 	}
 
 	// A container that dies on its own, as by the memory limit: Docker frees
-	// its address at once, and koid hears of it only from Docker.
+	// its address at once, and previewlaned hears of it only from Docker.
 	kill(name: string) {
 		const c = this.containers.get(name);
 		if (c === undefined) return;
@@ -343,8 +343,8 @@ export class FakeDocker implements Docker {
 		const ip = this.address();
 		this.containers.set(o.name, {
 			options: o,
-			// As runArgs: koi.role set to nothing, over the image's.
-			labels: { ...this.imageLabels.get(o.image), 'koi.role': '', ...o.labels },
+			// As runArgs: previewlane.role set to nothing, over the image's.
+			labels: { ...this.imageLabels.get(o.image), 'previewlane.role': '', ...o.labels },
 			running: true,
 			ip,
 			slice: this.startSlice,
@@ -427,23 +427,23 @@ export class FakeDocker implements Docker {
 	async logs(name: string) {
 		return this.containerLogs ?? `logs of ${name}`;
 	}
-	// As the real one: only previews, by name and koi.preview (isPreview).
+	// As the real one: only previews, by name and previewlane.preview (isPreview).
 	async list() {
 		return [...this.containers.entries()]
-			.filter(([name, c]) => isPreview(name, c.labels['koi.preview']))
-			.map(([name, c]) => ({ name, label: c.labels['koi.preview'] ?? '' }));
+			.filter(([name, c]) => isPreview(name, c.labels['previewlane.preview']))
+			.map(([name, c]) => ({ name, label: c.labels['previewlane.preview'] ?? '' }));
 	}
 	async listImages() {
 		return [...this.images];
 	}
-	// As the real one: only previews, by name and koi.preview (isPreview).
+	// As the real one: only previews, by name and previewlane.preview (isPreview).
 	async diskUsage() {
 		if (this.diskUsageError !== undefined) throw new Error(this.diskUsageError);
 		return [...this.containers.entries()]
-			.filter(([name, c]) => isPreview(name, c.labels['koi.preview']))
+			.filter(([name, c]) => isPreview(name, c.labels['previewlane.preview']))
 			.map(([name, c]) => ({
 				name,
-				label: c.labels['koi.preview'] ?? '',
+				label: c.labels['previewlane.preview'] ?? '',
 				bytes: this.diskBytes.get(name) ?? 0,
 				running: c.running,
 			}));
@@ -456,7 +456,7 @@ export class FakeDocker implements Docker {
 			throw new Error(error);
 		}
 		if (this.networksMade.has(o.name)) throw new Error(`network ${o.name} already exists`);
-		const run = o.labels['koi.run'];
+		const run = o.labels['previewlane.run'];
 		this.networksMade.set(o.name, {
 			options: o,
 			info: {
@@ -520,12 +520,12 @@ export class FakeDocker implements Docker {
 		const attachments = new Map<string, NetworkEndpoint>();
 		attachments.set(o.network, { ip: o.ip, ...(this.reportHelperMac ? { mac: o.mac } : {}) });
 		this.containers.set(o.name, {
-			// As helperArgs: koi.preview set to nothing, over the image's.
+			// As helperArgs: previewlane.preview set to nothing, over the image's.
 			labels: {
 				...this.imageLabels.get(o.image),
-				'koi.preview': '',
-				'koi.role': role,
-				'koi.run': o.runId,
+				'previewlane.preview': '',
+				'previewlane.role': role,
+				'previewlane.run': o.runId,
 			},
 			running: false,
 			slice: this.startSlice,
@@ -563,7 +563,7 @@ export class FakeDocker implements Docker {
 	}
 	async listRunVolumes() {
 		return [...this.volumes.entries()]
-			.filter(([, v]) => v.labels['koi.run'] !== undefined)
+			.filter(([, v]) => v.labels['previewlane.run'] !== undefined)
 			.map(([name, v]) => ({ name, labels: { ...v.labels } }));
 	}
 	async createStaging(o: StagingOptions, signal?: AbortSignal) {
@@ -576,9 +576,9 @@ export class FakeDocker implements Docker {
 		this.containers.set(o.name, {
 			labels: {
 				...this.imageLabels.get(o.image),
-				'koi.preview': '',
-				'koi.role': 'staging',
-				'koi.run': o.runId,
+				'previewlane.preview': '',
+				'previewlane.role': 'staging',
+				'previewlane.run': o.runId,
 			},
 			running: false,
 			slice: this.startSlice,
@@ -819,11 +819,11 @@ export class FakeDocker implements Docker {
 			})),
 		];
 	}
-	// As docker ps --filter label=koi.run: whatever carries the label, a
+	// As docker ps --filter label=previewlane.run: whatever carries the label, a
 	// preview whose image set it included.
 	async listRun() {
 		return [...this.containers.entries()]
-			.filter(([, c]) => c.labels['koi.run'] !== undefined)
+			.filter(([, c]) => c.labels['previewlane.run'] !== undefined)
 			.map(([name, c]) => ({ name, labels: { ...c.labels } }));
 	}
 	// Simulates the box stopping: every container stops.
@@ -955,7 +955,7 @@ export async function setup(
 		uploads?: Uploads;
 	} = {},
 ) {
-	const root = await mkdtemp(join(tmpdir(), 'koid-test-'));
+	const root = await mkdtemp(join(tmpdir(), 'previewlaned-test-'));
 	const stateDir = join(root, 'state');
 	const recipesDir = join(root, 'recipes');
 	await mkdir(stateDir, { recursive: true });
@@ -1016,8 +1016,8 @@ export async function setup(
 
 	const deps: DeployerDeps = {
 		domain: 'previews.example.net',
-		network: 'koi-previews',
-		slice: 'koi.slice',
+		network: 'previewlane-previews',
+		slice: 'previewlane.slice',
 		stateDir,
 		store,
 		docker,
@@ -1105,7 +1105,7 @@ export async function setup(
 		log: (m) => logs.push(m),
 	};
 	let deployer = new Deployer(deps);
-	// As koid does at startup, before anything can visit.
+	// As previewlaned does at startup, before anything can visit.
 	await deployer.stopOversized();
 
 	return {
@@ -1117,7 +1117,7 @@ export async function setup(
 		get deployer() {
 			return deployer;
 		},
-		// A new koid on the same store, Docker and Caddy, as after a restart.
+		// A new previewlaned on the same store, Docker and Caddy, as after a restart.
 		// It has not measured the disk yet.
 		restart(): Deployer {
 			deployer = new Deployer(deps);

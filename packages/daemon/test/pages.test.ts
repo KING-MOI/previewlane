@@ -3,7 +3,7 @@ import type { PreviewView } from '../src/deployer.ts';
 import { BUILD_WAIT_MINUTES, handle, START_WAIT_MINUTES } from '../src/server.ts';
 
 // Runs a page's own script against a fake browser: elements, location,
-// fetch and a manual clock. `health` says what /__koi/health answers at a
+// fetch and a manual clock. `health` says what /__previewlane/health answers at a
 // given minute.
 type Health = { status: number; preview: string } | 'error';
 
@@ -40,7 +40,7 @@ async function browse(view: PreviewView, health: (minute: number) => Health) {
 			},
 		},
 		fetch: (path: string) => {
-			if (path !== '/__koi/health') throw new Error(`unexpected fetch of ${path}`);
+			if (path !== '/__previewlane/health') throw new Error(`unexpected fetch of ${path}`);
 			checks += 1;
 			const answer = health(now / 60_000);
 			if (answer === 'error') return Promise.reject(new Error('network'));

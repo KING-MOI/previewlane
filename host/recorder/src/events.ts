@@ -1,7 +1,7 @@
 // The recorder's event feed: everything it saw, numbered in order, held in
-// a bounded ring until koid reads it over the control API. koid gives each
+// a bounded ring until previewlaned reads it over the control API. previewlaned gives each
 // event its host sequence number and writes it to the run's events file;
-// what this ring loses before koid reads it is reported as `dropped` on the
+// what this ring loses before previewlaned reads it is reported as `dropped` on the
 // page that would have held it, which the run records as a gap in
 // observation.
 
@@ -17,14 +17,14 @@ export interface RecorderEvent {
 // The most text one field may carry. A longer field is discarded whole,
 // never cut: the recorder knows no secret values and cannot redact, and a
 // field cut after a long prefix would keep most of a secret that sits past
-// the cut. koid scrubs what it reads, but only a whole value matches.
+// the cut. previewlaned scrubs what it reads, but only a whole value matches.
 export const MAX_FIELD_CHARS = 4096;
 
-// What stands in for a discarded field. koid knows this text
+// What stands in for a discarded field. previewlaned knows this text
 // (RECORDER_OVERLONG_FIELD in packages/shared) and records a limitation when
 // it reads an event that carries it; the event's `truncatedFields` names the
 // fields.
-export const OVERLONG_FIELD = `[koi: a field over ${MAX_FIELD_CHARS} characters was discarded]`;
+export const OVERLONG_FIELD = `[previewlane: a field over ${MAX_FIELD_CHARS} characters was discarded]`;
 
 export class EventLog {
 	private readonly ring: RecorderEvent[] = [];
@@ -38,7 +38,7 @@ export class EventLog {
 
 	// Records an event and returns its sequence number. A string field over
 	// MAX_FIELD_CHARS is replaced by OVERLONG_FIELD and named in
-	// `truncatedFields`; nothing here decides what is sensitive, koid's
+	// `truncatedFields`; nothing here decides what is sensitive, previewlaned's
 	// sanitizer does.
 	push(type: string, fields: Record<string, unknown> = {}): number {
 		const seq = this.nextSeq++;
@@ -88,7 +88,7 @@ export class EventLog {
 	// read continues after. `dropped` counts the events after `after` the
 	// ring lost before this read: the ones the reader never got and now
 	// cannot. An eviction of an event the reader had read is not a gap, so
-	// a long run past the ring's capacity reports nothing as long as koid
+	// a long run past the ring's capacity reports nothing as long as previewlaned
 	// keeps up.
 	page(after: number, limit: number): { events: RecorderEvent[]; next: number; dropped: number } {
 		const events: RecorderEvent[] = [];

@@ -24,7 +24,7 @@ export interface ExecOptions {
 
 const KEEP_BYTES = 256 * 1024;
 
-// maxBytes for a command whose output koid parses whole.
+// maxBytes for a command whose output previewlaned parses whole.
 export const WHOLE_OUTPUT = 32 * 1024 ** 2;
 
 export async function exec(cmd: string[], options: ExecOptions = {}): Promise<ExecResult> {

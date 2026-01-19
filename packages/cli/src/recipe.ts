@@ -7,28 +7,28 @@ import {
 	repoMatches,
 	slugify,
 	type UpRequest,
-} from '@koi/shared';
+} from '@previewlane/shared';
 
 export interface ResolvedRecipe {
 	project: string;
 	recipe: UpRequest['recipe'];
-	// How long koid lets the build, and then the health check, take.
+	// How long previewlaned lets the build, and then the health check, take.
 	limits: Pick<Recipe, 'buildTimeoutMinutes' | 'healthTimeoutSeconds'>;
 }
 
-// In the order tried: a file at the root wins over one under .koi/.
+// In the order tried: a file at the root wins over one under .previewlane/.
 const REPO_RECIPE_FILES = [
-	'koi.yaml',
-	'koi.yml',
-	'koi.json',
-	'.koi/koi.yaml',
-	'.koi/koi.yml',
-	'.koi/koi.json',
+	'previewlane.yaml',
+	'previewlane.yml',
+	'previewlane.json',
+	'.previewlane/previewlane.yaml',
+	'.previewlane/previewlane.yml',
+	'.previewlane/previewlane.json',
 ];
 
 // Picks the recipe for a repo: a built-in one whose match list names the repo
-// (or its forks, with a `*` owner), otherwise a koi.yaml (or .yml/.json) at the
-// root of the source being built, or under its .koi/ directory. The project
+// (or its forks, with a `*` owner), otherwise a previewlane.yaml (or .yml/.json) at the
+// root of the source being built, or under its .previewlane/ directory. The project
 // prefix comes from the built-in recipe's name (projectForBuiltin) or from the
 // repo's own name, never from the file, which the pull request controls.
 export async function resolveRecipe(
@@ -51,7 +51,7 @@ export async function resolveRecipe(
 		const parsed = RepoRecipeSchema.safeParse(data);
 		if (!parsed.success) {
 			throw new Error(
-				`${file} is not a valid koi recipe: ${parsed.error.issues.map(describe).join('; ')}`,
+				`${file} is not a valid previewlane recipe: ${parsed.error.issues.map(describe).join('; ')}`,
 			);
 		}
 		const recipe: RepoRecipe = parsed.data;
@@ -62,7 +62,7 @@ export async function resolveRecipe(
 		};
 	}
 	throw new Error(
-		`koi has no recipe for ${repoId}. Add a koi.yaml at the repo root, for example:\n\n  port: 8080\n  build:\n    kind: dockerfile\n    path: Dockerfile\n`,
+		`previewlane has no recipe for ${repoId}. Add a previewlane.yaml at the repo root, for example:\n\n  port: 8080\n  build:\n    kind: dockerfile\n    path: Dockerfile\n`,
 	);
 }
 
@@ -78,7 +78,7 @@ export async function resolveRecipe(
 // previewHostLabel fits with any branch. Two forks whose owners differ only
 // past the cut, or only in dots and underscores, get the same name; the
 // daemon's ownership check keeps their previews apart, as it does today for
-// two koi.yaml repos with the same name.
+// two previewlane.yaml repos with the same name.
 export function projectForBuiltin(recipe: Recipe, repoId: string): string {
 	if (recipe.match.repos.includes(repoId)) return recipe.name;
 	const owner = repoId.split('/')[1] ?? '';

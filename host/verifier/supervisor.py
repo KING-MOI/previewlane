@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """The verifier's supervisor: runs one point's steps and carries the runner protocol.
 
-koid puts this file in every verifier's read-only /koi volume, next to
-point.json, and makes `python3 -I /koi/supervisor.py /koi/point.json` the
+previewlaned puts this file in every verifier's read-only /previewlane volume, next to
+point.json, and makes `python3 -I /previewlane/supervisor.py /previewlane/point.json` the
 container's entrypoint, whatever the image's own says
 (docs/verify.md, "Writing a runner"). Only the standard library is used,
 since the image is the project's choice and may hold nothing else.
 
 What it does, in order:
 
-- Makes itself undumpable, then waits for koid's start line on stdin
-  ({"version":1,"type":"start","key":"<hex>","timeoutSeconds":<n>}). koid sends
+- Makes itself undumpable, then waits for previewlaned's start line on stdin
+  ({"version":1,"type":"start","key":"<hex>","timeoutSeconds":<n>}). previewlaned sends
   it once the firewall has bound the run's permits to this container, so a step
   never runs before it can reach the recorder. timeoutSeconds is what the point
   has left then, since opening its context and staging these very files used part
@@ -20,9 +20,9 @@ What it does, in order:
   shell, with /workspace as the working directory and an explicit
   environment made of the names in CHILD_ENV and nothing the image set.
 - Forwards each child's stdout to its own stdout line by line and untouched,
-  and forwards koid's later stdin lines (capture acknowledgments) to the
+  and forwards previewlaned's later stdin lines (capture acknowledgments) to the
   running child's stdin. stderr is inherited. A step is reported only once its
-  stdout is all forwarded, however slowly koid reads. A step's line says
+  stdout is all forwarded, however slowly previewlaned reads. A step's line says
   output_incomplete when the supervisor stopped short of that for any reason.
 - Keeps the point's time budget: the steps share it, with the last part held
   back for cleanup, and a step past its share has its whole process group
@@ -31,11 +31,11 @@ What it does, in order:
 - Prints a line of its own as each step ends and a last line that says which
   step the sequence ended on and how, then exits 0 when every step exited 0,
   1 when a step exited otherwise, 2 when a step ran out of time, 3 when a
-  step could not start, and 4 when koid never sent start.
+  step could not start, and 4 when previewlaned never sent start.
 
 The runner shares this stdout and can print a line that looks like one of
 these, so each carries a sequence number and an HMAC-SHA256 over the line's
-text, keyed by the random key in the start line. koid believes a supervisor
+text, keyed by the random key in the start line. previewlaned believes a supervisor
 line only when the MAC checks and the number is the next one. The key is not
 in this process's argv, environment or files, and no child exists when it
 arrives. A child cannot read it from here either: making this process
@@ -45,7 +45,7 @@ than the key itself in each line, because any process in the container can
 reach this stdout through /proc/1/fd/1 of the init process, read a line from
 the pipe and print it again; a MAC gives it nothing to forge with, and the
 sequence number makes a replay show. Before start there is no key, and these
-lines go unsigned: koid reads a container that ends there by its exit code and
+lines go unsigned: previewlaned reads a container that ends there by its exit code and
 stderr alone.
 """
 
@@ -66,25 +66,25 @@ WORKSPACE = "/workspace"
 STEPS = ("setup", "run", "cleanup")
 # The environment a step gets, by name, from the supervisor's own. Anything
 # else the image or Docker set stays with the supervisor. PATH is among them
-# because koid sets it on the container to a fixed value.
+# because previewlaned sets it on the container to a fixed value.
 CHILD_ENV = (
     "PATH",
     "HOME",
     "TMPDIR",
     "LANG",
     "TZ",
-    "KOI_PROTOCOL_VERSION",
-    "KOI_RUN_ID",
-    "KOI_POINT_ID",
-    "KOI_ATTEMPT",
-    "KOI_PREVIEW_URL",
-    "KOI_RECORDER_WS",
-    "KOI_FIXTURES",
-    "KOI_TIMEOUT_SECONDS",
-    "KOI_MAX_REQUESTS",
-    "KOI_LOGIN_KEY",
+    "PREVIEWLANE_PROTOCOL_VERSION",
+    "PREVIEWLANE_RUN_ID",
+    "PREVIEWLANE_POINT_ID",
+    "PREVIEWLANE_ATTEMPT",
+    "PREVIEWLANE_PREVIEW_URL",
+    "PREVIEWLANE_RECORDER_WS",
+    "PREVIEWLANE_FIXTURES",
+    "PREVIEWLANE_TIMEOUT_SECONDS",
+    "PREVIEWLANE_MAX_REQUESTS",
+    "PREVIEWLANE_LOGIN_KEY",
 )
-# How long koid has to send start before the supervisor gives up.
+# How long previewlaned has to send start before the supervisor gives up.
 START_TIMEOUT_SECONDS = 120
 # After SIGTERM, how long a step has to exit before SIGKILL.
 TERM_GRACE_SECONDS = 5
@@ -93,11 +93,11 @@ TERM_GRACE_SECONDS = 5
 CLEANUP_RESERVE_SECONDS = 30
 CLEANUP_RESERVE_SHARE = 0.25
 # A child's stdout is read in pieces of at most this many bytes, so a line
-# without end cannot grow without bound here; koid bounds lines itself.
+# without end cannot grow without bound here; previewlaned bounds lines itself.
 READ_BYTES = 64 * 1024
 # How long a step's stdout may give nothing, once the step has ended, before
 # the supervisor stops waiting on it. Time spent forwarding does not count: a
-# slow koid is no reason to drop what a step wrote. Silence with the pipe still
+# slow previewlaned is no reason to drop what a step wrote. Silence with the pipe still
 # open means a descendant outlived the step and holds it.
 DRAIN_IDLE_SECONDS = 5
 # PR_SET_DUMPABLE, from linux/prctl.h.
@@ -114,7 +114,7 @@ EXIT_NOT_STARTED = 4
 
 
 class PointFile(Exception):
-    """point.json is not what koid writes."""
+    """point.json is not what previewlaned writes."""
 
 
 def load_point(text):
@@ -162,7 +162,7 @@ def make_undumpable():
     """Closes this process to its own uid, so a child cannot read the key from its memory or tap its descriptors.
 
     Raises when that cannot be done: without it a runner could forge the
-    lines koid trusts, so the supervisor would rather not run the steps.
+    lines previewlaned trusts, so the supervisor would rather not run the steps.
     """
     if not sys.platform.startswith("linux"):
         return
@@ -181,7 +181,7 @@ class Output:
         self.lock = threading.Lock()
         # Whether the last byte written ended a line.
         self.at_line_start = True
-        # koid's key once the start line has come; each line signed after
+        # previewlaned's key once the start line has come; each line signed after
         # that takes the next number, from 1.
         self.key = None
         self.seq = 0
@@ -198,7 +198,7 @@ class Output:
         """One line of the supervisor's own, signed once there is a key.
 
         The MAC covers the line's exact text up to the MAC field and comes
-        last, so koid checks the bytes it read without any canonical form.
+        last, so previewlaned checks the bytes it read without any canonical form.
         """
         with self.lock:
             record = {"version": PROTOCOL_VERSION, "type": "supervisor"}
@@ -219,7 +219,7 @@ class Output:
 
 
 class Stdin:
-    """koid's lines on the supervisor's stdin: the first is start; the rest go to whichever step runs.
+    """previewlaned's lines on the supervisor's stdin: the first is start; the rest go to whichever step runs.
 
     Read with os.read on the descriptor, not through a buffered file: the
     reader is a daemon thread that may still be blocked in a read when the
@@ -280,7 +280,7 @@ class Stdin:
             pass
 
     def wait_for_start(self, timeout):
-        """What koid's start line says: its key as bytes and the seconds the point has left, when it says that.
+        """What previewlaned's start line says: its key as bytes and the seconds the point has left, when it says that.
 
         None when stdin closed, the wait ran out, or the line was not start.
         """
@@ -402,7 +402,7 @@ def run_step(name, command, seconds, env, output, stdin, cwd=WORKSPACE, clock=ti
     """
     started = clock()
     if seconds <= 0:
-        # The budget ran out, which koid reads the same way as a step stopped
+        # The budget ran out, which previewlaned reads the same way as a step stopped
         # at it.
         return {"step": name, "status": "timeout", "reason": "no time left in the point's budget"}
     try:
@@ -442,8 +442,8 @@ def run_step(name, command, seconds, env, output, stdin, cwd=WORKSPACE, clock=ti
             pass
     # The step's line must come after all it wrote, so this waits for the reader
     # with no limit of its own. The reader ends at the pipe's end, its silence or
-    # the budget. A forward koid never reads holds it past those, and then this
-    # process could not print anything anyway: koid stops the container on a timer
+    # the budget. A forward previewlaned never reads holds it past those, and then this
+    # process could not print anything anyway: previewlaned stops the container on a timer
     # of its own, 15 seconds past the budget. The closed pipe tells the reader the
     # step has ended, whatever a descendant is doing.
     os.close(ended_w)
@@ -490,7 +490,7 @@ def main(argv, stdin=None, stdout=None, env=None, cwd=WORKSPACE, clock=time.mono
         return exit_code(results) if results else (EXIT_START_FAILED if status == "failed" else EXIT_NOT_STARTED)
 
     if len(argv) != 2:
-        print("usage: supervisor.py /koi/point.json", file=sys.stderr)
+        print("usage: supervisor.py /previewlane/point.json", file=sys.stderr)
         return finish(None, "failed")
     try:
         with open(argv[1], "rb") as f:
@@ -509,7 +509,7 @@ def main(argv, stdin=None, stdout=None, env=None, cwd=WORKSPACE, clock=time.mono
     reader = Stdin(stdin_stream)
     start = reader.wait_for_start(START_TIMEOUT_SECONDS)
     if start is None:
-        print("supervisor: koid did not send start", file=sys.stderr)
+        print("supervisor: previewlaned did not send start", file=sys.stderr)
         return finish(None, "not-started")
     out.key, seconds = start
     out.line({"event": "started"})
@@ -521,9 +521,9 @@ def main(argv, stdin=None, stdout=None, env=None, cwd=WORKSPACE, clock=time.mono
     # its budget would be killed short of it.
     reserve = cleanup_reserve(timeout) if commands.get("cleanup") is not None else 0
     child = child_env(env)
-    # What koid set when it created the container is older than the start line.
+    # What previewlaned set when it created the container is older than the start line.
     if seconds is not None:
-        child["KOI_TIMEOUT_SECONDS"] = str(math.ceil(seconds))
+        child["PREVIEWLANE_TIMEOUT_SECONDS"] = str(math.ceil(seconds))
     # HOME is under the tmpfs and does not exist yet; a client library that
     # writes there (a cache, a config) should find a directory.
     if child.get("HOME"):

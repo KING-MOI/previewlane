@@ -1,5 +1,5 @@
 import { S3Client } from '@aws-sdk/client-s3';
-import { decodeCtlArgs, type HostInfo, type PreviewRecord } from '@koi/shared';
+import { decodeCtlArgs, type HostInfo, type PreviewRecord } from '@previewlane/shared';
 import { type ControlDeps, control } from '../../daemon/src/control.ts';
 import { ctlEncoded } from '../../daemon/src/ctl.ts';
 import type { Clients, Settings } from '../src/box.ts';
@@ -8,20 +8,20 @@ import type { Clients, Settings } from '../src/box.ts';
 const SSM_STDOUT_LIMIT = 24_000;
 
 export const settings: Settings = {
-	profile: 'koi-cli',
+	profile: 'previewlane-cli',
 	region: 'us-east-1',
 	domain: 'previews.example.net',
 	instanceId: 'i-0abc',
-	bucket: 'koi-uploads-123456789012',
+	bucket: 'previewlane-uploads-123456789012',
 };
 
 // AWS clients for a running box whose SSM agent is online, where each SSM
-// command runs the real koid ctl and control API in this process, with
-// `deps` behind them. GetCommandInvocation returns what koid ctl printed as
-// SSM does: at most its first 24,000 characters. `commands` lists the koid
-// ctl arguments of each command as koid decoded them, and `outputs` what each
+// command runs the real previewlaned ctl and control API in this process, with
+// `deps` behind them. GetCommandInvocation returns what previewlaned ctl printed as
+// SSM does: at most its first 24,000 characters. `commands` lists the previewlaned
+// ctl arguments of each command as previewlaned decoded them, and `outputs` what each
 // printed on stdout.
-export function koidClients(
+export function previewlanedClients(
 	deps: ControlDeps,
 ): Clients & { commands: string[][]; outputs: string[] } {
 	const commands: string[][] = [];
@@ -35,11 +35,11 @@ export function koidClients(
 			case 'DescribeInstanceInformationCommand':
 				return { InstanceInformationList: [{ PingStatus: 'Online' }] };
 			case 'SendCommandCommand': {
-				// "/usr/local/bin/koid ctl-b64 <blob>", run as koid's entry point
+				// "/usr/local/bin/previewlaned ctl-b64 <blob>", run as previewlaned's entry point
 				// runs it.
 				const [program, command, ...words] = (input.Parameters?.commands?.[0] ?? '').split(' ');
-				if (program !== '/usr/local/bin/koid' || command !== 'ctl-b64') {
-					throw new Error(`not a koid ctl-b64 command: ${input.Parameters?.commands?.[0]}`);
+				if (program !== '/usr/local/bin/previewlaned' || command !== 'ctl-b64') {
+					throw new Error(`not a previewlaned ctl-b64 command: ${input.Parameters?.commands?.[0]}`);
 				}
 				commands.push(decodeCtlArgs(words[0] ?? ''));
 				let stdout = '';
@@ -51,7 +51,7 @@ export function koidClients(
 					stderr: (t) => {
 						stderr += t;
 					},
-					fetch: (path, init) => control(new Request(`http://koid${path}`, init), deps),
+					fetch: (path, init) => control(new Request(`http://previewlaned${path}`, init), deps),
 				});
 				outputs.push(stdout);
 				const id = `cmd-${commands.length}`;
@@ -96,7 +96,7 @@ export function s3Stub(
 	return s3;
 }
 
-// The descriptor of a koid that serves previews under `domain`, as the box
+// The descriptor of a previewlaned that serves previews under `domain`, as the box
 // of `settings` would describe itself.
 export function hostInfoFor(domain: string, over: Partial<HostInfo> = {}): HostInfo {
 	return {
@@ -115,8 +115,8 @@ export function hostInfoFor(domain: string, over: Partial<HostInfo> = {}): HostI
 }
 
 // Control API dependencies that fail when used, to override per test. The
-// descriptor answers, as koid's always does, for the domain of `settings`.
-export function koidDeps(over: Partial<ControlDeps>): ControlDeps {
+// descriptor answers, as previewlaned's always does, for the domain of `settings`.
+export function previewlanedDeps(over: Partial<ControlDeps>): ControlDeps {
 	const unused = () => {
 		throw new Error('not used in this test');
 	};

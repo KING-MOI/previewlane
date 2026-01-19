@@ -22,7 +22,7 @@ import {
 	EvidenceManifestSchema,
 	EvidenceTombstoneSchema,
 	RunStatusSchema,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { type EvidenceLookup, judgePoint } from '../src/verdict.ts';
 import type { Sanitize } from '../src/verification-sanitize.ts';
 import {
@@ -65,7 +65,7 @@ async function setup(
 		diskPollMs?: number;
 	} = {},
 ) {
-	const root = await mkdtemp(join(tmpdir(), 'koid-evidence-'));
+	const root = await mkdtemp(join(tmpdir(), 'previewlaned-evidence-'));
 	let clock = Date.parse('2026-10-06T12:00:00.000Z');
 	const disk = { free: options.free ?? 60 * 1024 ** 3, size: 80 * 1024 ** 3 };
 	const logs: string[] = [];
@@ -728,7 +728,7 @@ describe('RunWriter', () => {
 		await expect(run.writeReport(() => 'third\n')).rejects.toThrow('is finalized');
 	});
 
-	test('a record of project text and koid values goes as it is, and no sanitizer sees it', async () => {
+	test('a record of project text and previewlaned values goes as it is, and no sanitizer sees it', async () => {
 		const t = await setup();
 		const seen: unknown[] = [];
 		const sanitize: Sanitize = (record) => {
@@ -752,7 +752,7 @@ describe('RunWriter', () => {
 
 	test('a write through the store takes the sanitizer it is given, and so does a writer', async () => {
 		const t = await setup();
-		const secret = 'koi-secret-value-1234567890';
+		const secret = 'previewlane-secret-value-1234567890';
 		const sanitize = <T>(record: T) =>
 			(typeof record === 'string'
 				? record.replaceAll(secret, '[redacted]')
@@ -776,7 +776,7 @@ describe('RunWriter', () => {
 	});
 
 	test('a problem detail is scrubbed before it is kept and before it is cut', async () => {
-		const secret = 'koi-secret-value-1234567890';
+		const secret = 'previewlane-secret-value-1234567890';
 		const t = await setup({ scrub: (text) => text.replaceAll(secret, '[redacted]') });
 		const run = await t.store.openRun(RUN);
 		await run.addProblem('capture_failed', `screenshot ${secret}: failed`);
@@ -1641,7 +1641,7 @@ describe('sweep', () => {
 		expect((await t.store.sweep()).plans).toEqual(['p'.repeat(20)]);
 	});
 
-	describe('a snapshot koid was killed while copying', () => {
+	describe('a snapshot previewlaned was killed while copying', () => {
 		const DEPLOYMENT = 'd'.repeat(20);
 		const MINUTE = 60_000;
 

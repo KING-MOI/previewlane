@@ -10,7 +10,7 @@ import {
 	DockerMountsSchema,
 	DockerNetworkInspectSchema,
 	parseHelperName,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import type { z } from 'zod';
 import { ExecError, type ExecOptions, exec, WHOLE_OUTPUT } from './exec.ts';
 
@@ -49,7 +49,7 @@ export interface RunOptions {
 	files?: Array<{ path: string; content: string }>;
 }
 
-// A network, from `docker network inspect`, with what koid checks on a
+// A network, from `docker network inspect`, with what previewlaned checks on a
 // verification run network (host.ts checks the preview networks apart).
 export interface NetworkInfo {
 	id: string;
@@ -62,7 +62,7 @@ export interface NetworkInfo {
 	// The com.docker.network.bridge.name option, when set.
 	bridge?: string;
 	subnets: string[];
-	// The koi.run label, on a run network.
+	// The previewlane.run label, on a run network.
 	run?: string;
 	// Names of the containers attached.
 	containers: string[];
@@ -100,12 +100,12 @@ export interface Docker {
 	removeImage(image: string): Promise<void>;
 	inspect(name: string, network: string, signal?: AbortSignal): Promise<ContainerState>;
 	logs(name: string, tail: number): Promise<string>;
-	// Every preview container koi created (running or not), by name. A
+	// Every preview container previewlane created (running or not), by name. A
 	// run's helpers are not among them (isPreview).
 	list(): Promise<Array<{ name: string; label: string }>>;
-	// Every image koi built, as repository:tag.
+	// Every image previewlane built, as repository:tag.
 	listImages(): Promise<string[]>;
-	// The disk each koi container uses, running or stopped: its writable
+	// The disk each previewlane container uses, running or stopped: its writable
 	// layer plus the volumes it mounts, in bytes.
 	diskUsage(): Promise<DiskUsage[]>;
 	// The systemd slice a running container runs in; undefined when it is
@@ -125,12 +125,12 @@ export interface Docker {
 	createRecorder(options: RecorderOptions, signal?: AbortSignal): Promise<void>;
 	createVerifier(options: VerifierOptions, signal?: AbortSignal): Promise<void>;
 	// A named volume with the labels given. The verifier's inputs live in
-	// volumes koid creates per run (verifier.ts).
+	// volumes previewlaned creates per run (verifier.ts).
 	createVolume(name: string, labels: Record<string, string>, signal?: AbortSignal): Promise<void>;
 	// Removes a volume; one that does not exist is fine. Docker refuses one
 	// a container still mounts, created or running.
 	removeVolume(name: string, signal?: AbortSignal): Promise<void>;
-	// Every volume labelled koi.run, with all its labels.
+	// Every volume labelled previewlane.run, with all its labels.
 	listRunVolumes(): Promise<LabelledVolume[]>;
 	// Creates, without starting, the container a point's inputs are copied
 	// through: its volumes mounted writable, no network, never started.
@@ -167,8 +167,8 @@ export interface Docker {
 	// created; a --tmpfs is not among them. A volume mount names its volume
 	// and says whether the container may write to it.
 	mounts(container: string, signal?: AbortSignal): Promise<Mount[]>;
-	// Every container labelled koi.run, running or not, with all its labels.
-	// koid's helpers carry it; so can a preview whose image set it, so the
+	// Every container labelled previewlane.run, running or not, with all its labels.
+	// previewlaned's helpers carry it; so can a preview whose image set it, so the
 	// caller decides which are helpers (verification-network.ts, helperOf).
 	listRun(signal?: AbortSignal): Promise<LabelledContainer[]>;
 }
@@ -247,16 +247,16 @@ export interface DiskUsage {
 	running: boolean;
 }
 
-// Whether a container is a preview koid made: it carries a non-empty
-// koi.preview and koid did not name it as a run's helper. Only koid names
-// containers. A preview is koi-<label>-<id>, where the id is 16 to 40
-// letters and digits; a helper is koi-verify-<runId>-recorder or -verifier,
-// and a staging container koi-verify-<runId>-staging (shared,
+// Whether a container is a preview previewlaned made: it carries a non-empty
+// previewlane.preview and previewlaned did not name it as a run's helper. Only previewlaned names
+// containers. A preview is previewlane-<label>-<id>, where the id is 16 to 40
+// letters and digits; a helper is previewlane-verify-<runId>-recorder or -verifier,
+// and a staging container previewlane-verify-<runId>-staging (shared,
 // verify-network.ts). No name fits both. Labels other than
-// koi.preview are not asked. Docker copies an image's labels onto the
+// previewlane.preview are not asked. Docker copies an image's labels onto the
 // container, a preview's image comes from a pull request, and an older
-// koid did not set koi.role to nothing on a preview, so a preview may
-// carry any koi.role or koi.run its image chose; the name decides, and no
+// previewlaned did not set previewlane.role to nothing on a preview, so a preview may
+// carry any previewlane.role or previewlane.run its image chose; the name decides, and no
 // label hides a preview from the reconciler, the disk watchdog or the
 // death watch, which all go through this. Cleanup, which removes, asks
 // more of a helper (verification-network.ts, helperOf).
@@ -266,7 +266,7 @@ export function isPreview(name: string, preview: string | undefined): boolean {
 
 export interface CliDockerOptions {
 	// The BuildKit builder every build runs in. Provisioning creates it with the
-	// docker-container driver on the koi-build network, with memory and CPU
+	// docker-container driver on the previewlane-build network, with memory and CPU
 	// limits, so RUN steps from a pull request cannot reach host services or
 	// starve the box (host/cloud-init.sh).
 	builder: string;
@@ -294,18 +294,18 @@ const DF_FORMAT =
 	'{{range .Volumes}}volume\t{{.Name}}\t{{.Size}}\n{{end}}';
 
 // `docker container inspect`, one line per container: its name, its
-// koi.preview label (empty when absent), and the volumes it mounts. The
+// previewlane.preview label (empty when absent), and the volumes it mounts. The
 // JSON form includes the environment, which a recipe can make large. The
-// name and the label are both koid's own on every container it creates
+// name and the label are both previewlaned's own on every container it creates
 // (runArgs, helperArgs), so neither carries a value a pull request's image
 // chose into the line.
 const MOUNTS_FORMAT =
-	'{{.Name}}\t{{index .Config.Labels "koi.preview"}}' +
+	'{{.Name}}\t{{index .Config.Labels "previewlane.preview"}}' +
 	'{{range .Mounts}}{{if eq .Type "volume"}}\t{{.Name}}{{end}}{{end}}';
 
 // `docker events`, one line per event: the container's name and its
-// koi.preview label, which Docker puts among the event's attributes.
-const DEATH_FORMAT = '{{.Actor.Attributes.name}}\t{{index .Actor.Attributes "koi.preview"}}';
+// previewlane.preview label, which Docker puts among the event's attributes.
+const DEATH_FORMAT = '{{.Actor.Attributes.name}}\t{{index .Actor.Attributes "previewlane.preview"}}';
 
 // `docker container inspect` for one container, as JSON with only what
 // parseInspect reads.
@@ -357,12 +357,12 @@ export function runArgs(
 		'max-size=10m',
 		'--log-opt',
 		'max-file=3',
-		// A pull request's Dockerfile can LABEL koi.role, and Docker would
+		// A pull request's Dockerfile can LABEL previewlane.role, and Docker would
 		// copy it onto the container. The name, not this label, makes the
 		// container a preview (isPreview); set to nothing here, the label
 		// does not call a preview a helper to whoever reads it.
 		'--label',
-		'koi.role=',
+		'previewlane.role=',
 	];
 	if (slice !== undefined) args.push('--cgroup-parent', slice);
 	for (const [key, value] of Object.entries(options.labels))
@@ -372,8 +372,8 @@ export function runArgs(
 	return args;
 }
 
-// Watches Docker for koi preview containers that stop, for as long as koid
-// runs: `docker events` for die events of containers labelled koi.preview.
+// Watches Docker for previewlane preview containers that stop, for as long as previewlaned
+// runs: `docker events` for die events of containers labelled previewlane.preview.
 // The filter matches the label's key, which a run's helper has too (set to
 // nothing), so each event's name and label are read and only previews
 // (isPreview) are passed on. Calls onEvent with each one's name, and with
@@ -401,7 +401,7 @@ export function watchDeaths(
 					'--filter',
 					'event=die',
 					'--filter',
-					'label=koi.preview',
+					'label=previewlane.preview',
 					'--format',
 					DEATH_FORMAT,
 				],
@@ -437,14 +437,14 @@ export function watchDeaths(
 	};
 }
 
-// The name a container has while koid copies its files in. Preview names
+// The name a container has while previewlaned copies its files in. Preview names
 // have no dots, so it cannot be another preview's.
 export function creatingName(name: string): string {
 	return `${name}.creating`;
 }
 
 // --- Verification run networks and their helpers ------------------------------
-// One run gets a bridge network of its own and two containers koi owns, the
+// One run gets a bridge network of its own and two containers previewlane owns, the
 // recorder and the verifier (docs/verify.md, "Run network"). Their option
 // types are separate from the app's RunOptions on purpose: nothing of the
 // app's environment, files or limits reaches them.
@@ -633,17 +633,17 @@ function helperArgs(
 		'--add-host',
 		`${options.appHost.name}:${options.appHost.ip}`,
 		// The project chooses the verifier image, which may carry
-		// koi.preview, and Docker would copy it onto the container. The
+		// previewlane.preview, and Docker would copy it onto the container. The
 		// name, not this label, makes the helper no preview (isPreview);
 		// set to nothing here, the label does not call a helper a preview,
 		// and cleanup, which removes only what it is sure of, accepts the
-		// helper as koid's (verification-network.ts, helperOf).
+		// helper as previewlaned's (verification-network.ts, helperOf).
 		'--label',
-		'koi.preview=',
+		'previewlane.preview=',
 		'--label',
-		`koi.role=${role}`,
+		`previewlane.role=${role}`,
 		'--label',
-		`koi.run=${options.runId}`,
+		`previewlane.run=${options.runId}`,
 	];
 	if (slice !== undefined) args.push('--cgroup-parent', slice);
 	for (const [key, value] of Object.entries(options.env)) args.push('--env', `${key}=${value}`);
@@ -661,18 +661,18 @@ export function recorderArgs(options: RecorderOptions, slice?: string): string[]
 	return args;
 }
 
-// The label on a sandbox probe, so koid can find one a crash or a stalled
-// Docker left behind (host.ts). Nothing else koid cleans up looks at it:
-// previews and helpers are found by koi.preview and koi.run.
-export const SANDBOX_PROBE_LABEL = 'koi.sandbox-probe';
+// The label on a sandbox probe, so previewlaned can find one a crash or a stalled
+// Docker left behind (host.ts). Nothing else previewlaned cleans up looks at it:
+// previews and helpers are found by previewlane.preview and previewlane.run.
+export const SANDBOX_PROBE_LABEL = 'previewlane.sandbox-probe';
 
-// A probe's name: koi-sandbox-probe- and 12 hex digits (host.ts). The label
+// A probe's name: previewlane-sandbox-probe- and 12 hex digits (host.ts). The label
 // alone proves nothing, since a preview's image can carry any label and
-// Docker copies it onto the container. No preview has this name: koid names
-// one koi-<label>-<request id>, and a request id is 16 to 40 letters and
+// Docker copies it onto the container. No preview has this name: previewlaned names
+// one previewlane-<label>-<request id>, and a request id is 16 to 40 letters and
 // digits. A helper's name ends in its role.
 export function isSandboxProbe(name: string): boolean {
-	return /^koi-sandbox-probe-[0-9a-f]{12}$/.test(name);
+	return /^previewlane-sandbox-probe-[0-9a-f]{12}$/.test(name);
 }
 
 // The `docker run` arguments for the sandbox probe: the recorder image,
@@ -680,7 +680,7 @@ export function isSandboxProbe(name: string): boolean {
 // seccomp profile, on no network, running dist/probe.js instead of the
 // server. The probe starts Chromium as the recorder does, with its sandbox
 // on, opens a page and closes it, and exits 0 only when all of that works.
-// koid runs it before it calls verification available (host.ts).
+// previewlaned runs it before it calls verification available (host.ts).
 export function sandboxProbeArgs(name: string, image: string, seccompProfile: string): string[] {
 	return [
 		'docker',
@@ -706,7 +706,7 @@ export function sandboxProbeArgs(name: string, image: string, seccompProfile: st
 // The `docker create` arguments for a run's verifier: like the recorder,
 // with a smaller /tmp, a /work tmpfs, the input volumes read-only, stdin
 // kept open for the runner protocol (no TTY), the entrypoint and working
-// directory koid chooses over the image's, and the command after the
+// directory previewlaned chooses over the image's, and the command after the
 // image. A volume is mounted with volume-nocopy, so what the image has at
 // the path never gets copied over the inputs.
 export function verifierArgs(options: VerifierOptions, slice?: string): string[] {
@@ -738,7 +738,7 @@ function volumeMount(volume: VolumeMount): string {
 // volumes mounted writable, and an entrypoint of `true` so an image with
 // no command of its own can still be created. It is never started, so the
 // image runs nothing; its root is not read-only, and `docker cp` into the
-// volumes is allowed. The project chooses the image, so koi.preview is set to
+// volumes is allowed. The project chooses the image, so previewlane.preview is set to
 // nothing for the reason helperArgs gives: cleanup would otherwise leave
 // behind a staging container whose image carries that label.
 export function stagingArgs(options: StagingOptions): string[] {
@@ -752,11 +752,11 @@ export function stagingArgs(options: StagingOptions): string[] {
 		'--entrypoint',
 		'true',
 		'--label',
-		'koi.preview=',
+		'previewlane.preview=',
 		'--label',
-		'koi.role=staging',
+		'previewlane.role=staging',
 		'--label',
-		`koi.run=${options.runId}`,
+		`previewlane.run=${options.runId}`,
 	];
 	for (const volume of options.volumes) args.push('--mount', volumeMount(volume));
 	args.push(options.image);
@@ -774,7 +774,7 @@ export function parseNetworks(text: string): NetworkInfo[] {
 		const n = parseDockerJson(DockerNetworkInspectSchema, line, 'docker network inspect');
 		const options = n.Options ?? {};
 		const bridge = options['com.docker.network.bridge.name'];
-		const run = n.Labels?.['koi.run'];
+		const run = n.Labels?.['previewlane.run'];
 		return {
 			id: n.Id,
 			name: n.Name,
@@ -870,14 +870,14 @@ export function cliDocker(options: CliDockerOptions): Docker {
 				return;
 			}
 			// Created under a name of its own and renamed once every file is
-			// in. If a copy fails, or koid stops part way, no container has the
+			// in. If a copy fails, or previewlaned stops part way, no container has the
 			// preview's name, so the next start creates one instead of starting
 			// one without its files. A leftover under the temporary name goes
-			// first; reconcile removes any that koid did not come back for.
+			// first; reconcile removes any that previewlaned did not come back for.
 			const creating = creatingName(o.name);
 			await docker.remove(creating);
 			await ok(runArgs({ ...o, name: creating }, options.slice, 'create'), { timeoutMs: 60_000 });
-			const dir = await mkdtemp(join(tmpdir(), 'koid-files-'));
+			const dir = await mkdtemp(join(tmpdir(), 'previewlaned-files-'));
 			try {
 				for (const [i, file] of o.files.entries()) {
 					const local = join(dir, String(i));
@@ -928,7 +928,7 @@ export function cliDocker(options: CliDockerOptions): Docker {
 		},
 		async list() {
 			// The filter matches the label's key whatever its value, so a
-			// run's helper (koi.preview set to nothing) is among the rows;
+			// run's helper (previewlane.preview set to nothing) is among the rows;
 			// its name tells it apart (isPreview).
 			const r = await ok(
 				[
@@ -936,9 +936,9 @@ export function cliDocker(options: CliDockerOptions): Docker {
 					'ps',
 					'--all',
 					'--filter',
-					'label=koi.preview',
+					'label=previewlane.preview',
 					'--format',
-					'{{.Names}}\t{{.Label "koi.preview"}}',
+					'{{.Names}}\t{{.Label "previewlane.preview"}}',
 				],
 				{ timeoutMs: 15_000, maxBytes: WHOLE_OUTPUT },
 			);
@@ -954,7 +954,7 @@ export function cliDocker(options: CliDockerOptions): Docker {
 					'image',
 					'ls',
 					'--filter',
-					'label=koi.preview',
+					'label=previewlane.preview',
 					'--format',
 					'{{.Repository}}:{{.Tag}}',
 				],
@@ -975,7 +975,7 @@ export function cliDocker(options: CliDockerOptions): Docker {
 				).stdout,
 			);
 			if (df.layers.size === 0) return [];
-			// Which of the containers are previews koi started (isPreview),
+			// Which of the containers are previews previewlane started (isPreview),
 			// and what each mounts. One that went away in between is left
 			// out.
 			const cmd = [
@@ -1081,7 +1081,7 @@ export function cliDocker(options: CliDockerOptions): Docker {
 		async listRunVolumes() {
 			const names = lines(
 				(
-					await ok(['docker', 'volume', 'ls', '--quiet', '--filter', 'label=koi.run'], {
+					await ok(['docker', 'volume', 'ls', '--quiet', '--filter', 'label=previewlane.run'], {
 						timeoutMs: 15_000,
 						maxBytes: WHOLE_OUTPUT,
 					})
@@ -1210,7 +1210,7 @@ export function cliDocker(options: CliDockerOptions): Docker {
 		async listRun(signal) {
 			const ids = lines(
 				(
-					await ok(['docker', 'ps', '--all', '--quiet', '--filter', 'label=koi.run'], {
+					await ok(['docker', 'ps', '--all', '--quiet', '--filter', 'label=previewlane.run'], {
 						timeoutMs: 15_000,
 						maxBytes: WHOLE_OUTPUT,
 						signal,
@@ -1285,7 +1285,7 @@ export function parseSize(text: string): number {
 // From `docker system df --verbose --format DF_FORMAT`: the writable-layer
 // size of each container, and whether it runs, and the size of each volume,
 // by name. Stopped containers count: a preview stopped for disk use keeps
-// what it wrote, and koid must not start it again. Docker prints decimal
+// what it wrote, and previewlaned must not start it again. Docker prints decimal
 // units, and N/A for a volume it cannot measure.
 export function parseSystemDf(text: string): {
 	layers: Map<string, { bytes: number; running: boolean }>;
@@ -1340,7 +1340,7 @@ export function parseDockerJson<T>(schema: z.ZodType<T>, text: string, command: 
 		const fields = result.error.issues.map(
 			(i) => `${i.path.join('.') || 'the output'}: ${i.message}`,
 		);
-		throw new Error(`${command} printed what koid cannot read: ${fields.join('; ')}`);
+		throw new Error(`${command} printed what previewlaned cannot read: ${fields.join('; ')}`);
 	}
 	return result.data;
 }

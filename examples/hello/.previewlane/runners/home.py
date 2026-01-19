@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
 """The runner for the hello.home point (docs/verify.md, "Writing a runner").
 
-koi runs it in the verifier with the recorder's browser already open at the
-preview's home page. It drives that page over the ws URL in KOI_RECORDER_WS,
-reads the heading, asks koi for a screenshot and for the recorder's own read
-of GET /, and reports one assertion citing both. koi decides the point's
+previewlane runs it in the verifier with the recorder's browser already open at the
+preview's home page. It drives that page over the ws URL in PREVIEWLANE_RECORDER_WS,
+reads the heading, asks previewlane for a screenshot and for the recorder's own read
+of GET /, and reports one assertion citing both. previewlane decides the point's
 outcome from that report and the artifacts it holds; the runner only says
 what it saw.
 """
 
 import sys
 
-import koi_runner as koi
+import previewlane_runner as previewlane
 from playwright.sync_api import sync_playwright
 
-EXPECTED = "hello from koi"
+EXPECTED = "hello from previewlane"
 
 
 def main():
-    env = koi.env()
+    env = previewlane.env()
     with sync_playwright() as p:
         browser = p.chromium.connect_over_cdp(env.recorder_ws, timeout=30_000)
         pages = [page for context in browser.contexts for page in context.pages]
         page = next((pg for pg in pages if pg.url.startswith(env.preview_url)), None)
         if page is None:
-            koi.assertion(
+            previewlane.assertion(
                 "home-says-hello",
                 "blocked",
                 detail=f"the recorder's browser has no page of {env.preview_url}; it has {[pg.url for pg in pages]}",
@@ -34,17 +34,17 @@ def main():
         heading = (page.text_content("h1") or "").strip()
         evidence = []
         try:
-            evidence.append(koi.capture("screenshot", "home"))
-        except koi.CaptureFailed as err:
-            koi.note(f"the screenshot was not kept: {err.code}")
+            evidence.append(previewlane.capture("screenshot", "home"))
+        except previewlane.CaptureFailed as err:
+            previewlane.note(f"the screenshot was not kept: {err.code}")
         try:
-            evidence.append(koi.read("/", "home-state"))
-        except koi.CaptureFailed as err:
-            koi.note(f"the read of / was not kept: {err.code}")
+            evidence.append(previewlane.read("/", "home-state"))
+        except previewlane.CaptureFailed as err:
+            previewlane.note(f"the read of / was not kept: {err.code}")
         if heading == EXPECTED:
-            koi.assertion("home-says-hello", "pass", evidence, detail=f'the heading reads "{heading}"')
+            previewlane.assertion("home-says-hello", "pass", evidence, detail=f'the heading reads "{heading}"')
         else:
-            koi.assertion(
+            previewlane.assertion(
                 "home-says-hello",
                 "fail",
                 evidence,

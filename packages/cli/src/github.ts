@@ -1,4 +1,4 @@
-import { GhCommentPagesSchema, GhCommentSchema, GhPullRequestSchema } from '@koi/shared';
+import { GhCommentPagesSchema, GhCommentSchema, GhPullRequestSchema } from '@previewlane/shared';
 import {
 	ExecError,
 	type ExecOptions,
@@ -8,7 +8,7 @@ import {
 	SpawnError,
 } from './exec.ts';
 
-// The pull request side of `koi up --pr N --comment`, through the gh CLI so it
+// The pull request side of `previewlane up --pr N --comment`, through the gh CLI so it
 // uses whatever GitHub login the user already has. Both throw GhMissingError
 // when gh cannot be started.
 export interface GitHub {
@@ -42,7 +42,7 @@ export class GhMissingError extends Error {
 }
 
 // How long one gh command may take. gh talks to GitHub over the network; a
-// stalled one fails koi up with an error rather than holding it forever.
+// stalled one fails previewlane up with an error rather than holding it forever.
 export const GH_TIMEOUT_MS = 2 * 60_000;
 
 // `run` is exec, or a stand-in for it in tests.
@@ -149,7 +149,7 @@ export function ownerRepoFor(repoId: string): string {
 }
 
 export function commentMarker(label: string): string {
-	return `<!-- koi-preview:${label} -->`;
+	return `<!-- previewlane-preview:${label} -->`;
 }
 
 export function commentBody(p: {
@@ -176,13 +176,13 @@ export function commentBody(p: {
 			'',
 			`Built from ${p.built}. The first visit after a quiet spell takes about a minute while the box wakes up.`,
 			'',
-			`Nodes that call an LLM need a key: open ${p.keysUrl}, paste your provider keys there, and use the koi tokens it gives you in the nodes, one per provider. The tokens work only in this preview, which never sees your real keys.`,
+			`Nodes that call an LLM need a key: open ${p.keysUrl}, paste your provider keys there, and use the previewlane tokens it gives you in the nodes, one per provider. The tokens work only in this preview, which never sees your real keys.`,
 		);
 	} else {
 		lines.push(
 			`**Preview build failed** for ${p.built}. ${p.url} still serves the previous version, if there was one.`,
 			'',
-			`The author can see why with \`koi logs --build ${p.label}\`.`,
+			`The author can see why with \`previewlane logs --build ${p.label}\`.`,
 		);
 	}
 	return lines.join('\n');

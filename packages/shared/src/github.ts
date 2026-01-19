@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// What `gh` prints for the calls `koi up --pr N` makes, as far as koi reads it.
+// What `gh` prints for the calls `previewlane up --pr N` makes, as far as previewlane reads it.
 
 // `gh pr view N --json headRefName,baseRefName`.
 export const GhPullRequestSchema = z.object({

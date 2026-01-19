@@ -30,7 +30,7 @@ def run(name, where, prelude=None):
     """Runs install.sh's function name with the box's paths under where; returns the completed process."""
     if prelude is None:
         prelude = runuser_stub(where)
-    script = function(name).replace("/var/lib/koi-egress", str(where / "var")).replace("/etc/koi/egress", str(where / "etc"))
+    script = function(name).replace("/var/lib/previewlane-egress", str(where / "var")).replace("/etc/previewlane/egress", str(where / "etc"))
     return subprocess.run(
         ["bash", "-c", f"set -euo pipefail\n{prelude}\n{script}\n{name}\n"],
         capture_output=True,
@@ -57,14 +57,14 @@ class TestPublishCa:
         (tmp_path / "etc").mkdir()
         return tmp_path, runuser_stub(tmp_path), tmp_path / "runuser.log"
 
-    def test_copies_a_certificate_read_as_koi_egress(self, box):
+    def test_copies_a_certificate_read_as_previewlane_egress(self, box):
         where, prelude, log = box
         (where / "var" / "mitmproxy-ca-cert.pem").write_text(CERT)
         done = run("publish_ca", where, prelude)
         assert done.returncode == 0, done.stderr
         assert (where / "etc" / "ca.pem").read_text() == CERT
         assert oct((where / "etc" / "ca.pem").stat().st_mode & 0o777) == "0o644"
-        assert log.read_text() == "koi-egress\n"
+        assert log.read_text() == "previewlane-egress\n"
         assert not list(where.glob("tmp.*"))
 
     @pytest.mark.parametrize(
@@ -87,7 +87,7 @@ class TestPublishCa:
         assert "refusing to publish" in done.stderr
         assert not (where / "etc" / "ca.pem").exists()
 
-    def test_fails_when_the_file_cannot_be_read_as_koi_egress(self, box):
+    def test_fails_when_the_file_cannot_be_read_as_previewlane_egress(self, box):
         where, prelude, log = box
         done = run("publish_ca", where, prelude)
         assert done.returncode == 1
@@ -96,27 +96,27 @@ class TestPublishCa:
 
 
 class TestRemoveOldSecret:
-    """The secret an earlier revision kept under /var/lib/koi-egress goes, without following a symlink."""
+    """The secret an earlier revision kept under /var/lib/previewlane-egress goes, without following a symlink."""
 
     def old(self, tmp_path):
         private = tmp_path / "var" / "private"
         private.mkdir(parents=True)
         return private
 
-    def test_removes_the_file_and_then_the_empty_directory_as_koi_egress(self, tmp_path):
+    def test_removes_the_file_and_then_the_empty_directory_as_previewlane_egress(self, tmp_path):
         private = self.old(tmp_path)
         (private / "token-secret").write_bytes(b"s" * 32)
         assert run("remove_old_secret", tmp_path).returncode == 0
         assert not private.exists()
-        assert asked_of_runuser(tmp_path) == ["koi-egress", "koi-egress"]
+        assert asked_of_runuser(tmp_path) == ["previewlane-egress", "previewlane-egress"]
 
     def test_a_directory_swapped_for_a_symlink_after_the_check_leads_nowhere_root_would_delete(self, tmp_path):
-        # The proxy's user owns /var/lib/koi-egress, so
+        # The proxy's user owns /var/lib/previewlane-egress, so
         # the proxy can replace private with a symlink to the live secret's
         # directory between the check and the removal. The removal runs as
         # that user, which cannot delete there. The stand-in runuser makes
         # the swap just before each command; the live directory is one its
-        # caller cannot write, as root's is to koi-egress.
+        # caller cannot write, as root's is to previewlane-egress.
         private = self.old(tmp_path)
         (private / "token-secret").write_bytes(b"old")
         live = tmp_path / "live"
@@ -128,7 +128,7 @@ class TestRemoveOldSecret:
             done = run("remove_old_secret", tmp_path, runuser_stub(tmp_path, before=swap))
             assert done.returncode == 0, done.stderr
             assert (live / "token-secret").read_bytes() == b"s" * 32
-            assert asked_of_runuser(tmp_path) == ["koi-egress", "koi-egress"]
+            assert asked_of_runuser(tmp_path) == ["previewlane-egress", "previewlane-egress"]
         finally:
             live.chmod(0o755)
 

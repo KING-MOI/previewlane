@@ -1,17 +1,17 @@
 {
-	"name": "@koi/cli",
+	"name": "@previewlane/cli",
 	"version": "0.0.0",
 	"private": true,
 	"license": "MIT",
 	"type": "module",
 	"bin": {
-		"koi": "./src/main.ts"
+		"previewlane": "./src/main.ts"
 	},
 	"scripts": {
-		"build": "bun build --compile --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile dist/koi ./src/main.ts"
+		"build": "bun build --compile --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile dist/previewlane ./src/main.ts"
 	},
 	"dependencies": {
-		"@koi/shared": "workspace:*",
+		"@previewlane/shared": "workspace:*",
 		"@aws-sdk/client-ec2": "^3.900.0",
 		"@aws-sdk/client-s3": "^3.900.0",
 		"@aws-sdk/client-ssm": "^3.900.0",

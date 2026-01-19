@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import { PreviewLabelSchema } from './preview.ts';
-import { KoiTokenSchema, ProviderIdSchema } from './providers.ts';
+import { PreviewlaneTokenSchema, ProviderIdSchema } from './providers.ts';
 
-// What the keys page (keys.<domain>) sends koid, which koid checks before
+// What the keys page (keys.<domain>) sends previewlaned, which previewlaned checks before
 // anything reaches the egress proxy.
 
 // A reviewer's provider key: one line of at most 512 characters, as the
-// egress proxy also requires (koi_egress.py, Registry.register).
+// egress proxy also requires (previewlane_egress.py, Registry.register).
 export const ProviderKeySchema = z
 	.string()
 	.min(1)
@@ -29,4 +29,4 @@ export const RegisterKeysSchema = z.strictObject({
 export type RegisterKeys = z.infer<typeof RegisterKeysSchema>;
 
 // POST /api/forget: one token the proxy made.
-export const ForgetTokenSchema = z.strictObject({ token: KoiTokenSchema });
+export const ForgetTokenSchema = z.strictObject({ token: PreviewlaneTokenSchema });

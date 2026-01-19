@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-// How koid describes itself to the CLI (`koid ctl describe`). The CLI reads
-// it before it hands a request to koid, so that a target that names the wrong
+// How previewlaned describes itself to the CLI (`previewlaned ctl describe`). The CLI reads
+// it before it hands a request to previewlaned, so that a target that names the wrong
 // host, or a host whose domain changed, stops the operation instead of
 // publishing a preview under a domain nobody expected. Every transport
 // returns this one shape: through SSM on AWS, and over the control socket for
@@ -33,7 +33,7 @@ export const BareDomainSchema = z
 		},
 	);
 
-// koid makes an id on first use and keeps it in its state directory, so the
+// previewlaned makes an id on first use and keeps it in its state directory, so the
 // id names the installation, not the machine or its address. The same
 // alphabet as request ids, so it is safe on a command line and in a path.
 export const HostIdSchema = z.string().regex(/^[a-z0-9]{16,40}$/);
@@ -49,7 +49,7 @@ export const HostCapabilitiesSchema = z.object({
 	// A two-way channel for calls and events, as against one bounded command
 	// at a time.
 	duplex: z.boolean(),
-	// Build logs paged by attempt and byte offset (koid ctl status).
+	// Build logs paged by attempt and byte offset (previewlaned ctl status).
 	buildLogCursor: z.boolean(),
 	// A live container log, as against a bounded tail.
 	runtimeLogStream: z.boolean(),

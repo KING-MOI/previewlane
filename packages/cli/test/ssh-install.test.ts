@@ -29,8 +29,8 @@ getent)
 	;;
 id)
 	case $1 in
-	-nG) echo 'koi-connect koi-control' ;;
-	koi-connect) [ -f "$STATE/password" ] ;;
+	-nG) echo 'previewlane-connect previewlane-control' ;;
+	previewlane-connect) [ -f "$STATE/password" ] ;;
 	*) exit 1 ;;
 	esac
 	;;
@@ -61,7 +61,7 @@ const roots: string[] = [];
 
 // A scratch box: the stand-ins, and the account's field, or no account at all.
 async function box(password: string | undefined) {
-	const root = await mkdtemp(join(tmpdir(), 'koi-install-'));
+	const root = await mkdtemp(join(tmpdir(), 'previewlane-install-'));
 	roots.push(root);
 	const bin = join(root, 'bin');
 	await mkdir(bin);
@@ -69,7 +69,7 @@ async function box(password: string | undefined) {
 	if (password !== undefined) await writeFile(join(root, 'password'), password);
 	const run = async () => {
 		const section = await accountsSection();
-		const script = `set -euo pipefail\nHOME_DIR=/var/lib/koi-connect\n${section}`;
+		const script = `set -euo pipefail\nHOME_DIR=/var/lib/previewlane-connect\n${section}`;
 		const proc = Bun.spawn(['bash', '-c', script], {
 			env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, STATE: root },
 			stdin: 'ignore',
@@ -84,7 +84,7 @@ async function box(password: string | undefined) {
 	return { root, run, log, field };
 }
 
-describe('host/ssh/install.sh and the password of koi-connect', () => {
+describe('host/ssh/install.sh and the password of previewlane-connect', () => {
 	afterAll(async () => {
 		for (const root of roots) await rm(root, { recursive: true, force: true });
 	});
@@ -101,7 +101,7 @@ describe('host/ssh/install.sh and the password of koi-connect', () => {
 		expect(r.stderr).toBe('');
 		expect(r.code).toBe(0);
 		expect(await b.field()).toBe('*');
-		expect(await b.log()).toContain('usermod -p * koi-connect');
+		expect(await b.log()).toContain('usermod -p * previewlane-connect');
 	});
 
 	for (const locked of ['!', '!*', '!!', '!$6$salt$hash', '$6$salt$hash']) {
@@ -111,7 +111,7 @@ describe('host/ssh/install.sh and the password of koi-connect', () => {
 			expect(r.stderr).toBe('');
 			expect(r.code).toBe(0);
 			expect(await b.field()).toBe('*');
-			expect(await b.log()).not.toContain('usermod -L koi-connect');
+			expect(await b.log()).not.toContain('usermod -L previewlane-connect');
 		});
 	}
 
@@ -119,11 +119,11 @@ describe('host/ssh/install.sh and the password of koi-connect', () => {
 		const b = await box('!');
 		expect((await b.run()).code).toBe(0);
 		const once = await b.log();
-		expect(once.filter((l) => l.startsWith('usermod -p'))).toEqual(['usermod -p * koi-connect']);
+		expect(once.filter((l) => l.startsWith('usermod -p'))).toEqual(['usermod -p * previewlane-connect']);
 		expect((await b.run()).code).toBe(0);
 		expect(await b.field()).toBe('*');
 		const twice = await b.log();
-		expect(twice.filter((l) => l.startsWith('usermod -p'))).toEqual(['usermod -p * koi-connect']);
+		expect(twice.filter((l) => l.startsWith('usermod -p'))).toEqual(['usermod -p * previewlane-connect']);
 		expect(twice.length).toBeGreaterThan(once.length);
 	});
 

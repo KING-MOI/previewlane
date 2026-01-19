@@ -22,14 +22,14 @@ from mitmproxy.http import Headers
 from mitmproxy.test import taddons, tflow
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import koi_egress  # noqa: E402
+import previewlane_egress  # noqa: E402
 
 ALLOW = os.path.join(os.path.dirname(__file__), "..", "allow.txt")
 # Shaped like a token, but no registry made it.
-TOKEN = "koi_" + "a" * 32
-OTHER = "koi_" + "b" * 32
+TOKEN = "previewlane_" + "a" * 32
+OTHER = "previewlane_" + "b" * 32
 LABEL = "storefront-pr-7"
-# The address of LABEL's container, as koid maps it.
+# The address of LABEL's container, as previewlaned maps it.
 PREVIEW_IP = "172.19.0.5"
 # A token secret for registries made directly, as the box's is 32 bytes.
 SECRET = bytes(range(32))
@@ -37,9 +37,9 @@ SECRET = bytes(range(32))
 
 @pytest.fixture
 def egress(tmp_path):
-    a = koi_egress.KoiEgress()
+    a = previewlane_egress.PreviewlaneEgress()
     with taddons.context(a) as tctx:
-        tctx.configure(a, koi_allow=ALLOW, koi_secret=str(token_secret(tmp_path)))
+        tctx.configure(a, previewlane_allow=ALLOW, previewlane_secret=str(token_secret(tmp_path)))
         a.set_previews({PREVIEW_IP: LABEL})
         yield a
 
@@ -70,7 +70,7 @@ def provider_flow(egress, host, headers=None, query=None, path="/v1/x", ip=PREVI
 
 
 def test_providers_are_always_allowed(egress):
-    for host in koi_egress.PROVIDERS:
+    for host in previewlane_egress.PROVIDERS:
         f = tflow.tflow()
         f.request.method = "CONNECT"
         f.request.host, f.request.port = host, 443
@@ -158,7 +158,7 @@ class TestSwap:
     )
     def test_swaps_nowhere_but_the_providers_documented_field(self, egress, host, headers, query, path):
         # TOKEN stands for the host's own, valid, token.
-        provider = koi_egress.PROVIDERS[host]
+        provider = previewlane_egress.PROVIDERS[host]
         token = register(egress, provider, f"real-{provider}-key")
         headers = {k: v.replace(TOKEN, token) for k, v in headers.items()}
         query = {k: v.replace(TOKEN, token) for k, v in query.items()}
@@ -170,7 +170,7 @@ class TestSwap:
         assert egress.substituted.get(f) is None
 
     def test_every_provider_says_where_its_key_goes(self):
-        assert set(koi_egress.AUTH) == set(koi_egress.PROVIDERS.values())
+        assert set(previewlane_egress.AUTH) == set(previewlane_egress.PROVIDERS.values())
 
     def test_asks_for_an_unencoded_response_when_a_key_went_up(self, egress):
         token = register(egress, "openai", "sk-real-openai")
@@ -199,9 +199,9 @@ class TestSwap:
 
     def test_caps_requests_per_hour(self):
         now = [0.0]
-        registry = koi_egress.Registry(SECRET, clock=lambda: now[0])
+        registry = previewlane_egress.Registry(SECRET, clock=lambda: now[0])
         token = registry.register(LABEL, {"openai": "k"})["openai"]
-        for _ in range(koi_egress.REQUESTS_PER_HOUR):
+        for _ in range(previewlane_egress.REQUESTS_PER_HOUR):
             assert registry.key_for(token, "openai", LABEL)[0] == "k"
         key, reason = registry.key_for(token, "openai", LABEL)
         assert key is None and "requests this hour" in reason
@@ -210,9 +210,9 @@ class TestSwap:
 
     def test_registrations_expire(self):
         now = [0.0]
-        registry = koi_egress.Registry(SECRET, clock=lambda: now[0])
+        registry = previewlane_egress.Registry(SECRET, clock=lambda: now[0])
         token = registry.register(LABEL, {"openai": "k"})["openai"]
-        now[0] += koi_egress.REGISTRATION_TTL_SECONDS + 1
+        now[0] += previewlane_egress.REGISTRATION_TTL_SECONDS + 1
         assert registry.key_for(token, "openai", LABEL)[0] is None
 
 
@@ -287,15 +287,15 @@ class TestRegistration:
     )
     def test_rejects_bad_input(self, label, keys):
         with pytest.raises(ValueError):
-            koi_egress.Registry(SECRET).register(label, keys)
+            previewlane_egress.Registry(SECRET).register(label, keys)
 
     def test_one_token_per_key_and_the_same_one_again(self):
-        registry = koi_egress.Registry(SECRET)
+        registry = previewlane_egress.Registry(SECRET)
         first = registry.register(LABEL, {"openai": "k1", "anthropic": "k2"})
         again = registry.register(LABEL, {"openai": "k1"})
         other = registry.register(LABEL, {"openai": "k3"})
         tokens = [first["openai"], first["anthropic"], other["openai"]]
-        assert all(koi_egress.TOKEN_RE.fullmatch(t) for t in tokens)
+        assert all(previewlane_egress.TOKEN_RE.fullmatch(t) for t in tokens)
         assert len(set(tokens)) == 3
         assert again["openai"] == first["openai"]
         assert len(registry.entries) == 3
@@ -304,32 +304,32 @@ class TestRegistration:
 
     def test_registering_again_renews_the_registration_and_keeps_the_count(self):
         now = [0.0]
-        registry = koi_egress.Registry(SECRET, clock=lambda: now[0])
+        registry = previewlane_egress.Registry(SECRET, clock=lambda: now[0])
         token = registry.register(LABEL, {"openai": "k"}, "198.51.100.1")["openai"]
         for _ in range(3):
             registry.key_for(token, "openai", LABEL)
-        now[0] += koi_egress.REGISTRATION_TTL_SECONDS - 1
+        now[0] += previewlane_egress.REGISTRATION_TTL_SECONDS - 1
         assert registry.register(LABEL, {"openai": "k"}, "198.51.100.2")["openai"] == token
         entry = registry.entries[token]
-        assert entry["expires"] == now[0] + koi_egress.REGISTRATION_TTL_SECONDS
+        assert entry["expires"] == now[0] + previewlane_egress.REGISTRATION_TTL_SECONDS
         assert entry["count"] == 3
         assert entry["source"] == "198.51.100.2"
         # Still the same token after it expired and went.
-        now[0] += koi_egress.REGISTRATION_TTL_SECONDS + 1
+        now[0] += previewlane_egress.REGISTRATION_TTL_SECONDS + 1
         assert registry.key_for(token, "openai", LABEL)[0] is None
         assert registry.register(LABEL, {"openai": "k"})["openai"] == token
         assert registry.key_for(token, "openai", LABEL)[0] == "k"
 
     def test_a_registry_without_a_secret_makes_no_token(self):
         with pytest.raises(ValueError, match="no token secret"):
-            koi_egress.Registry().register(LABEL, {"openai": "k"})
+            previewlane_egress.Registry().register(LABEL, {"openai": "k"})
         for bad in [b"", b"x" * 31, b"x" * 33, "x" * 32]:
             with pytest.raises(ValueError, match="no token secret"):
-                koi_egress.Registry(bad).register(LABEL, {"openai": "k"})
+                previewlane_egress.Registry(bad).register(LABEL, {"openai": "k"})
 
     def test_control_socket_registers_maps_and_forgets(self):
         async def scenario():
-            a = koi_egress.KoiEgress()
+            a = previewlane_egress.PreviewlaneEgress()
             a.registry.secret = SECRET
             path = os.path.join(tempfile.mkdtemp(), "control.sock")
             server = await asyncio.start_unix_server(a.handle_control, path=path)
@@ -365,14 +365,14 @@ class TestRegistration:
 
 class TestRegistryLimits:
     def test_caps_tokens_in_all(self, monkeypatch):
-        monkeypatch.setattr(koi_egress, "MAX_TOKENS", 3)
-        registry = koi_egress.Registry(SECRET)
+        monkeypatch.setattr(previewlane_egress, "MAX_TOKENS", 3)
+        registry = previewlane_egress.Registry(SECRET)
         # Each registration is a different key, so a different token.
         tokens = [registry.register(LABEL, {"openai": f"k{i}"}, f"198.51.100.{i}")["openai"] for i in range(2)]
-        with pytest.raises(ValueError, match="as many koi tokens as it can"):
+        with pytest.raises(ValueError, match="as many previewlane tokens as it can"):
             registry.register(LABEL, {"openai": "k3", "anthropic": "k3"}, "198.51.100.3")
         registry.register(LABEL, {"openai": "k3"}, "198.51.100.3")
-        with pytest.raises(ValueError, match="as many koi tokens as it can"):
+        with pytest.raises(ValueError, match="as many previewlane tokens as it can"):
             registry.register(LABEL, {"openai": "k4"}, "198.51.100.4")
         # A key already registered takes no room; a forgotten one makes room.
         registry.register(LABEL, {"openai": "k3"}, "198.51.100.4")
@@ -381,8 +381,8 @@ class TestRegistryLimits:
         assert len(registry.entries) == 3
 
     def test_caps_tokens_per_source(self, monkeypatch):
-        monkeypatch.setattr(koi_egress, "MAX_TOKENS_PER_SOURCE", 2)
-        registry = koi_egress.Registry(SECRET)
+        monkeypatch.setattr(previewlane_egress, "MAX_TOKENS_PER_SOURCE", 2)
+        registry = previewlane_egress.Registry(SECRET)
         registry.register(LABEL, {"openai": "k1"}, "198.51.100.1")
         with pytest.raises(ValueError, match="from this address"):
             registry.register(LABEL, {"openai": "k2", "anthropic": "k2"}, "198.51.100.1")
@@ -397,8 +397,8 @@ class TestRegistryLimits:
         # The token moves to the new address, so the
         # check counts it there; registered again from its own address it
         # stays free, even at the cap.
-        monkeypatch.setattr(koi_egress, "MAX_TOKENS_PER_SOURCE", 2)
-        registry = koi_egress.Registry(SECRET)
+        monkeypatch.setattr(previewlane_egress, "MAX_TOKENS_PER_SOURCE", 2)
+        registry = previewlane_egress.Registry(SECRET)
         registry.register(LABEL, {"openai": "k1", "anthropic": "k1"}, "198.51.100.1")
         registry.register(LABEL, {"openai": "k2", "anthropic": "k2"}, "198.51.100.2")
         registry.register(LABEL, {"openai": "k2", "anthropic": "k2"}, "198.51.100.2")
@@ -415,27 +415,27 @@ class TestRegistryLimits:
         registry.register(LABEL, {"openai": "k1", "anthropic": "k2"}, "198.51.100.2")
 
     def test_expired_tokens_make_room(self, monkeypatch):
-        monkeypatch.setattr(koi_egress, "MAX_TOKENS", 1)
+        monkeypatch.setattr(previewlane_egress, "MAX_TOKENS", 1)
         now = [0.0]
-        registry = koi_egress.Registry(SECRET, clock=lambda: now[0])
+        registry = previewlane_egress.Registry(SECRET, clock=lambda: now[0])
         registry.register(LABEL, {"openai": "k1"}, "198.51.100.1")
-        now[0] += koi_egress.REGISTRATION_TTL_SECONDS + 1
+        now[0] += previewlane_egress.REGISTRATION_TTL_SECONDS + 1
         token = registry.register(LABEL, {"openai": "k2"}, "198.51.100.2")["openai"]
         assert list(registry.entries) == [token]
 
     @pytest.mark.parametrize("source", [5, ["x"], "x" * 65])
     def test_rejects_a_bad_source(self, source):
         with pytest.raises(ValueError, match="bad source"):
-            koi_egress.Registry(SECRET).register(LABEL, {"openai": "k"}, source)
+            previewlane_egress.Registry(SECRET).register(LABEL, {"openai": "k"}, source)
 
     def test_removes_expired_tokens_on_a_timer(self):
         async def scenario():
             now = [0.0]
-            registry = koi_egress.Registry(SECRET, clock=lambda: now[0], sweep_seconds=0.01)
+            registry = previewlane_egress.Registry(SECRET, clock=lambda: now[0], sweep_seconds=0.01)
             registry.register(LABEL, {"openai": "k", "anthropic": "k"}, "198.51.100.1")
             await asyncio.sleep(0.05)
             assert len(registry.entries) == 2
-            now[0] += koi_egress.REGISTRATION_TTL_SECONDS + 1
+            now[0] += previewlane_egress.REGISTRATION_TTL_SECONDS + 1
             await asyncio.sleep(0.05)
             # Gone without anyone using or registering a token, and the
             # timer stops once there is nothing left to expire.
@@ -446,7 +446,7 @@ class TestRegistryLimits:
 
     def test_clear_drops_every_key_and_the_secret_and_stops_the_timer(self):
         async def scenario():
-            registry = koi_egress.Registry(SECRET, sweep_seconds=60)
+            registry = previewlane_egress.Registry(SECRET, sweep_seconds=60)
             registry.register(LABEL, {"openai": "k"}, "198.51.100.1")
             timer = registry.sweeper
             assert timer is not None
@@ -458,10 +458,10 @@ class TestRegistryLimits:
         asyncio.run(scenario())
 
     def test_control_socket_passes_the_source_and_refusals(self, monkeypatch):
-        monkeypatch.setattr(koi_egress, "MAX_TOKENS_PER_SOURCE", 1)
+        monkeypatch.setattr(previewlane_egress, "MAX_TOKENS_PER_SOURCE", 1)
 
         async def scenario():
-            a = koi_egress.KoiEgress()
+            a = previewlane_egress.PreviewlaneEgress()
             a.registry.secret = SECRET
             path = os.path.join(tempfile.mkdtemp(), "control.sock")
             server = await asyncio.start_unix_server(a.handle_control, path=path)
@@ -490,17 +490,17 @@ class TestDerivation:
     ARGS = ("openai", LABEL, "sk-real-key")
 
     def test_the_same_inputs_give_the_same_token(self):
-        token = koi_egress.derive_token(SECRET, *self.ARGS)
-        assert koi_egress.derive_token(SECRET, *self.ARGS) == token
-        assert koi_egress.Registry(SECRET).register(LABEL, {"openai": "sk-real-key"})["openai"] == token
+        token = previewlane_egress.derive_token(SECRET, *self.ARGS)
+        assert previewlane_egress.derive_token(SECRET, *self.ARGS) == token
+        assert previewlane_egress.Registry(SECRET).register(LABEL, {"openai": "sk-real-key"})["openai"] == token
 
-    def test_a_token_is_koi_and_32_characters_of_lowercase_base32(self):
-        token = koi_egress.derive_token(SECRET, *self.ARGS)
+    def test_a_token_is_previewlane_and_32_characters_of_lowercase_base32(self):
+        token = previewlane_egress.derive_token(SECRET, *self.ARGS)
         assert len(token) == 36
-        assert re.fullmatch(r"koi_[a-z2-7]{32}", token)
-        assert koi_egress.TOKEN_RE.fullmatch(token)
-        assert koi_egress.BEARER_RE.fullmatch(f"Bearer {token}")
-        assert koi_egress.TOKEN_BYTES * 8 >= 128
+        assert re.fullmatch(r"previewlane_[a-z2-7]{32}", token)
+        assert previewlane_egress.TOKEN_RE.fullmatch(token)
+        assert previewlane_egress.BEARER_RE.fullmatch(f"Bearer {token}")
+        assert previewlane_egress.TOKEN_BYTES * 8 >= 128
 
     @pytest.mark.parametrize(
         "change",
@@ -515,38 +515,38 @@ class TestDerivation:
     )
     def test_any_change_in_the_inputs_or_the_secret_gives_another_token(self, change):
         args = {"secret": SECRET, "provider": "openai", "label": LABEL, "key": "sk-real-key"}
-        assert koi_egress.derive_token(**{**args, **change}) != koi_egress.derive_token(**args)
+        assert previewlane_egress.derive_token(**{**args, **change}) != previewlane_egress.derive_token(**args)
 
     def test_fields_cannot_run_into_each_other(self):
         # Each field goes in behind its length, so moving characters between
         # the label and the key, or the provider and the label, changes the
         # token: "ab" + "c" and "a" + "bc" are different registrations.
-        assert koi_egress.derive_token(SECRET, "openai", "ab", "c") != koi_egress.derive_token(SECRET, "openai", "a", "bc")
-        assert koi_egress.derive_token(SECRET, "openai", "a", "b") != koi_egress.derive_token(SECRET, "openaia", "", "b")
-        assert koi_egress.derive_token(SECRET, "openai", "a", "") != koi_egress.derive_token(SECRET, "openai", "", "a")
+        assert previewlane_egress.derive_token(SECRET, "openai", "ab", "c") != previewlane_egress.derive_token(SECRET, "openai", "a", "bc")
+        assert previewlane_egress.derive_token(SECRET, "openai", "a", "b") != previewlane_egress.derive_token(SECRET, "openaia", "", "b")
+        assert previewlane_egress.derive_token(SECRET, "openai", "a", "") != previewlane_egress.derive_token(SECRET, "openai", "", "a")
 
     def test_the_format_is_pinned(self):
         # Written out in full: a change here invalidates every token on the
         # box, so it must be deliberate (and the secret's domain must stay
         # this proxy's own).
         message = (
-            b"koi token v1"
+            b"previewlane token v1"
             + b"\x00\x00\x00\x06openai"
             + b"\x00\x00\x00\x0fstorefront-pr-7"
             + b"\x00\x00\x00\x0bsk-real-key"
         )
         digest = hmac.new(SECRET, message, hashlib.sha256).digest()[:20]
-        expected = "koi_" + "".join(
+        expected = "previewlane_" + "".join(
             "abcdefghijklmnopqrstuvwxyz234567"[int(bits, 2)]
             for bits in re.findall(".{5}", "".join(f"{b:08b}" for b in digest))
         )
-        assert koi_egress.derive_token(SECRET, *self.ARGS) == expected
+        assert previewlane_egress.derive_token(SECRET, *self.ARGS) == expected
 
     def test_a_token_says_nothing_about_the_key_without_the_secret(self):
         # Two keys that differ in one character get tokens that share no
         # more than chance, and the secret is nowhere in the token.
-        a = koi_egress.derive_token(SECRET, "openai", LABEL, "sk-real-key-1")
-        b = koi_egress.derive_token(SECRET, "openai", LABEL, "sk-real-key-2")
+        a = previewlane_egress.derive_token(SECRET, "openai", LABEL, "sk-real-key-1")
+        b = previewlane_egress.derive_token(SECRET, "openai", LABEL, "sk-real-key-2")
         assert sum(x == y for x, y in zip(a[4:], b[4:])) < 10
         assert SECRET.hex() not in a and "sk-real" not in a
 
@@ -556,13 +556,13 @@ class TestSecretFile:
 
     def test_reads_a_well_kept_file(self, tmp_path):
         path = token_secret(tmp_path, SECRET)
-        assert koi_egress.load_secret(str(path)) == SECRET
+        assert previewlane_egress.load_secret(str(path)) == SECRET
 
     @pytest.mark.parametrize("size", [0, 31, 33, 64])
     def test_refuses_the_wrong_size(self, tmp_path, size):
         path = token_secret(tmp_path, b"x" * size)
         with pytest.raises(ValueError, match="not 32 bytes"):
-            koi_egress.load_secret(str(path))
+            previewlane_egress.load_secret(str(path))
 
     @pytest.mark.parametrize("mode", [0o600, 0o700, 0o440, 0o640, 0o604, 0o660, 0o666, 0o644, 0o610, 0o601])
     def test_refuses_any_mode_but_0400(self, tmp_path, mode):
@@ -571,21 +571,21 @@ class TestSecretFile:
         path = token_secret(tmp_path, SECRET)
         path.chmod(mode)
         with pytest.raises(ValueError, match="not 0400") as e:
-            koi_egress.load_secret(str(path))
+            previewlane_egress.load_secret(str(path))
         assert f"{mode:04o}" in str(e.value)
         assert SECRET.hex() not in str(e.value)
 
     def test_refuses_a_missing_file_a_symlink_a_directory_and_no_path(self, tmp_path):
         with pytest.raises(OSError):
-            koi_egress.load_secret(str(tmp_path / "missing"))
+            previewlane_egress.load_secret(str(tmp_path / "missing"))
         link = tmp_path / "link"
         link.symlink_to(token_secret(tmp_path, SECRET))
         with pytest.raises(OSError):
-            koi_egress.load_secret(str(link))
+            previewlane_egress.load_secret(str(link))
         with pytest.raises((OSError, ValueError)):
-            koi_egress.load_secret(str(tmp_path))
+            previewlane_egress.load_secret(str(tmp_path))
         with pytest.raises(ValueError, match="no token secret file"):
-            koi_egress.load_secret("")
+            previewlane_egress.load_secret("")
 
     def test_refuses_a_fifo_without_waiting_on_it(self, tmp_path):
         # Opening a FIFO with no writer blocks until one comes; the proxy
@@ -596,7 +596,7 @@ class TestSecretFile:
 
         def attempt():
             try:
-                koi_egress.load_secret(str(fifo))
+                previewlane_egress.load_secret(str(fifo))
             except Exception as e:  # noqa: BLE001
                 outcome.append(e)
 
@@ -609,20 +609,20 @@ class TestSecretFile:
     def test_the_default_path_is_where_install_sh_puts_it(self):
         text = (pathlib.Path(__file__).parent.parent / "install.sh").read_text()
         assert f"secret=$secret_dir/token-secret" in text
-        assert "secret_dir=" + os.path.dirname(koi_egress.SECRET_PATH) + "\n" in text
-        assert f"--set koi_secret={koi_egress.SECRET_PATH} " in text
+        assert "secret_dir=" + os.path.dirname(previewlane_egress.SECRET_PATH) + "\n" in text
+        assert f"--set previewlane_secret={previewlane_egress.SECRET_PATH} " in text
 
     def test_a_bad_secret_leaves_the_policy_without_one(self, tmp_path):
         # configure logs what is wrong and leaves the registry without a
         # secret; running() then keeps the proxy down (test_failclosed.py).
-        a = koi_egress.KoiEgress()
+        a = previewlane_egress.PreviewlaneEgress()
         with taddons.context(a) as tctx:
-            tctx.configure(a, koi_allow=ALLOW, koi_secret=str(token_secret(tmp_path, b"short")))
+            tctx.configure(a, previewlane_allow=ALLOW, previewlane_secret=str(token_secret(tmp_path, b"short")))
             assert a.ready is True
             assert a.registry.secret is None
             with pytest.raises(ValueError, match="no token secret"):
                 a.registry.register(LABEL, {"openai": "k"})
-            tctx.configure(a, koi_secret=str(token_secret(tmp_path, SECRET, name="good")))
+            tctx.configure(a, previewlane_secret=str(token_secret(tmp_path, SECRET, name="good")))
             assert a.registry.secret == SECRET
 
 
@@ -784,7 +784,7 @@ class TestUpgrades:
         ],
     )
     def test_an_upgrade_with_a_token_is_refused_and_gets_no_key(self, egress, host, where, path):
-        token = register(egress, koi_egress.PROVIDERS[host], "real-key")
+        token = register(egress, previewlane_egress.PROVIDERS[host], "real-key")
         headers, query = dict(self.UPGRADE), {}
         if where == "authorization":
             headers["authorization"] = f"Bearer {token}"

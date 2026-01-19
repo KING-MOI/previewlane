@@ -3,9 +3,9 @@ import {
 	type HostInfo,
 	type UpRequest,
 	VerificationErrorReplySchema,
-} from '@koi/shared';
+} from '@previewlane/shared';
 
-// How the CLI reaches a host: upload source, wake it, run `koid ctl`, read
+// How the CLI reaches a host: upload source, wake it, run `previewlaned ctl`, read
 // its descriptor and follow logs. One implementation per transport; AWS over
 // S3, EC2 and SSM is in transports/aws.ts. host.ts picks one from the
 // selected target.
@@ -29,7 +29,7 @@ export interface CtlResult {
 // Which log to follow. For a build log, `attempt` and `cursor` say where to
 // resume: the attempt whose log it is and a cursor from an earlier line
 // event. Without them the stream starts with the preview's current attempt.
-// With `requestId`, the stream stops when koid replaced that request with a
+// With `requestId`, the stream stops when previewlaned replaced that request with a
 // newer one for the label.
 export interface LogQuery {
 	label: string;
@@ -54,7 +54,7 @@ export interface ChannelEvent {
 	body: unknown;
 }
 
-// A two-way connection to koid for verification calls and events. No
+// A two-way connection to previewlaned for verification calls and events. No
 // transport opens one yet; the SSH transport will. Artifact transfer joins it
 // then, with its shared protocol types.
 export interface ControlChannel {
@@ -65,16 +65,16 @@ export interface ControlChannel {
 }
 
 export interface HostTransport {
-	// Puts the source and the request where koid reads them. On AWS that is
+	// Puts the source and the request where previewlaned reads them. On AWS that is
 	// S3, which takes uploads while the box sleeps.
 	upload(request: UpRequest, tarball: string, o?: OperationOptions): Promise<void>;
-	// Starts the host if the transport can, then waits until koid answers.
+	// Starts the host if the transport can, then waits until previewlaned answers.
 	ensureAwake(progress: Progress, o?: OperationOptions): Promise<void>;
-	// Runs `koid ctl` with these arguments. Throws BoxUnavailableError when
+	// Runs `previewlaned ctl` with these arguments. Throws BoxUnavailableError when
 	// the command could not run to the end this time.
 	ctl(args: string[], o?: OperationOptions): Promise<CtlResult>;
 	// The host's descriptor. Throws UnsupportedCapabilityError('describe')
-	// for a koid from before the descriptor existed.
+	// for a previewlaned from before the descriptor existed.
 	describe(o?: OperationOptions): Promise<HostInfo>;
 	// Follows a log. A time limit bounds the whole stream: at it the stream
 	// ends with a gap that says so, then end, and does not throw.
@@ -89,7 +89,7 @@ export interface HostTransport {
 export type Box = Pick<HostTransport, 'upload' | 'ensureAwake' | 'ctl'> &
 	Partial<Pick<HostTransport, 'close'>>;
 
-// A koid ctl command did not run to the end, for a reason that can pass: the
+// A previewlaned ctl command did not run to the end, for a reason that can pass: the
 // host not ready for commands, throttling, a fault on the provider's side, the
 // network, or the command timing out or being cancelled on the host.
 export class BoxUnavailableError extends Error {}
@@ -105,13 +105,13 @@ export class UnsupportedCapabilityError extends Error {
 	}
 }
 
-// A command was sent and koi stopped waiting for its result (the caller's
+// A command was sent and previewlane stopped waiting for its result (the caller's
 // signal or time limit). It may have run: a request may be accepted, a
 // preview removed. Look at the host's state before doing it again.
 export class UnknownOutcomeError extends Error {}
 
 // The host's descriptor does not match the target: another domain or address
-// than configured. Nothing is sent to koid after this.
+// than configured. Nothing is sent to previewlaned after this.
 export class HostMismatchError extends Error {}
 
 // How many calls a transport stopped waiting for. Such a call ran into its
@@ -130,7 +130,7 @@ export function abandonedCalls(): number {
 	return abandoned;
 }
 
-// Why koid ctl failed: the error in koid's JSON reply, in either of its
+// Why previewlaned ctl failed: the error in previewlaned's JSON reply, in either of its
 // shapes (the verification routes answer {version, error: {code, message}}),
 // or else what it printed.
 export function ctlErrorText(r: CtlResult): string {
@@ -169,9 +169,9 @@ export interface ExpectedHost {
 	// The target's name, for messages.
 	name: string;
 	domain: string;
-	// Take a koid from before `koid ctl describe` at its word, with a
+	// Take a previewlaned from before `previewlaned ctl describe` at its word, with a
 	// warning. Only the AWS paths allow this: the CLI-only migration must not
-	// require a koid upgrade. A mismatch or a descriptor koi cannot read is
+	// require a previewlaned upgrade. A mismatch or a descriptor previewlane cannot read is
 	// never excused.
 	oldDaemonOk: boolean;
 }
@@ -181,24 +181,24 @@ export interface ExpectedHost {
 export function checkHostInfo(info: HostInfo, expected: Pick<ExpectedHost, 'name' | 'domain'>) {
 	if (info.domain !== expected.domain) {
 		throw new HostMismatchError(
-			`the host behind ${expected.name} serves previews under ${info.domain}, not ${expected.domain} as configured; koi stops rather than publish under the wrong domain. Fix the target's domain, or pass --domain ${info.domain} if that host is the right one`,
+			`the host behind ${expected.name} serves previews under ${info.domain}, not ${expected.domain} as configured; previewlane stops rather than publish under the wrong domain. Fix the target's domain, or pass --domain ${info.domain} if that host is the right one`,
 		);
 	}
 	if (info.address.scheme !== 'https' || info.address.port !== 443) {
 		throw new HostMismatchError(
-			`the host behind ${expected.name} serves previews on ${info.address.scheme} port ${info.address.port}; this version of koi expects https on 443`,
+			`the host behind ${expected.name} serves previews on ${info.address.scheme} port ${info.address.port}; this version of previewlane expects https on 443`,
 		);
 	}
 }
 
 // The transport with the host checked against the target the first time it
-// is awake: once koid answers, its descriptor must name the target's domain
+// is awake: once previewlaned answers, its descriptor must name the target's domain
 // and address (checkHostInfo). The check sits in ensureAwake because every
-// command wakes the host before it sends anything to koid, and on AWS koi
+// command wakes the host before it sends anything to previewlaned, and on AWS previewlane
 // up uploads to S3 before it wakes, so this is the first point where the
-// host can answer and the last before source is handed to koid. A time
+// host can answer and the last before source is handed to previewlaned. A time
 // limit on ensureAwake covers the wake and the check together. The SSH
-// transport is not wrapped: its upload reaches koid directly, so it checks
+// transport is not wrapped: its upload reaches previewlaned directly, so it checks
 // the descriptor itself, before the upload as well (transports/ssh.ts).
 export function verifiedTransport(
 	inner: HostTransport,
@@ -210,7 +210,7 @@ export function verifiedTransport(
 	const verify = async (o: OperationOptions | undefined, deadline: number | undefined) => {
 		// The wake had the caller's whole limit. The check gets what the wake
 		// left of it, and when nothing is left the call has run out of time:
-		// it fails as the wake does, and sends nothing to koid.
+		// it fails as the wake does, and sends nothing to previewlaned.
 		let timeoutMs: number | undefined;
 		if (deadline !== undefined) {
 			timeoutMs = deadline - now();
@@ -226,7 +226,7 @@ export function verifiedTransport(
 				expected.oldDaemonOk
 			) {
 				notice(
-					`koid on ${expected.name} predates koid ctl describe, so koi cannot check that it serves ${expected.domain}; taking the configured domain. Deploy the current koid (scripts/deploy-host.sh) to remove this warning`,
+					`previewlaned on ${expected.name} predates previewlaned ctl describe, so previewlane cannot check that it serves ${expected.domain}; taking the configured domain. Deploy the current previewlaned (scripts/deploy-host.sh) to remove this warning`,
 				);
 				return;
 			}

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { decodeCtlArgs, encodeCtlArgs } from '../src/control.ts';
 
-describe('koid ctl arguments as base64', () => {
+describe('previewlaned ctl arguments as base64', () => {
 	test('decode to exactly what was encoded', () => {
 		for (const args of [
 			['ping'],
@@ -37,7 +37,7 @@ describe('koid ctl arguments as base64', () => {
 		}
 	});
 
-	test('refuse to encode what koid would refuse to decode', () => {
+	test('refuse to encode what previewlaned would refuse to decode', () => {
 		expect(() => encodeCtlArgs([])).toThrow();
 		expect(() => encodeCtlArgs(['x'.repeat(1025)])).toThrow();
 	});

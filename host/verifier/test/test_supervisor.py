@@ -36,7 +36,7 @@ def point(tmp_path, steps, timeout=20, runner=None):
 
 
 def signed(line):
-    """Whether a supervisor line's MAC is the one the key gives its text, as koid checks it."""
+    """Whether a supervisor line's MAC is the one the key gives its text, as previewlaned checks it."""
     head, _, tail = line.rpartition(',"mac":"')
     return hmac.new(KEY.encode(), head.encode(), hashlib.sha256).hexdigest() + '"}' == tail
 
@@ -64,7 +64,7 @@ class Run:
 
     The test process stays dumpable: the command-line test below covers the
     real call. `hold_reading` is an event the collector waits on before its first
-    read, as a koid busy elsewhere leaves the supervisor's stdout unread.
+    read, as a previewlaned busy elsewhere leaves the supervisor's stdout unread.
     """
 
     def __init__(self, point_path, cwd, env=None, clock=None, hold_reading=None):
@@ -440,10 +440,10 @@ def test_a_step_that_ended_normally_says_nothing_of_incomplete_output(tmp_path):
 
 
 def test_a_stall_downstream_past_the_idle_limit_loses_nothing(tmp_path):
-    # koid reads nothing for longer than the idle limit, while the step has
+    # previewlaned reads nothing for longer than the idle limit, while the step has
     # already exited with the end of its output still in its own pipe. A limit
     # on the wait for the reader would drop that end, with a clean exit code and
-    # nothing to say so. The output is more than the pipe to koid holds, and little
+    # nothing to say so. The output is more than the pipe to previewlaned holds, and little
     # enough for the two pipes together, so the step can exit during the stall.
     program = (
         "import sys\n"
@@ -497,7 +497,7 @@ def test_output_that_keeps_coming_after_the_step_ends_stops_at_the_budget_and_sa
 def test_a_forward_that_fails_is_reported_as_incomplete_output(tmp_path):
     class BrokenOutput:
         def forward(self, data):
-            raise OSError("the pipe to koid is gone")
+            raise OSError("the pipe to previewlaned is gone")
 
     class NoStdin:
         def attach(self, pipe):
@@ -520,7 +520,7 @@ def test_a_forward_that_fails_is_reported_as_incomplete_output(tmp_path):
 
 
 def test_a_step_with_no_time_left_is_a_timeout_not_a_skip(tmp_path):
-    # koid reads "skipped" as a failed step and "timeout" as the budget. A
+    # previewlaned reads "skipped" as a failed step and "timeout" as the budget. A
     # setup that used its whole share leaves run no time, which is the budget.
     p = point(tmp_path, {"setup": ["sh", "-c", "echo up"], "run": ["sh", "-c", "echo must-not-run"]}, timeout=8)
     clock = iter([0.0, 0.0, 0.0, 0.0, 100.0, 100.0, 100.0, 100.0, 100.0]).__next__
@@ -557,9 +557,9 @@ def test_children_get_the_allowlisted_environment_and_nothing_else(tmp_path):
     env = {
         "PATH": os.environ["PATH"],
         "HOME": "/tmp/home",
-        "KOI_RUN_ID": "r1",
-        "KOI_POINT_ID": "hello.home",
-        "KOI_RECORDER_WS": "ws://10.213.0.3:4317/abc",
+        "PREVIEWLANE_RUN_ID": "r1",
+        "PREVIEWLANE_POINT_ID": "hello.home",
+        "PREVIEWLANE_RECORDER_WS": "ws://10.213.0.3:4317/abc",
         "PYTHON_VERSION": "3.13.13",
         "HTTP_PROXY": "http://proxy:3128",
         "SECRET": "no",
@@ -572,9 +572,9 @@ def test_children_get_the_allowlisted_environment_and_nothing_else(tmp_path):
     assert seen == {
         "PATH": os.environ["PATH"],
         "HOME": "/tmp/home",
-        "KOI_RUN_ID": "r1",
-        "KOI_POINT_ID": "hello.home",
-        "KOI_RECORDER_WS": "ws://10.213.0.3:4317/abc",
+        "PREVIEWLANE_RUN_ID": "r1",
+        "PREVIEWLANE_POINT_ID": "hello.home",
+        "PREVIEWLANE_RECORDER_WS": "ws://10.213.0.3:4317/abc",
         # The shell adds PWD itself.
         **({"PWD": seen["PWD"]} if "PWD" in seen else {}),
     }
@@ -612,8 +612,8 @@ def start_with(seconds):
 
 def test_the_start_line_says_what_the_point_has_left_whatever_point_json_says(tmp_path):
     # point.json was written before the context opened and the inputs were staged.
-    p = point(tmp_path, {"run": ["sh", "-c", "echo timeout=$KOI_TIMEOUT_SECONDS; sleep 30"]}, timeout=600)
-    r = Run(p, cwd=str(tmp_path), env={"PATH": os.environ["PATH"], "KOI_TIMEOUT_SECONDS": "600"})
+    p = point(tmp_path, {"run": ["sh", "-c", "echo timeout=$PREVIEWLANE_TIMEOUT_SECONDS; sleep 30"]}, timeout=600)
+    r = Run(p, cwd=str(tmp_path), env={"PATH": os.environ["PATH"], "PREVIEWLANE_TIMEOUT_SECONDS": "600"})
     started = time.monotonic()
     r.send(start_with(1.2))
     r.close_stdin()
@@ -723,7 +723,7 @@ def test_a_long_line_is_forwarded_whole(tmp_path):
     assert "x" * 200000 in r.lines()
 
 
-def test_load_point_refuses_what_koid_would_not_write():
+def test_load_point_refuses_what_previewlaned_would_not_write():
     with pytest.raises(sup.PointFile):
         sup.load_point("not json")
     with pytest.raises(sup.PointFile):
@@ -770,7 +770,7 @@ def test_exit_code_is_the_worst_step():
 
 
 def test_runs_under_isolated_python_from_the_command_line(tmp_path):
-    # As koid invokes it: python3 -I /koi/supervisor.py /koi/point.json. The
+    # As previewlaned invokes it: python3 -I /previewlane/supervisor.py /previewlane/point.json. The
     # working directory is fixed in the file; here it does not exist, so the
     # step fails to start and says which path.
     p = point(tmp_path, {"run": ["sh", "-c", "echo hi"]})

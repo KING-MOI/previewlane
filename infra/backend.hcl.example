@@ -4,7 +4,7 @@
 # the usual path is to run it. To run tofu by hand before that, copy this file
 # to backend.hcl and put your account id in the bucket name. backend.hcl is
 # gitignored because the bucket name carries the account id.
-bucket       = "koi-tfstate-<account-id>"
-key          = "koi.tfstate"
+bucket       = "previewlane-tfstate-<account-id>"
+key          = "previewlane.tfstate"
 region       = "us-east-1"
 use_lockfile = true

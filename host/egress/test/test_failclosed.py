@@ -1,7 +1,7 @@
 """End-to-end: without a working policy, the proxy is down, never open.
 
-The proxy starts with mitmproxy's server off, as koi-egress.service starts
-it, and only a loaded, set-up koi_egress.py turns it on. These tests load a
+The proxy starts with mitmproxy's server off, as previewlane-egress.service starts
+it, and only a loaded, set-up previewlane_egress.py turns it on. These tests load a
 copy of the policy and break it: at start, in its setup, and by changing the
 file under a running proxy, which mitmproxy reloads.
 """
@@ -16,7 +16,7 @@ from conftest import ADDON, Proxy, Upstream, refused, request, token_secret
 
 BROKEN = {
     "a syntax error": "def broken(:\n",
-    "an import that fails": "import koi_no_such_module\n",
+    "an import that fails": "import previewlane_no_such_module\n",
     "a half-written file": ADDON.read_text()[: len(ADDON.read_text()) // 2],
 }
 
@@ -72,7 +72,7 @@ def box(tmp_path):
 
 @pytest.mark.parametrize("how", list(BROKEN))
 def test_a_policy_that_fails_to_load_at_start_leaves_the_proxy_down(box, tmp_path, how):
-    script = tmp_path / "koi_egress.py"
+    script = tmp_path / "previewlane_egress.py"
     script.write_text(BROKEN[how])
     proxy, port = box(script)
     # mitmproxy logs an error, or (a file cut where it still parses) loads a
@@ -85,7 +85,7 @@ def test_a_policy_that_fails_to_load_at_start_leaves_the_proxy_down(box, tmp_pat
 
 
 def test_a_policy_whose_setup_fails_leaves_the_proxy_down(box, tmp_path):
-    script = tmp_path / "koi_egress.py"
+    script = tmp_path / "previewlane_egress.py"
     script.write_text(ADDON.read_text())
     proxy, port = box(script, allow_file=tmp_path / "missing-allow.txt")
     proxy.wait_logged("policy not set up")
@@ -96,7 +96,7 @@ def test_a_policy_whose_setup_fails_leaves_the_proxy_down(box, tmp_path):
 
 @pytest.mark.parametrize("how", list(BROKEN))
 def test_a_broken_reload_takes_the_proxy_down_and_closes_open_connections(box, tmp_path, how):
-    script = tmp_path / "koi_egress.py"
+    script = tmp_path / "previewlane_egress.py"
     script.write_text(ADDON.read_text())
     proxy, port = box(script, wait=True)
     tunnel = proxy.https("pypi.org")
@@ -120,7 +120,7 @@ def test_a_broken_reload_takes_the_proxy_down_and_closes_open_connections(box, t
 
 
 def test_a_good_reload_keeps_the_proxy_up(box, tmp_path):
-    script = tmp_path / "koi_egress.py"
+    script = tmp_path / "previewlane_egress.py"
     script.write_text(ADDON.read_text())
     proxy, port = box(script, wait=True)
     write(script, ADDON.read_text() + "\n# changed\n", 5)
@@ -137,7 +137,7 @@ def test_a_good_reload_keeps_the_proxy_up(box, tmp_path):
 
 
 def bad_secrets(tmp_path):
-    """Each way the secret file can be wrong, by name: a path to pass as koi_secret."""
+    """Each way the secret file can be wrong, by name: a path to pass as previewlane_secret."""
     good = token_secret(tmp_path, b"s" * 32, name="good")
     link = tmp_path / "link"
     link.symlink_to(good)
@@ -167,7 +167,7 @@ SECRET_PROBLEMS += ["mode 0600", "mode 0640", "mode 0644"]
 @pytest.mark.parametrize("how", SECRET_PROBLEMS)
 def test_a_bad_token_secret_leaves_the_proxy_down(box, tmp_path, how):
     sock = tmp_path / "control.sock"
-    proxy, port = box(ADDON, koi_secret=str(bad_secrets(tmp_path)[how]), koi_control=str(sock))
+    proxy, port = box(ADDON, previewlane_secret=str(bad_secrets(tmp_path)[how]), previewlane_control=str(sock))
     proxy.wait_logged("no usable token secret")
     proxy.wait_logged("policy not set up")
     time.sleep(0.5)
@@ -180,10 +180,10 @@ def test_a_bad_token_secret_leaves_the_proxy_down(box, tmp_path, how):
 
 
 def test_a_secret_that_goes_bad_takes_the_proxy_down_on_reload(box, tmp_path):
-    script = tmp_path / "koi_egress.py"
+    script = tmp_path / "previewlane_egress.py"
     script.write_text(ADDON.read_text())
     secret = token_secret(tmp_path)
-    proxy, port = box(script, wait=True, koi_secret=str(secret))
+    proxy, port = box(script, wait=True, previewlane_secret=str(secret))
     tunnel = proxy.https("pypi.org")
     assert request(tunnel, "pypi.org")[0] == 200
 
@@ -209,7 +209,7 @@ def test_a_secret_that_goes_bad_takes_the_proxy_down_on_reload(box, tmp_path):
 
 
 def ready(port, seconds):
-    env = {**os.environ, "KOI_EGRESS_HOST": "127.0.0.1", "KOI_EGRESS_PORT": str(port), "KOI_EGRESS_READY_SECONDS": str(seconds)}
+    env = {**os.environ, "PREVIEWLANE_EGRESS_HOST": "127.0.0.1", "PREVIEWLANE_EGRESS_PORT": str(port), "PREVIEWLANE_EGRESS_READY_SECONDS": str(seconds)}
     script = ADDON.parent / "ready.sh"
     return subprocess.run(["bash", str(script)], env=env, capture_output=True, text=True)
 

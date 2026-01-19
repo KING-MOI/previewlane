@@ -9,7 +9,7 @@ import {
 	requestKey,
 	sourceKey,
 	type UpRequest,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { BuildLogs } from '../../daemon/src/buildlog.ts';
 import type { ControlDeps } from '../../daemon/src/control.ts';
 import { CTL_USAGE } from '../../daemon/src/ctl.ts';
@@ -28,16 +28,16 @@ import {
 	verifiedTransport,
 } from '../src/transport.ts';
 import { awsTransport } from '../src/transports/aws.ts';
-import { hostInfoFor, koidClients, koidDeps, previewRecord, s3Stub, settings } from './koid.ts';
+import { hostInfoFor, previewlanedClients, previewlanedDeps, previewRecord, s3Stub, settings } from './previewlaned.ts';
 
 const AWS_TARGET = {
 	domain: 'previews.example.net',
 	transport: { kind: 'aws-ssm' },
 	aws: {
-		profile: 'koi-cli',
+		profile: 'previewlane-cli',
 		region: 'us-east-1',
 		instanceId: 'i-0abc',
-		uploadsBucket: 'koi-uploads-123456789012',
+		uploadsBucket: 'previewlane-uploads-123456789012',
 	},
 	power: { kind: 'ec2' },
 };
@@ -48,9 +48,9 @@ const SSH_TARGET = {
 		kind: 'ssh',
 		endpoint: {
 			host: '203.0.113.10',
-			user: 'koi-connect',
-			identityFile: '/home/operator/.ssh/koi_team_ed25519',
-			knownHostsFile: '/home/operator/.config/koi/known_hosts',
+			user: 'previewlane-connect',
+			identityFile: '/home/operator/.ssh/previewlane_team_ed25519',
+			knownHostsFile: '/home/operator/.config/previewlane/known_hosts',
 			hostKeyAlias: 'team',
 		},
 	},
@@ -58,15 +58,15 @@ const SSH_TARGET = {
 };
 
 // AWS as openHost meets it: EC2 with one tagged running box and STS for the
-// account, and SSM commands run by the real koid ctl and control API with
-// `deps` behind them (koidClients). With `oldDaemon`, koid ctl describe
-// answers as a koid from before the descriptor does: usage, exit 2. Every
+// account, and SSM commands run by the real previewlaned ctl and control API with
+// `deps` behind them (previewlanedClients). With `oldDaemon`, previewlaned ctl describe
+// answers as a previewlaned from before the descriptor does: usage, exit 2. Every
 // EC2 and STS call lands in `calls` with its input.
 function aws(
 	deps: ControlDeps,
 	{ domainTag = 'previews.example.net' as string | null, oldDaemon = false } = {},
 ) {
-	const koid = koidClients(deps);
+	const previewlaned = previewlanedClients(deps);
 	const calls: Array<{ name: string; input: unknown }> = [];
 	const made: string[] = [];
 	const send = async (cmd: { constructor: { name: string }; input: unknown }) => {
@@ -98,13 +98,13 @@ function aws(
 				};
 			}
 		}
-		return (koid.ssm as unknown as { send: (c: unknown) => Promise<unknown> }).send(cmd);
+		return (previewlaned.ssm as unknown as { send: (c: unknown) => Promise<unknown> }).send(cmd);
 	};
 	const client = { send } as never;
 	return {
 		calls,
 		made,
-		commands: koid.commands,
+		commands: previewlaned.commands,
 		make: (profile: string, region: string): Clients => {
 			made.push(`${profile}@${region}`);
 			return { s3: client, ec2: client, ssm: client, sts: client };
@@ -113,10 +113,10 @@ function aws(
 }
 
 async function home(config?: unknown): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), 'koi-home-'));
+	const dir = await mkdtemp(join(tmpdir(), 'previewlane-home-'));
 	if (config !== undefined) {
-		await mkdir(join(dir, '.config', 'koi'), { recursive: true, mode: 0o700 });
-		await writeFile(join(dir, '.config', 'koi', 'config.yaml'), toYaml(config), { mode: 0o600 });
+		await mkdir(join(dir, '.config', 'previewlane'), { recursive: true, mode: 0o700 });
+		await writeFile(join(dir, '.config', 'previewlane', 'config.yaml'), toYaml(config), { mode: 0o600 });
 	}
 	return dir;
 }
@@ -129,7 +129,7 @@ function notices() {
 describe('openHost on the legacy AWS path', () => {
 	test('discovers the deployment as before, says so once, and checks the host after waking it', async () => {
 		const h = await home();
-		const a = aws(koidDeps({}));
+		const a = aws(previewlanedDeps({}));
 		const n = notices();
 		const opened = await openHost({
 			flags: {},
@@ -140,7 +140,7 @@ describe('openHost on the legacy AWS path', () => {
 		});
 		expect(opened.domain).toBe('previews.example.net');
 		expect(opened.resolved.kind).toBe('legacy');
-		expect(a.made).toEqual(['koi-cli@us-east-1']);
+		expect(a.made).toEqual(['previewlane-cli@us-east-1']);
 		// The same discovery calls as before config files.
 		expect(a.calls.map((c) => c.name)).toEqual([
 			'DescribeInstancesCommand',
@@ -148,17 +148,17 @@ describe('openHost on the legacy AWS path', () => {
 		]);
 		expect(a.calls[0]?.input).toMatchObject({
 			Filters: [
-				{ Name: 'tag:Project', Values: ['koi'] },
-				{ Name: 'tag:Name', Values: ['koi-box'] },
+				{ Name: 'tag:Project', Values: ['previewlane'] },
+				{ Name: 'tag:Name', Values: ['previewlane-box'] },
 				{ Name: 'instance-state-name', Values: ['pending', 'running', 'stopping', 'stopped'] },
 			],
 		});
 		expect(n.lines).toHaveLength(1);
-		expect(n.lines[0]).toContain(`no koi config file at ${join(h, '.config/koi/config.yaml')}`);
+		expect(n.lines[0]).toContain(`no previewlane config file at ${join(h, '.config/previewlane/config.yaml')}`);
 		expect(n.lines[0]).toContain(
 			'aws-ssm to i-0abc in us-east-1, previews under previews.example.net',
 		);
-		expect(n.lines[0]).toContain('koi config import-aws --name NAME');
+		expect(n.lines[0]).toContain('previewlane config import-aws --name NAME');
 
 		await opened.box.ensureAwake(() => {});
 		expect(a.commands).toEqual([['ping'], ['describe']]);
@@ -168,12 +168,12 @@ describe('openHost on the legacy AWS path', () => {
 		expect(n.lines).toHaveLength(1);
 	});
 
-	test('--domain stands in for KOI_DOMAIN and is what the host must serve', async () => {
+	test('--domain stands in for PREVIEWLANE_DOMAIN and is what the host must serve', async () => {
 		const h = await home();
-		const a = aws(koidDeps({ describe: async () => hostInfoFor('other.example.com') }));
+		const a = aws(previewlanedDeps({ describe: async () => hostInfoFor('other.example.com') }));
 		const opened = await openHost({
 			flags: { domain: 'other.example.com' },
-			env: { HOME: h, KOI_DOMAIN: 'env.example.com' },
+			env: { HOME: h, PREVIEWLANE_DOMAIN: 'env.example.com' },
 			checkoutDir: '/nonexistent',
 			notice: () => {},
 			awsClients: a.make,
@@ -189,9 +189,9 @@ describe('openHost on the legacy AWS path', () => {
 		expect(a.commands).toEqual([['ping'], ['describe']]);
 	});
 
-	test('takes an old koid at its word, with a warning that names the configured domain', async () => {
+	test('takes an old previewlaned at its word, with a warning that names the configured domain', async () => {
 		const h = await home();
-		const a = aws(koidDeps({}), { oldDaemon: true });
+		const a = aws(previewlanedDeps({}), { oldDaemon: true });
 		const n = notices();
 		const opened = await openHost({
 			flags: {},
@@ -201,10 +201,10 @@ describe('openHost on the legacy AWS path', () => {
 			awsClients: a.make,
 		});
 		await opened.box.ensureAwake(() => {});
-		// The fixture answers describe itself, so koid saw only the ping.
+		// The fixture answers describe itself, so previewlaned saw only the ping.
 		expect(a.commands).toEqual([['ping']]);
 		expect(n.lines.at(-1)).toMatch(
-			/^koid on the koi box predates koid ctl describe, so koi cannot check that it serves previews\.example\.net; taking the configured domain/,
+			/^previewlaned on the previewlane box predates previewlaned ctl describe, so previewlane cannot check that it serves previews\.example\.net; taking the configured domain/,
 		);
 	});
 });
@@ -216,7 +216,7 @@ describe('openHost with a configured target', () => {
 			defaultTarget: 'owner-aws',
 			targets: { 'owner-aws': AWS_TARGET },
 		});
-		const a = aws(koidDeps({}));
+		const a = aws(previewlanedDeps({}));
 		const n = notices();
 		const opened = await openHost({
 			flags: {},
@@ -228,9 +228,9 @@ describe('openHost with a configured target', () => {
 		expect(opened.domain).toBe('previews.example.net');
 		expect(opened.resolved.kind === 'target' && opened.resolved.name).toBe('owner-aws');
 		expect(a.calls).toEqual([]);
-		expect(a.made).toEqual(['koi-cli@us-east-1']);
+		expect(a.made).toEqual(['previewlane-cli@us-east-1']);
 		expect(n.lines).toEqual([
-			`target owner-aws (defaultTarget) from ${join(h, '.config/koi/config.yaml')}: aws-ssm, previews under previews.example.net`,
+			`target owner-aws (defaultTarget) from ${join(h, '.config/previewlane/config.yaml')}: aws-ssm, previews under previews.example.net`,
 		]);
 		await opened.box.ensureAwake(() => {});
 		// Waking describes the one instance the target names; nothing is
@@ -246,7 +246,7 @@ describe('openHost with a configured target', () => {
 			defaultTarget: 'owner-aws',
 			targets: { 'owner-aws': { ...AWS_TARGET, domain: 'wrong.example.com' } },
 		});
-		const a = aws(koidDeps({}));
+		const a = aws(previewlanedDeps({}));
 		const opened = await openHost({
 			flags: {},
 			env: { HOME: h },
@@ -283,7 +283,7 @@ describe('openHost with a configured target', () => {
 			{ ...hostInfoFor('previews.example.net'), hostId: '../x' },
 			{ ok: true },
 		]) {
-			const a = aws(koidDeps({ describe: async () => bad as HostInfo }));
+			const a = aws(previewlanedDeps({ describe: async () => bad as HostInfo }));
 			const n = notices();
 			const opened = await openHost({
 				flags: {},
@@ -293,19 +293,19 @@ describe('openHost with a configured target', () => {
 				awsClients: a.make,
 			});
 			await expect(opened.box.ensureAwake(() => {})).rejects.toThrow(
-				/koid ctl describe returned a descriptor koi cannot read/,
+				/previewlaned ctl describe returned a descriptor previewlane cannot read/,
 			);
 			expect(n.lines).toHaveLength(1);
 		}
 	});
 
-	test('an old koid is allowed on an AWS target with a warning', async () => {
+	test('an old previewlaned is allowed on an AWS target with a warning', async () => {
 		const h = await home({
 			version: 1,
 			defaultTarget: 'owner-aws',
 			targets: { 'owner-aws': AWS_TARGET },
 		});
-		const a = aws(koidDeps({}), { oldDaemon: true });
+		const a = aws(previewlanedDeps({}), { oldDaemon: true });
 		const n = notices();
 		const opened = await openHost({
 			flags: {},
@@ -316,7 +316,7 @@ describe('openHost with a configured target', () => {
 		});
 		await opened.box.ensureAwake(() => {});
 		expect(n.lines.at(-1)).toContain(
-			'koid on target "owner-aws" predates koid ctl describe, so koi cannot check that it serves previews.example.net',
+			'previewlaned on target "owner-aws" predates previewlaned ctl describe, so previewlane cannot check that it serves previews.example.net',
 		);
 	});
 
@@ -334,7 +334,7 @@ describe('openHost with a configured target', () => {
 		});
 		expect(opened.domain).toBe('previews.example.com');
 		expect(n.lines).toEqual([
-			`target team (--target) from ${join(h, '.config', 'koi', 'config.yaml')}: ssh, previews under previews.example.com`,
+			`target team (--target) from ${join(h, '.config', 'previewlane', 'config.yaml')}: ssh, previews under previews.example.com`,
 		]);
 		expect(typeof opened.box.upload).toBe('function');
 		await opened.box.close();
@@ -346,8 +346,8 @@ describe('openHost with a configured target', () => {
 			targets: {
 				sshwake: { ...SSH_TARGET, power: { kind: 'ec2' }, aws: AWS_TARGET.aws },
 				local: {
-					domain: 'koi.test',
-					transport: { kind: 'local', controlSocket: '/run/koi-local/control.sock' },
+					domain: 'previewlane.test',
+					transport: { kind: 'local', controlSocket: '/run/previewlane-local/control.sock' },
 					power: { kind: 'always-on' },
 				},
 				port: { ...AWS_TARGET, address: { port: 8443 } },
@@ -370,19 +370,19 @@ describe('openHost with a configured target', () => {
 		for (const [target, why] of [
 			[
 				'sshwake',
-				/target "sshwake" reaches the host over ssh and manages its power with ec2; this version of koi can only reach an always-on host over ssh/,
+				/target "sshwake" reaches the host over ssh and manages its power with ec2; this version of previewlane can only reach an always-on host over ssh/,
 			],
 			[
 				'local',
-				/target "local" uses the local transport, which this version of koi does not support yet/,
+				/target "local" uses the local transport, which this version of previewlane does not support yet/,
 			],
 			[
 				'port',
-				/target "port" serves previews on port 8443; this version of koi supports port 443 only/,
+				/target "port" serves previews on port 8443; this version of previewlane supports port 443 only/,
 			],
 			[
 				'channel',
-				/target "channel" sets an SSH channel next to SSM; this version of koi does not support it yet/,
+				/target "channel" sets an SSH channel next to SSM; this version of previewlane does not support it yet/,
 			],
 		] as const) {
 			const err = await open(target).catch((e: unknown) => e);
@@ -393,10 +393,10 @@ describe('openHost with a configured target', () => {
 
 	test('a repository alias selects the target and is printed before anything is sent', async () => {
 		const h = await home({ version: 1, targets: { team: AWS_TARGET } });
-		const repo = await mkdtemp(join(tmpdir(), 'koi-repo-'));
-		await mkdir(join(repo, '.koi'));
-		await writeFile(join(repo, '.koi', 'target.yaml'), 'version: 1\ntarget: team\n');
-		const a = aws(koidDeps({}));
+		const repo = await mkdtemp(join(tmpdir(), 'previewlane-repo-'));
+		await mkdir(join(repo, '.previewlane'));
+		await writeFile(join(repo, '.previewlane', 'target.yaml'), 'version: 1\ntarget: team\n');
+		const a = aws(previewlanedDeps({}));
 		const n = notices();
 		await openHost({
 			flags: {},
@@ -406,7 +406,7 @@ describe('openHost with a configured target', () => {
 			awsClients: a.make,
 		});
 		expect(n.lines).toEqual([
-			`target team (.koi/target.yaml) from ${join(h, '.config/koi/config.yaml')}: aws-ssm, previews under previews.example.net`,
+			`target team (.previewlane/target.yaml) from ${join(h, '.config/previewlane/config.yaml')}: aws-ssm, previews under previews.example.net`,
 		]);
 		expect(a.commands).toEqual([]);
 	});
@@ -437,7 +437,7 @@ function fakeInner(info: HostInfo | Error): HostTransport & { describes: () => n
 }
 
 describe('verifiedTransport', () => {
-	test('excuses an old koid only where allowed', async () => {
+	test('excuses an old previewlaned only where allowed', async () => {
 		const old = new UnsupportedCapabilityError('describe', 'no describe');
 		const n = notices();
 		const allowed = verifiedTransport(
@@ -447,7 +447,7 @@ describe('verifiedTransport', () => {
 		);
 		await allowed.ensureAwake(() => {});
 		expect(n.lines).toEqual([
-			'koid on target "x" predates koid ctl describe, so koi cannot check that it serves a.example.com; taking the configured domain. Deploy the current koid (scripts/deploy-host.sh) to remove this warning',
+			'previewlaned on target "x" predates previewlaned ctl describe, so previewlane cannot check that it serves a.example.com; taking the configured domain. Deploy the current previewlaned (scripts/deploy-host.sh) to remove this warning',
 		]);
 		const strict = verifiedTransport(
 			fakeInner(old),
@@ -471,7 +471,7 @@ describe('verifiedTransport', () => {
 			() => {},
 		);
 		await expect(t.ensureAwake(() => {})).rejects.toThrow(
-			'the host behind target "x" serves previews on https port 8443; this version of koi expects https on 443',
+			'the host behind target "x" serves previews on https port 8443; this version of previewlane expects https on 443',
 		);
 	});
 
@@ -579,7 +579,7 @@ describe('transportFor', () => {
 			target,
 			(profile, region) => {
 				made.push(`${profile}@${region}`);
-				return koidClients(koidDeps({}));
+				return previewlanedClients(previewlanedDeps({}));
 			},
 			() => {},
 			{},
@@ -603,13 +603,13 @@ describe('transportFor', () => {
 			{},
 		);
 		await expect(t.ensureAwake(() => {})).rejects.toThrow(
-			'the instance i-0abc is stopped, and this target does not manage its power (power: always-on), so koi does not start it; its operator must',
+			'the instance i-0abc is stopped, and this target does not manage its power (power: always-on), so previewlane does not start it; its operator must',
 		);
 		expect(b.sent).toEqual(['DescribeInstancesCommand']);
 	});
 });
 
-// An instance in `state` whose SSM agent is online and whose koid answers
+// An instance in `state` whose SSM agent is online and whose previewlaned answers
 // the ping. `sent` lists the AWS commands in order.
 function instanceBox(state: string | undefined) {
 	const sent: string[] = [];
@@ -687,8 +687,8 @@ const request: UpRequest = {
 
 describe('awsTransport upload and ensureAwake with options', () => {
 	async function source(): Promise<string> {
-		const path = join(await mkdtemp(join(tmpdir(), 'koi-upload-')), 'source.tar.gz');
-		await writeFile(path, Buffer.alloc(1000, 'koi'));
+		const path = join(await mkdtemp(join(tmpdir(), 'previewlane-upload-')), 'source.tar.gz');
+		await writeFile(path, Buffer.alloc(1000, 'previewlane'));
 		return path;
 	}
 
@@ -831,8 +831,8 @@ describe('awsTransport upload and ensureAwake with options', () => {
 		expect(b.sent.filter((n) => n === 'DescribeInstanceInformationCommand')).toHaveLength(3);
 	});
 
-	test('a time limit bounds the wait for koid as well', async () => {
-		// Online at once; koid never answers the ping.
+	test('a time limit bounds the wait for previewlaned as well', async () => {
+		// Online at once; previewlaned never answers the ping.
 		let clock = 0;
 		const sent: string[] = [];
 		const send = async (cmd: { constructor: { name: string } }) => {
@@ -849,7 +849,7 @@ describe('awsTransport upload and ensureAwake with options', () => {
 						Status: 'Failed',
 						ResponseCode: 3,
 						StandardOutputContent: '',
-						StandardErrorContent: 'koid ctl: cannot reach koid\n',
+						StandardErrorContent: 'previewlaned ctl: cannot reach previewlaned\n',
 					};
 			}
 			throw new Error(`unexpected ${cmd.constructor.name}`);
@@ -961,7 +961,7 @@ describe('awsTransport upload and ensureAwake with options', () => {
 			const err = await t.ensureAwake(() => {}, { timeoutMs: 100 }).catch((e: unknown) => e);
 			expect(err).toBeInstanceOf(UnknownOutcomeError);
 			expect((err as Error).message).toBe(
-				'the start of i-0abc may have reached EC2: koi stopped waiting for it to be accepted, so whether the box is waking is unknown',
+				'the start of i-0abc may have reached EC2: previewlane stopped waiting for it to be accepted, so whether the box is waking is unknown',
 			);
 			expect(Date.now() - began).toBeGreaterThanOrEqual(90);
 			expect(Date.now() - began).toBeLessThan(5000);
@@ -1012,14 +1012,14 @@ const A = 'a'.repeat(20);
 const B = 'b'.repeat(20);
 
 describe('awsTransport describe', () => {
-	test("returns koid's descriptor", async () => {
-		const clients = koidClients(koidDeps({}));
+	test("returns previewlaned's descriptor", async () => {
+		const clients = previewlanedClients(previewlanedDeps({}));
 		const t = awsTransport(settings, clients, async () => {});
 		expect(await t.describe()).toEqual(hostInfoFor('previews.example.net'));
 		expect(clients.commands).toEqual([['describe']]);
 	});
 
-	test('reports a koid without the command as a missing capability', async () => {
+	test('reports a previewlaned without the command as a missing capability', async () => {
 		const client = {
 			send: async (cmd: { constructor: { name: string } }) =>
 				cmd.constructor.name === 'SendCommandCommand'
@@ -1041,9 +1041,9 @@ describe('awsTransport describe', () => {
 		expect((err as UnsupportedCapabilityError).capability).toBe('describe');
 	});
 
-	test('reports any other failure as what koid said', async () => {
-		const clients = koidClients(
-			koidDeps({
+	test('reports any other failure as what previewlaned said', async () => {
+		const clients = previewlanedClients(
+			previewlanedDeps({
 				describe: async () => {
 					throw new Error('state directory unreadable');
 				},
@@ -1055,12 +1055,12 @@ describe('awsTransport describe', () => {
 });
 
 describe('awsTransport streamLogs', () => {
-	// koid as a build log stream meets it: the record at each status read,
+	// previewlaned as a build log stream meets it: the record at each status read,
 	// and a real build log for attempt A. `records` gets each read's number
 	// and a writer for another attempt's log, which replaces A's as a new
 	// attempt on the box does. `clock` is the transport's sleep and clock;
 	// by default waits are skipped and the clock is the real one.
-	async function koid(
+	async function previewlaned(
 		records: (
 			read: number,
 			write: (attempt: string, lines: string[]) => Promise<void>,
@@ -1070,7 +1070,7 @@ describe('awsTransport streamLogs', () => {
 			now: Date.now,
 		},
 	) {
-		const logs = new BuildLogs(await mkdtemp(join(tmpdir(), 'koi-logs-')));
+		const logs = new BuildLogs(await mkdtemp(join(tmpdir(), 'previewlane-logs-')));
 		const write = async (attempt: string, lines: string[]) => {
 			const log = await logs.open('hello-pr-7', attempt);
 			for (const line of lines) log.line(line);
@@ -1078,8 +1078,8 @@ describe('awsTransport streamLogs', () => {
 		};
 		await write(A, ['step 1', 'step 2']);
 		let reads = 0;
-		const clients = koidClients(
-			koidDeps({
+		const clients = previewlanedClients(
+			previewlanedDeps({
 				store: { get: async () => records(++reads, write), list: async () => [] },
 				buildLogs: logs,
 			}),
@@ -1090,7 +1090,7 @@ describe('awsTransport streamLogs', () => {
 		};
 	}
 
-	// Without the timestamp koid writes before each line.
+	// Without the timestamp previewlaned writes before each line.
 	const untimed = (e: LogEvent) =>
 		e.type === 'line' ? { ...e, text: e.text.replace(/^\S+ /, '') } : e;
 
@@ -1101,9 +1101,9 @@ describe('awsTransport streamLogs', () => {
 	}
 
 	test('follows the build through a new attempt to its end, with cursors', async () => {
-		const k = await koid(async (read, write) => {
+		const k = await previewlaned(async (read, write) => {
 			if (read <= 2) return previewRecord({ attempt: A, status: 'building' });
-			// koid starts attempt B, whose log replaces A's.
+			// previewlaned starts attempt B, whose log replaces A's.
 			if (read === 3) await write(B, ['b 1']);
 			return previewRecord({ attempt: B, status: read <= 4 ? 'building' : 'running' });
 		});
@@ -1112,7 +1112,7 @@ describe('awsTransport streamLogs', () => {
 			{ type: 'line', cursor: '0:2', text: 'step 2' },
 			{
 				type: 'gap',
-				reason: 'koid is building hello-pr-7 again; its new build log follows from the start',
+				reason: 'previewlaned is building hello-pr-7 again; its new build log follows from the start',
 			},
 			{ type: 'line', cursor: '0:1', text: 'b 1' },
 			{ type: 'end' },
@@ -1127,7 +1127,7 @@ describe('awsTransport streamLogs', () => {
 	});
 
 	test('resumes after the line a cursor came from', async () => {
-		const k = await koid(() => previewRecord({ attempt: A, status: 'running' }));
+		const k = await previewlaned(() => previewRecord({ attempt: A, status: 'running' }));
 		expect(
 			await collect(
 				k.t.streamLogs({ label: 'hello-pr-7', kind: 'build', attempt: A, cursor: '0:1' }),
@@ -1139,13 +1139,13 @@ describe('awsTransport streamLogs', () => {
 	});
 
 	test('stops when a newer request took the label', async () => {
-		const k = await koid(() =>
+		const k = await previewlaned(() =>
 			previewRecord({ attempt: A, status: 'building', requestId: 'n'.repeat(16) }),
 		);
 		await expect(
 			collect(k.t.streamLogs({ label: 'hello-pr-7', kind: 'build', requestId: 'o'.repeat(16) })),
-		).rejects.toThrow('superseded by a newer koi up for hello-pr-7');
-		const same = await koid(() =>
+		).rejects.toThrow('superseded by a newer previewlane up for hello-pr-7');
+		const same = await previewlaned(() =>
 			previewRecord({ attempt: A, status: 'running', requestId: 'n'.repeat(16) }),
 		);
 		expect(
@@ -1155,18 +1155,18 @@ describe('awsTransport streamLogs', () => {
 		).toHaveLength(3);
 	});
 
-	test('stops when koid no longer has the preview', async () => {
-		const clients = koidClients(
-			koidDeps({ store: { get: async () => undefined, list: async () => [] } }),
+	test('stops when previewlaned no longer has the preview', async () => {
+		const clients = previewlanedClients(
+			previewlanedDeps({ store: { get: async () => undefined, list: async () => [] } }),
 		);
 		const t = awsTransport(settings, clients, async () => {});
 		await expect(collect(t.streamLogs({ label: 'hello-pr-7', kind: 'build' }))).rejects.toThrow(
-			'koid no longer has hello-pr-7; someone may have removed it with koi down',
+			'previewlaned no longer has hello-pr-7; someone may have removed it with previewlane down',
 		);
 	});
 
 	test('can be cancelled between polls', async () => {
-		const k = await koid(() => previewRecord({ attempt: A, status: 'building' }));
+		const k = await previewlaned(() => previewRecord({ attempt: A, status: 'building' }));
 		const stop = new AbortController();
 		const events: LogEvent[] = [];
 		const follow = async () => {
@@ -1186,7 +1186,7 @@ describe('awsTransport streamLogs', () => {
 
 	test('a signal that fires during a status read ends the stream with an error', async () => {
 		const stop = new AbortController();
-		const k = await koid(() => {
+		const k = await previewlaned(() => {
 			stop.abort();
 			return previewRecord({ attempt: A, status: 'building' });
 		});
@@ -1208,7 +1208,7 @@ describe('awsTransport streamLogs', () => {
 	test('a time limit bounds the whole stream, which ends with a gap at the deadline', async () => {
 		// A build that never finishes: every status read is in time, so only
 		// a limit on the stream itself ends the follow.
-		const k = await koid(() => previewRecord({ attempt: A, status: 'building' }));
+		const k = await previewlaned(() => previewRecord({ attempt: A, status: 'building' }));
 		const began = Date.now();
 		const events = await collect(
 			k.t.streamLogs({ label: 'hello-pr-7', kind: 'build' }, { timeoutMs: 50 }),
@@ -1222,7 +1222,7 @@ describe('awsTransport streamLogs', () => {
 		]);
 		expect(k.commands.length).toBeGreaterThan(2);
 		// Without a limit the stream polls until the build finishes.
-		const long = await koid((read) =>
+		const long = await previewlaned((read) =>
 			previewRecord({ attempt: A, status: read <= 20 ? 'building' : 'running' }),
 		);
 		expect(await collect(long.t.streamLogs({ label: 'hello-pr-7', kind: 'build' }))).toEqual([
@@ -1235,7 +1235,7 @@ describe('awsTransport streamLogs', () => {
 
 	test('a wait between reads is cut to what is left of the limit', async () => {
 		let clock = 0;
-		const k = await koid(() => previewRecord({ attempt: A, status: 'building' }), {
+		const k = await previewlaned(() => previewRecord({ attempt: A, status: 'building' }), {
 			sleep: async (ms) => {
 				clock += ms;
 			},
@@ -1256,7 +1256,7 @@ describe('awsTransport streamLogs', () => {
 
 	test('a limit that passes during a status read ends the stream the same way', async () => {
 		let clock = 0;
-		const k = await koid(
+		const k = await previewlaned(
 			() => {
 				clock += 2000;
 				return previewRecord({ attempt: A, status: 'building' });
@@ -1270,13 +1270,13 @@ describe('awsTransport streamLogs', () => {
 			{ type: 'line', cursor: '0:2', text: 'step 2' },
 			...atLimit('5 seconds'),
 		]);
-		// The third read ran past the deadline, and koi stopped waiting for it.
+		// The third read ran past the deadline, and previewlane stopped waiting for it.
 		expect(k.commands).toHaveLength(3);
 	});
 
 	test('ends for a preview that was stopped or expired, once its log is drained', async () => {
 		for (const status of ['stopped', 'expired'] as const) {
-			const k = await koid(() => previewRecord({ attempt: A, status }));
+			const k = await previewlaned(() => previewRecord({ attempt: A, status }));
 			expect(await collect(k.t.streamLogs({ label: 'hello-pr-7', kind: 'build' }))).toEqual([
 				{ type: 'line', cursor: '0:1', text: 'step 1' },
 				{ type: 'line', cursor: '0:2', text: 'step 2' },
@@ -1287,7 +1287,7 @@ describe('awsTransport streamLogs', () => {
 	});
 
 	test('does not follow a container log over SSM', () => {
-		const t = awsTransport(settings, koidClients(koidDeps({})), async () => {});
+		const t = awsTransport(settings, previewlanedClients(previewlanedDeps({})), async () => {});
 		expect(() => t.streamLogs({ label: 'hello-pr-7', kind: 'runtime' })).toThrow(
 			UnsupportedCapabilityError,
 		);
@@ -1296,7 +1296,7 @@ describe('awsTransport streamLogs', () => {
 
 describe('awsTransport channel and close', () => {
 	test('has no channel', async () => {
-		const t = awsTransport(settings, koidClients(koidDeps({})), async () => {});
+		const t = awsTransport(settings, previewlanedClients(previewlanedDeps({})), async () => {});
 		const err = await t.openChannel().catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(UnsupportedCapabilityError);
 		expect((err as UnsupportedCapabilityError).capability).toBe('duplex');
@@ -1312,7 +1312,7 @@ describe('awsTransport channel and close', () => {
 		} as never;
 		await awsTransport(settings, { s3: client, ec2: client, ssm: client, sts: client }).close();
 		expect(destroyed).toBe(4);
-		await awsTransport(settings, koidClients(koidDeps({}))).close();
+		await awsTransport(settings, previewlanedClients(previewlanedDeps({}))).close();
 	});
 });
 
@@ -1350,7 +1350,7 @@ describe('awsTransport ctl with options', () => {
 			.ctl(['down', 'hello-pr-7'], { signal: stop.signal })
 			.catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(UnknownOutcomeError);
-		expect((err as Error).message).toContain('koid ctl down was sent to the box (SSM command c-1)');
+		expect((err as Error).message).toContain('previewlaned ctl down was sent to the box (SSM command c-1)');
 		expect(p.sent).toEqual(['SendCommandCommand']);
 	});
 
@@ -1392,7 +1392,7 @@ describe('awsTransport ctl with options', () => {
 
 	test('counts the calls it stopped waiting for, and no others', async () => {
 		const before = abandonedCalls();
-		const t = awsTransport(settings, koidClients(koidDeps({})), async () => {});
+		const t = awsTransport(settings, previewlanedClients(previewlanedDeps({})), async () => {});
 		expect((await t.ctl(['describe'], { timeoutMs: 5000 })).code).toBe(0);
 		expect(abandonedCalls()).toBe(before);
 		const h = hanging('GetCommandInvocationCommand', hangsForever);
@@ -1409,7 +1409,7 @@ describe('awsTransport ctl with options', () => {
 		const began = Date.now();
 		const err = await t.ctl(['down', 'hello-pr-7'], { timeoutMs: 100 }).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(UnknownOutcomeError);
-		expect((err as Error).message).toContain('koid ctl down was sent to the box (SSM command c-1)');
+		expect((err as Error).message).toContain('previewlaned ctl down was sent to the box (SSM command c-1)');
 		expect(Date.now() - began).toBeGreaterThanOrEqual(90);
 		expect(Date.now() - began).toBeLessThan(5000);
 		expect(h.sent).toEqual(['SendCommandCommand', 'GetCommandInvocationCommand']);
@@ -1422,7 +1422,7 @@ describe('awsTransport ctl with options', () => {
 		const err = await t.ctl(['down', 'hello-pr-7'], { timeoutMs: 100 }).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(UnknownOutcomeError);
 		expect((err as Error).message).toBe(
-			'koid ctl down may have been sent to the box: koi stopped waiting for SSM to accept it, so its outcome is unknown',
+			'previewlaned ctl down may have been sent to the box: previewlane stopped waiting for SSM to accept it, so its outcome is unknown',
 		);
 		expect(Date.now() - began).toBeGreaterThanOrEqual(90);
 		expect(Date.now() - began).toBeLessThan(5000);

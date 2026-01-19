@@ -9,13 +9,13 @@ import {
 	VerifyIdSchema,
 } from './verify.ts';
 
-// What koid keeps of a verification run: the artifacts the recorder
+// What previewlaned keeps of a verification run: the artifacts the recorder
 // captured, sanitized, with the record that says what was done to each; the
 // run's status; the manifest that closes a run's evidence; the descriptor
 // of what ran; and the snapshot of a deployment's verification inputs. The
 // daemon writes these under <stateDir>/verification (docs/verify.md,
 // "Recorder and evidence"); the commands that read them come later. Every
-// object is strict: these are records koi writes and reads back, and an
+// object is strict: these are records previewlane writes and reads back, and an
 // unknown key means a writer and a reader disagree.
 
 // -- Limits and retention -----------------------------------------------------
@@ -50,7 +50,7 @@ export const EVIDENCE_RETENTION = {
 
 // -- Artifacts ----------------------------------------------------------------
 
-// The kinds of artifact koid records. The runner's capture kinds
+// The kinds of artifact previewlaned records. The runner's capture kinds
 // (RunnerEventSchema) map onto the first four; the rest are the recorder's
 // own observations. trace, har and file are accepted and always withheld in
 // this version (see WITHHELD_KINDS in the daemon).
@@ -69,7 +69,7 @@ export const ArtifactKindSchema = z.enum(ARTIFACT_KINDS);
 
 export type ArtifactKind = z.infer<typeof ArtifactKindSchema>;
 
-// recorder:<kind>:<n>. koid gives these out, counting up within a run and
+// recorder:<kind>:<n>. previewlaned gives these out, counting up within a run and
 // never reusing a number; a reference resolves only inside its run, point
 // and attempt. The id names no path: the store derives the file from it.
 export const ArtifactIdSchema = z.string().regex(/^recorder:[a-z-]+:[1-9][0-9]*$/);
@@ -361,7 +361,7 @@ export const InputSnapshotSchema = z.strictObject({
 		archiveDigest: DigestSchema,
 		archiveBytes: z.number().int().nonnegative(),
 	}),
-	// .koi-runtime/changed-files.txt, when the build had one.
+	// .previewlane-runtime/changed-files.txt, when the build had one.
 	changedFiles: z
 		.strictObject({
 			file: SnapshotFileSchema,
@@ -384,7 +384,7 @@ export const InputSnapshotSchema = z.strictObject({
 				}),
 			),
 			fixtures: z.array(SnapshotFileSchema),
-			// Files copied that the loader does not read: skills and koi.yaml.
+			// Files copied that the loader does not read: skills and previewlane.yaml.
 			other: z.array(SnapshotFileSchema),
 		}),
 	]),

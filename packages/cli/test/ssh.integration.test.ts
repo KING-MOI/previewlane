@@ -15,7 +15,7 @@ import {
 import { connect, createServer } from 'node:net';
 import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
-import { UploadTicketSchema, type UpRequest } from '@koi/shared';
+import { UploadTicketSchema, type UpRequest } from '@previewlane/shared';
 import { type ControlDeps, startControlServer } from '../../daemon/src/control.ts';
 import { REQUEST_FILE, SOURCE_FILE } from '../../daemon/src/spool-uploads.ts';
 import { UploadApi } from '../../daemon/src/upload-api.ts';
@@ -27,21 +27,21 @@ import { run } from '../src/main.ts';
 import { SshClient, type SshTarget, sshArgs, sshEnv } from '../src/ssh.ts';
 import { fingerprint, trustedKeys } from '../src/target-command.ts';
 import { HostKeyError, sshTransport } from '../src/transports/ssh.ts';
-import { hostInfoFor } from './koid.ts';
+import { hostInfoFor } from './previewlaned.ts';
 
 // The SSH transport, the gateway, the installer's sshd configuration and
-// `koi target trust` against a throwaway sshd: started here as the current
+// `previewlane target trust` against a throwaway sshd: started here as the current
 // user on a loopback port, with its own host key, a client key of its own,
 // and the Match block the installer writes (host/ssh/sshd.sh, shared with
 // host/ssh/install.sh) for the current user, whose ForceCommand runs the
-// gateway from source against a koid stand-in on a unix socket. The
+// gateway from source against a previewlaned stand-in on a unix socket. The
 // stand-in serves the real control API with the real upload API behind it.
 // The installer's checks run against the fixture as they run on a host.
 // Nothing here touches the system sshd or the user's ssh files.
 //
-// What a sshd of the current user cannot show: the koi-connect account
+// What a sshd of the current user cannot show: the previewlane-connect account
 // itself (sshd switches to no other user), so the account's groups, home
-// and shell, and the koi-control group on the control socket, are the
+// and shell, and the previewlane-control group on the control socket, are the
 // installer's alone to get right; and StrictModes, which refuses a keys
 // file under a world-writable /tmp, so the fixture turns it off.
 
@@ -64,7 +64,7 @@ const available =
 	BASH !== undefined;
 
 const HOST_SSH = join(import.meta.dir, '..', '..', '..', 'host', 'ssh');
-const GATEWAY = join(HOST_SSH, 'koi-ssh-gateway.ts');
+const GATEWAY = join(HOST_SSH, 'previewlane-ssh-gateway.ts');
 const SSHD_LIB = join(HOST_SSH, 'sshd.sh');
 const ALIAS = 'throwaway';
 const DOMAIN = 'previews.example.com';
@@ -119,7 +119,7 @@ const gatewayWrapper = (sessions: string, bun: string, gateway: string, socket: 
 
 describe('the gateway wrapper of the fixture', () => {
 	test('keeps $(), backticks and quotes in its paths as they are', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-wrapper-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-wrapper-'));
 		try {
 			// Each form would run `touch pwned` in `dir` if the shell read it.
 			const hostile = `a$(touch pwned)\`touch pwned\`'b"$HOME c`;
@@ -217,7 +217,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 			client(over),
 		);
 
-	// One koid ping over a strict connection, against this known_hosts file.
+	// One previewlaned ping over a strict connection, against this known_hosts file.
 	const ping = async (knownHostsFile: string, over: Partial<SshTarget> = {}) => {
 		const t = transport({ knownHostsFile, ...over });
 		try {
@@ -242,7 +242,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 							endpoint: {
 								host: '127.0.0.1',
 								port: sshPort,
-								user: 'koi-connect',
+								user: 'previewlane-connect',
 								identityFile: join(dir, 'client_key'),
 								knownHostsFile,
 								hostKeyAlias: ALIAS,
@@ -301,10 +301,10 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 
 	beforeAll(async () => {
 		if (SSHD === undefined || KEYGEN === undefined) return;
-		dir = await mkdtemp(join(tmpdir(), 'koi-sshd-'));
+		dir = await mkdtemp(join(tmpdir(), 'previewlane-sshd-'));
 		await chmod(dir, 0o700);
 		home = join(dir, 'home');
-		await mkdir(join(home, '.config', 'koi'), { recursive: true, mode: 0o700 });
+		await mkdir(join(home, '.config', 'previewlane'), { recursive: true, mode: 0o700 });
 		await mkdir(join(dir, 'sessions'));
 		await execOk([KEYGEN, '-q', '-t', 'ed25519', '-N', '', '-f', join(dir, 'host_key')]);
 		await execOk([KEYGEN, '-q', '-t', 'ed25519', '-N', '', '-f', join(dir, 'client_key')]);
@@ -315,7 +315,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		hostKeyLine = `${ALIAS} ssh-ed25519 ${hostKey}\n`;
 		user = userInfo().username;
 
-		// The koid stand-in: the real control API with the real upload API.
+		// The previewlaned stand-in: the real control API with the real upload API.
 		socket = join(dir, 'control.sock');
 		api = new UploadApi({
 			spoolDir: join(dir, 'spool'),
@@ -359,8 +359,8 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		// includes; and the main file.
 		const includeDir = join(dir, 'sshd_config.d');
 		await mkdir(includeDir);
-		blockFile = join(includeDir, '00-koi-connect.conf');
-		const block = await sshdLib('koi_match_block', user, gateway, keys);
+		blockFile = join(includeDir, '00-previewlane-connect.conf');
+		const block = await sshdLib('previewlane_match_block', user, gateway, keys);
 		expect(block.code).toBe(0);
 		await writeFile(blockFile, block.stdout);
 		port = await freePort();
@@ -377,7 +377,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 			hostKeyAlias: ALIAS,
 		};
 		await writeFile(
-			join(home, '.config', 'koi', 'config.yaml'),
+			join(home, '.config', 'previewlane', 'config.yaml'),
 			toYaml({
 				version: 1,
 				targets: {
@@ -388,7 +388,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 							endpoint: {
 								host: '127.0.0.1',
 								port,
-								user: 'koi-connect',
+								user: 'previewlane-connect',
 								identityFile: join(dir, 'client_key'),
 								knownHostsFile: join(dir, 'known_hosts'),
 								hostKeyAlias: ALIAS,
@@ -409,7 +409,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		if (dir !== undefined) await rm(dir, { recursive: true, force: true });
 	});
 
-	async function koi(argv: string[]) {
+	async function previewlane(argv: string[]) {
 		let stdout = '';
 		let stderr = '';
 		const code = await run(
@@ -442,16 +442,16 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		expect(written).toContain(`    AuthorizedKeysFile ${keys}\n`);
 		expect(written).toContain('    ChrootDirectory none\n');
 		expect(written).toContain('    TrustedUserCAKeys none\n');
-		expect(written).toContain('    AcceptEnv KOI_NO_CLIENT_ENV\n');
-		expect(written).toContain('    SetEnv KOI_NO_SERVER_ENV=\n');
-		const blocks = await sshdLib('koi_check_match_blocks', mainConfig, blockFile, dir);
+		expect(written).toContain('    AcceptEnv PREVIEWLANE_NO_CLIENT_ENV\n');
+		expect(written).toContain('    SetEnv PREVIEWLANE_NO_SERVER_ENV=\n');
+		const blocks = await sshdLib('previewlane_check_match_blocks', mainConfig, blockFile, dir);
 		expect(blocks.stderr).toBe('');
 		expect(blocks.code).toBe(0);
-		const global = await sshdLib('koi_check_global', SSHD as string, mainConfig);
+		const global = await sshdLib('previewlane_check_global', SSHD as string, mainConfig);
 		expect(global.stderr).toBe('');
 		expect(global.code).toBe(0);
 		const effective = await sshdLib(
-			'koi_check_effective',
+			'previewlane_check_effective',
 			SSHD as string,
 			mainConfig,
 			user,
@@ -470,7 +470,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 			`user=${user},host=localhost,addr=127.0.0.1`,
 		]);
 		expect(shown.stdout.split('\n').filter((l) => l.startsWith('acceptenv '))).toEqual([
-			'acceptenv KOI_NO_CLIENT_ENV',
+			'acceptenv PREVIEWLANE_NO_CLIENT_ENV',
 		]);
 		expect(shown.stdout).toContain(`forcecommand ${gateway}\n`);
 	});
@@ -488,14 +488,14 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 				'Match Address 10.0.0.0/8\n    ForceCommand /bin/false\nInclude ',
 			),
 		);
-		const first = await sshdLib('koi_check_match_blocks', early, blockFile, dir);
+		const first = await sshdLib('previewlane_check_match_blocks', early, blockFile, dir);
 		expect(first.code).toBe(1);
 		expect(first.stderr).toContain(
 			`sshd reads a Match block at ${early}:9 before the one in ${blockFile}`,
 		);
 		// sshd -T agrees: the account gets no ForceCommand from loopback.
 		const effectiveEarly = await sshdLib(
-			'koi_check_effective',
+			'previewlane_check_effective',
 			SSHD as string,
 			early,
 			user,
@@ -517,7 +517,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 				'PermitUserEnvironment yes\nInclude ',
 			),
 		);
-		const global = await sshdLib('koi_check_global', SSHD as string, permissive);
+		const global = await sshdLib('previewlane_check_global', SSHD as string, permissive);
 		expect(global.code).toBe(1);
 		expect(global.stderr).toContain("sshd's global PermitUserEnvironment is 'yes'");
 
@@ -527,7 +527,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		// configuration sshd takes (or, where noted, refuses as well).
 		const later = join(dir, 'sshd_config.d-later');
 		await mkdir(later);
-		const laterBlock = join(later, '00-koi-connect.conf');
+		const laterBlock = join(later, '00-previewlane-connect.conf');
 		await writeFile(laterBlock, await readFile(blockFile));
 		const laterFile = join(later, '50-later.conf');
 		const laterConfig = join(dir, 'sshd_config.later');
@@ -536,12 +536,12 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 			await writeFile(laterFile, text);
 			const syntax = await exec([SSHD as string, '-t', '-f', laterConfig], { timeoutMs: 20_000 });
 			expect(syntax.code === 0).toBe(sshdTakesIt);
-			return sshdLib('koi_check_match_blocks', laterConfig, laterBlock, dir);
+			return sshdLib('previewlane_check_match_blocks', laterConfig, laterBlock, dir);
 		};
 		const refusal = (block: string, where: string) =>
 			`the Match block at ${block} sets AcceptEnv at ${where}`;
 		const effectiveLater = () =>
-			sshdLib('koi_check_effective', SSHD as string, laterConfig, user, gateway, keys);
+			sshdLib('previewlane_check_effective', SSHD as string, laterConfig, user, gateway, keys);
 
 		// A block after ours that adds LD_PRELOAD to AcceptEnv for one
 		// address, with a User list written to leave the account out. sshd
@@ -549,7 +549,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		// part of the pattern and exclude nobody: sshd -T for that address
 		// shows both names accepted. The walker refuses the block without
 		// reading its criteria, so it is right whatever sshd makes of them.
-		// koi_check_effective, which probes other addresses, sees nothing.
+		// previewlane_check_effective, which probes other addresses, sees nothing.
 		const preload = await check(
 			`Match Address 198.51.100.23 User *,!'${user}'\n    AcceptEnv LD_PRELOAD\n`,
 		);
@@ -564,7 +564,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 			`user=${user},host=localhost,addr=198.51.100.23`,
 		]);
 		expect(shown.stdout.split('\n').filter((l) => l.startsWith('acceptenv '))).toEqual([
-			'acceptenv KOI_NO_CLIENT_ENV',
+			'acceptenv PREVIEWLANE_NO_CLIENT_ENV',
 			'acceptenv LD_PRELOAD',
 		]);
 		expect((await effectiveLater()).code).toBe(0);
@@ -692,7 +692,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 			]);
 			await feeder.exited;
 			expect(fed.stdout.split('\n').filter((l) => l.startsWith('acceptenv '))).toEqual([
-				'acceptenv KOI_NO_CLIENT_ENV',
+				'acceptenv PREVIEWLANE_NO_CLIENT_ENV',
 				'acceptenv LD_PRELOAD',
 			]);
 		} finally {
@@ -719,7 +719,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 			`user=${user},host=localhost,addr=198.51.100.23`,
 		]);
 		expect(throughNul.stdout.split('\n').filter((l) => l.startsWith('acceptenv '))).toEqual([
-			'acceptenv KOI_NO_CLIENT_ENV',
+			'acceptenv PREVIEWLANE_NO_CLIENT_ENV',
 			'acceptenv LD_PRELOAD',
 		]);
 		const nulMain = join(dir, 'sshd_config.nul');
@@ -731,7 +731,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 			),
 		);
 		expect((await exec([SSHD as string, '-t', '-f', nulMain], { timeoutMs: 20_000 })).code).toBe(0);
-		const nulFirst = await sshdLib('koi_check_match_blocks', nulMain, blockFile, dir);
+		const nulFirst = await sshdLib('previewlane_check_match_blocks', nulMain, blockFile, dir);
 		expect(nulFirst.code).toBe(1);
 		expect(nulFirst.stderr).toContain(`${nulMain}:10 has a NUL byte`);
 
@@ -739,21 +739,21 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		// never includes ours.
 		const before = join(dir, 'sshd_config.d-before');
 		await mkdir(before);
-		await writeFile(join(before, '00-koi-connect.conf'), await readFile(blockFile));
+		await writeFile(join(before, '00-previewlane-connect.conf'), await readFile(blockFile));
 		await writeFile(join(before, '00-aaa.conf'), 'match user nobody\n    PermitTTY yes\n');
 		const beforeConfig = join(dir, 'sshd_config.before');
 		await writeFile(beforeConfig, sshdConfig(port, before));
 		const beforeFirst = await sshdLib(
-			'koi_check_match_blocks',
+			'previewlane_check_match_blocks',
 			beforeConfig,
-			join(before, '00-koi-connect.conf'),
+			join(before, '00-previewlane-connect.conf'),
 			dir,
 		);
 		expect(beforeFirst.code).toBe(1);
 		expect(beforeFirst.stderr).toContain(`Match block at ${join(before, '00-aaa.conf')}:1 before`);
 		const none = join(dir, 'sshd_config.none');
 		await writeFile(none, sshdConfig(port, join(dir, 'no-such-dir')));
-		const noneFirst = await sshdLib('koi_check_match_blocks', none, blockFile, dir);
+		const noneFirst = await sshdLib('previewlane_check_match_blocks', none, blockFile, dir);
 		expect(noneFirst.code).toBe(1);
 		expect(noneFirst.stderr).toContain(`never meets the Match block in ${blockFile}`);
 	});
@@ -777,7 +777,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		const hung = await exec([SSHD as string, '-t', '-f', config], { timeoutMs: 1000 });
 		expect(hung.timedOut).toBe(true);
 		const checked = await sshdLib(
-			'koi_check_sshd',
+			'previewlane_check_sshd',
 			SSHD as string,
 			config,
 			blockFile,
@@ -793,7 +793,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		// The sequence passes on the fixture, and sshd's own refusal of a
 		// file the walker has nothing against is reported after the walk.
 		const good = await sshdLib(
-			'koi_check_sshd',
+			'previewlane_check_sshd',
 			SSHD as string,
 			mainConfig,
 			blockFile,
@@ -807,7 +807,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		const bad = join(dir, 'sshd_config.bad');
 		await writeFile(bad, `${sshdConfig(port, join(dir, 'sshd_config.d'))}NoSuchKeyword yes\n`);
 		const refused = await sshdLib(
-			'koi_check_sshd',
+			'previewlane_check_sshd',
 			SSHD as string,
 			bad,
 			blockFile,
@@ -824,7 +824,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		// The installer runs that sequence and no sshd -t of its own, so
 		// the walker sees the files first there too.
 		const installer = await readFile(join(HOST_SSH, 'install.sh'), 'utf8');
-		expect(installer).toContain('koi_check_sshd "$SSHD" "$SSHD_MAIN" "$SSHD_CONF"');
+		expect(installer).toContain('previewlane_check_sshd "$SSHD" "$SSHD_MAIN" "$SSHD_CONF"');
 		expect(installer).not.toMatch(/\$SSHD" -[tT]\b/);
 	}, 15_000);
 
@@ -835,7 +835,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		const certKey = join(dir, 'cert_key');
 		await execOk([KEYGEN as string, '-q', '-t', 'ed25519', '-N', '', '-f', ca]);
 		await execOk([KEYGEN as string, '-q', '-t', 'ed25519', '-N', '', '-f', certKey]);
-		await execOk([KEYGEN as string, '-q', '-s', ca, '-I', 'koi-test', '-n', user, certKey]);
+		await execOk([KEYGEN as string, '-q', '-s', ca, '-I', 'previewlane-test', '-n', user, certKey]);
 		const knownHosts = join(dir, 'known_hosts.jail');
 		await writeFile(knownHosts, hostKeyLine);
 		const certLogin = (p: number) =>
@@ -882,10 +882,10 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		);
 		// The installer's checks take it: the later block sets no AcceptEnv,
 		// and sshd -T shows the block's value in force for each keyword.
-		expect((await sshdLib('koi_check_match_blocks', jailConfig, blockFile, dir)).code).toBe(0);
-		expect((await sshdLib('koi_check_global', SSHD as string, jailConfig)).code).toBe(0);
+		expect((await sshdLib('previewlane_check_match_blocks', jailConfig, blockFile, dir)).code).toBe(0);
+		expect((await sshdLib('previewlane_check_global', SSHD as string, jailConfig)).code).toBe(0);
 		const effective = await sshdLib(
-			'koi_check_effective',
+			'previewlane_check_effective',
 			SSHD as string,
 			jailConfig,
 			user,
@@ -964,11 +964,11 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		}
 	}, 60_000);
 
-	test('refuses a host whose key koi does not trust, and sends nothing', async () => {
+	test('refuses a host whose key previewlane does not trust, and sends nothing', async () => {
 		const t = transport({ knownHostsFile: join(dir, 'known_hosts.none') });
 		const err = await t.ctl(['ping']).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(HostKeyError);
-		expect((err as Error).message).toContain(`koi target trust ${ALIAS} --fingerprint SHA256:...`);
+		expect((err as Error).message).toContain(`previewlane target trust ${ALIAS} --fingerprint SHA256:...`);
 		expect(await t.ensureAwake(() => {}).catch((e: unknown) => e)).toBeInstanceOf(HostKeyError);
 	});
 
@@ -997,12 +997,12 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		}
 	});
 
-	test('koi target trust refuses a wrong fingerprint and enrolls the right one', async () => {
-		// The fingerprint koi computes is the one ssh-keygen prints.
+	test('previewlane target trust refuses a wrong fingerprint and enrolls the right one', async () => {
+		// The fingerprint previewlane computes is the one ssh-keygen prints.
 		const shown = await execOk([KEYGEN as string, '-lf', join(dir, 'host_key.pub')]);
 		expect(shown.stdout).toContain(hostKeyFingerprint);
 
-		const wrong = await koi([
+		const wrong = await previewlane([
 			'target',
 			'trust',
 			ALIAS,
@@ -1010,11 +1010,11 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 			'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
 		]);
 		expect(wrong.code).toBe(1);
-		expect(wrong.stderr).toContain('so koi trusts nothing');
+		expect(wrong.stderr).toContain('so previewlane trusts nothing');
 		expect(wrong.stderr).toContain(hostKeyFingerprint);
 		expect(existsSync(join(dir, 'known_hosts'))).toBe(false);
 
-		const right = await koi(['target', 'trust', ALIAS, '--fingerprint', hostKeyFingerprint]);
+		const right = await previewlane(['target', 'trust', ALIAS, '--fingerprint', hostKeyFingerprint]);
 		expect(right.stderr).toBe('');
 		expect(right.code).toBe(0);
 		expect(right.stdout).toBe(
@@ -1024,7 +1024,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		expect(written).toMatch(new RegExp(`^${ALIAS} ssh-ed25519 [A-Za-z0-9+/=]+\n$`));
 		expect((await stat(join(dir, 'known_hosts'))).mode & 0o777).toBe(0o600);
 
-		const show = await koi(['target', 'show', ALIAS]);
+		const show = await previewlane(['target', 'show', ALIAS]);
 		expect(show.stdout).toContain(`host key: ${hostKeyFingerprint} (ssh-ed25519) as ${ALIAS}`);
 	});
 
@@ -1072,7 +1072,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 				expect((await ping(file)).code).toBe(0);
 
 				const config = await configFor(`rotate-${name}`, file, newPort);
-				const trusted = await koi([
+				const trusted = await previewlane([
 					'target',
 					'trust',
 					ALIAS,
@@ -1111,17 +1111,17 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 			await execOk([KEYGEN, '-q', '-t', 'ed25519', '-N', '', '-f', ca]);
 			const copy = join(dir, 'revocations_host.pub');
 			await writeFile(copy, await readFile(join(dir, 'host_key.pub')));
-			await execOk([KEYGEN, '-q', '-s', ca, '-h', '-I', 'koi-test', '-n', ALIAS, copy]);
+			await execOk([KEYGEN, '-q', '-s', ca, '-h', '-I', 'previewlane-test', '-n', ALIAS, copy]);
 			plain = hostKeyLine.trimEnd().split(' ')[2] ?? '';
 			cert = (await readFile(join(dir, 'revocations_host-cert.pub'), 'utf8')).split(' ')[1] ?? '';
 			caKey = (await readFile(`${ca}.pub`, 'utf8')).split(' ')[1] ?? '';
 		});
 
-		test('koi target trust refuses a key a certificate entry revokes, which strict ssh would refuse', async () => {
+		test('previewlane target trust refuses a key a certificate entry revokes, which strict ssh would refuse', async () => {
 			const revocation = `@revoked * ${CERT} ${cert}\n`;
 			const file = join(dir, 'known_hosts.revoked-cert');
 			await writeFile(file, revocation);
-			const r = await koi([
+			const r = await previewlane([
 				'target',
 				'trust',
 				ALIAS,
@@ -1141,7 +1141,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 			expect((err as Error).message).toContain('REVOKED HOST KEY DETECTED');
 		});
 
-		test('koi target show lists the key exactly when a strict connection takes it', async () => {
+		test('previewlane target show lists the key exactly when a strict connection takes it', async () => {
 			const trusted = hostKeyLine;
 			const cases: [string, string, boolean][] = [
 				['the plain line', trusted, true],
@@ -1183,7 +1183,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		const t = transport();
 		expect(await t.describe()).toEqual(hostInfoFor(DOMAIN));
 		await t.ensureAwake(() => {
-			throw new Error('koid answers at once');
+			throw new Error('previewlaned answers at once');
 		});
 		const pings = await Promise.all([t.ctl(['ping']), t.ctl(['ping']), t.ctl(['ping'])]);
 		expect(pings.map((p) => [p.code, p.stdout])).toEqual([
@@ -1196,7 +1196,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		expect(up.code).toBe(0);
 		expect(JSON.parse(up.stdout)).toEqual({ label: 'hello-pr-7', queued: false });
 		expect(ups).toEqual([id]);
-		// koid's refusal comes back as koid ctl's exit status and error.
+		// previewlaned's refusal comes back as previewlaned ctl's exit status and error.
 		const refused = await t.ctl(['status', 'nothing-here']);
 		expect(refused.code).toBe(1);
 		expect(refused.stderr).toContain('no such preview');
@@ -1316,7 +1316,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 				'none',
 				...optionPairs(['ControlMaster', 'ControlPath', 'ControlPersist']),
 				'-o',
-				`SetEnv=LD_PRELOAD=/nonexistent/koi-test.so KOI_NO_CLIENT_ENV=${marker}`,
+				`SetEnv=LD_PRELOAD=/nonexistent/previewlane-test.so PREVIEWLANE_NO_CLIENT_ENV=${marker}`,
 				'--',
 				'127.0.0.1',
 				'tunnel-v1',
@@ -1326,11 +1326,11 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		expect(r.stderr).not.toContain('cannot be preloaded');
 		// This session's environment, found by the marker it sent.
 		const envs = [...(await sessionEnvs()).values()].filter((e) =>
-			e.includes(`KOI_NO_CLIENT_ENV=${marker}\n`),
+			e.includes(`PREVIEWLANE_NO_CLIENT_ENV=${marker}\n`),
 		);
 		expect(envs).toHaveLength(1);
 		const seen = (envs[0] ?? '').split('\n');
-		expect(seen).toContain('KOI_NO_SERVER_ENV=');
+		expect(seen).toContain('PREVIEWLANE_NO_SERVER_ENV=');
 		expect(seen.some((l) => l.startsWith('LD_PRELOAD='))).toBe(false);
 		expect(seen).toContain('SSH_ORIGINAL_COMMAND=tunnel-v1');
 	});
@@ -1360,7 +1360,7 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		);
 		await tunnel.write(
 			new TextEncoder().encode(
-				`PUT /v1/uploads/${uploadId}/source HTTP/1.1\r\nHost: koid\r\nContent-Type: application/gzip\r\nContent-Length: ${bytes.length}\r\n\r\n`,
+				`PUT /v1/uploads/${uploadId}/source HTTP/1.1\r\nHost: previewlaned\r\nContent-Type: application/gzip\r\nContent-Length: ${bytes.length}\r\n\r\n`,
 			),
 		);
 		await tunnel.write(bytes.subarray(0, bytes.length / 2));

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { PROVIDERS } from '@koi/shared';
+import { PROVIDERS } from '@previewlane/shared';
 import { KEYS_JS } from '../src/keys.ts';
 
 // The keys page's script, run against a small stand-in for the browser: the
@@ -117,7 +117,7 @@ class Browser {
 				let token = this.shared.known.get(`${p}:${key}`);
 				if (token === undefined) {
 					this.shared.made += 1;
-					token = `koi_${String(this.shared.made).padStart(32, '0')}`;
+					token = `previewlane_${String(this.shared.made).padStart(32, '0')}`;
 					this.shared.known.set(`${p}:${key}`, token);
 				}
 				return [p, token];
@@ -204,7 +204,7 @@ class Browser {
 	}
 
 	saved() {
-		const raw = this.storage.get('koi.keys');
+		const raw = this.storage.get('previewlane.keys');
 		return raw === undefined ? undefined : JSON.parse(raw);
 	}
 	status() {
@@ -213,7 +213,7 @@ class Browser {
 	// The tokens shown, as the box gave them: without the prefix the page
 	// shows before some providers' tokens (see pasted).
 	shown() {
-		return this.pasted().map((t) => t.replace(/^(sk-ant-|sk-|xai-)(?=koi_)/, ''));
+		return this.pasted().map((t) => t.replace(/^(sk-ant-|sk-|xai-)(?=previewlane_)/, ''));
 	}
 	// The tokens as shown, to be pasted into nodes.
 	pasted() {
@@ -240,7 +240,7 @@ class Browser {
 	}
 	// Another tab changed this browser's storage (browsers raise this event
 	// in every tab but the one that wrote).
-	storageChanged(key: string | null = 'koi.keys.forgot') {
+	storageChanged(key: string | null = 'previewlane.keys.forgot') {
 		this.window.fire('storage', { key });
 	}
 	// The tab closes: whatever it queued for the lock is dropped.
@@ -276,16 +276,16 @@ function later() {
 
 const LABEL = 'storefront-pr-7';
 const OTHER = 'storefront-pr-8';
-const T1 = `koi_${'1'.repeat(32)}`;
-const T2 = `koi_${'2'.repeat(32)}`;
-const T3 = `koi_${'3'.repeat(32)}`;
+const T1 = `previewlane_${'1'.repeat(32)}`;
+const T2 = `previewlane_${'2'.repeat(32)}`;
+const T3 = `previewlane_${'3'.repeat(32)}`;
 const MINUTE = 60_000;
-const AGAIN = 'Keys registered again, in case the koi box slept. Your tokens are unchanged.';
-const FORGOTTEN = 'Forgotten. This browser and the koi box no longer hold your keys.';
+const AGAIN = 'Keys registered again, in case the previewlane box slept. Your tokens are unchanged.';
+const FORGOTTEN = 'Forgotten. This browser and the previewlane box no longer hold your keys.';
 const FORGOTTEN_ELSEWHERE =
 	'Your keys were forgotten in another tab. This browser no longer holds them.';
 const HELD =
-	'Your tokens for this preview. They keep working after the koi box sleeps: this page registers your keys again whenever you open or return to it.';
+	'Your tokens for this preview. They keep working after the previewlane box sleeps: this page registers your keys again whenever you open or return to it.';
 
 // What the page saves: the keys last registered anywhere, and each
 // preview's last registration.
@@ -303,7 +303,7 @@ function returning(
 	shared?: Shared,
 ) {
 	const b = new Browser(shared);
-	b.storage.set('koi.keys', JSON.stringify(state(keys, { [LABEL]: { keys, tokens } })));
+	b.storage.set('previewlane.keys', JSON.stringify(state(keys, { [LABEL]: { keys, tokens } })));
 	for (const p of Object.keys(keys)) b.know(p, keys[p] as string, tokens[p] as string);
 	return b;
 }
@@ -370,7 +370,7 @@ describe('registering again on its own', () => {
 	test('a browser with no registration for this preview registers nothing', async () => {
 		const b = new Browser();
 		b.storage.set(
-			'koi.keys',
+			'previewlane.keys',
 			JSON.stringify(
 				state(
 					{ openai: 'sk-1' },
@@ -405,7 +405,7 @@ describe('registering again on its own', () => {
 		expect(a.shared.calls.filter((c) => c.path === '/api/forget')).toEqual([]);
 		expect(a.saved().previews).toEqual({
 			[LABEL]: { keys: { openai: 'sk-1' }, tokens: { openai: T1 } },
-			[OTHER]: { keys: { openai: 'sk-B' }, tokens: { openai: `koi_${'0'.repeat(31)}1` } },
+			[OTHER]: { keys: { openai: 'sk-B' }, tokens: { openai: `previewlane_${'0'.repeat(31)}1` } },
 		});
 		// The form of a fresh page for a third preview offers the keys last
 		// registered anywhere.
@@ -417,7 +417,7 @@ describe('registering again on its own', () => {
 	test('tokens from an earlier version of this page are shown and revoked, but not registered again', async () => {
 		const b = new Browser();
 		b.storage.set(
-			'koi.keys',
+			'previewlane.keys',
 			JSON.stringify({ keys: { openai: 'sk-1' }, tokens: { [LABEL]: { openai: T1 } } }),
 		);
 		b.open();
@@ -443,7 +443,7 @@ describe('registering again on its own', () => {
 		await settle();
 		expect(b.shown()).toEqual([T2]);
 		expect(b.status()).toBe(
-			'The koi box gave a new token for OpenAI. Paste it into the preview in place of the old one; the rest are unchanged.',
+			'The previewlane box gave a new token for OpenAI. Paste it into the preview in place of the old one; the rest are unchanged.',
 		);
 		expect(b.page.status?.className).toBe('err');
 		expect(b.forgotten()).toEqual([T1]);
@@ -455,14 +455,14 @@ describe('registering again on its own', () => {
 	test('only the providers whose token changed are named, and all of them are', async () => {
 		const keys = { openai: 'sk-1', anthropic: 'sk-2', groq: 'sk-3' };
 		const b = returning(keys, { openai: T1, anthropic: T2, groq: T3 });
-		const t4 = `koi_${'4'.repeat(32)}`;
-		const t5 = `koi_${'5'.repeat(32)}`;
+		const t4 = `previewlane_${'4'.repeat(32)}`;
+		const t5 = `previewlane_${'5'.repeat(32)}`;
 		b.know('anthropic', 'sk-2', t4);
 		b.know('groq', 'sk-3', t5);
 		b.open();
 		await settle();
 		expect(b.status()).toBe(
-			'The koi box gave new tokens for Anthropic and Groq. Paste them into the preview in place of the old ones; the rest are unchanged.',
+			'The previewlane box gave new tokens for Anthropic and Groq. Paste them into the preview in place of the old ones; the rest are unchanged.',
 		);
 		expect(b.shown()).toEqual([T1, t4, t5]);
 		expect(b.forgotten().sort()).toEqual([T2, T3].sort());
@@ -495,7 +495,7 @@ describe('registering again on its own', () => {
 		b.open();
 		await settle();
 		expect(b.status()).toBe(
-			'Could not register your keys again: the koi box could not be reached (Failed to fetch). This page tries again when you return to it.',
+			'Could not register your keys again: the previewlane box could not be reached (Failed to fetch). This page tries again when you return to it.',
 		);
 		expect(b.page.status?.className).toBe('err');
 		expect(b.shown()).toEqual([T1]);
@@ -505,7 +505,7 @@ describe('registering again on its own', () => {
 		b.now += MINUTE + 1;
 		b.visible();
 		await settle();
-		expect(b.status()).toContain('Could not register your keys again: the koi box sent no tokens');
+		expect(b.status()).toContain('Could not register your keys again: the previewlane box sent no tokens');
 		expect(b.saved().previews[LABEL].tokens).toEqual({ openai: T1 });
 		b.answer = accept;
 		b.now += MINUTE + 1;
@@ -525,7 +525,7 @@ describe('registering again on its own', () => {
 		expect(b.forgotten()).toEqual([]);
 		expect(b.shown()).toEqual([T1]);
 		expect(b.status()).toBe(
-			'Registered. Paste these tokens into the preview. They keep working after the koi box sleeps: this page registers your keys again whenever you open or return to it.',
+			'Registered. Paste these tokens into the preview. They keep working after the previewlane box sleeps: this page registers your keys again whenever you open or return to it.',
 		);
 		expect(b.saved().revoke).toEqual([]);
 	});
@@ -624,8 +624,8 @@ describe('Forget against registering', () => {
 		expect(a.registered()).toHaveLength(1);
 		expect(a.saved()).toBeUndefined();
 		// Other changes in other tabs change nothing here.
-		a.storageChanged('koi.keys');
-		a.storageChanged('koi.keys.sent');
+		a.storageChanged('previewlane.keys');
+		a.storageChanged('previewlane.keys.sent');
 		a.storageChanged();
 		expect(a.status()).toBe(FORGOTTEN_ELSEWHERE);
 	});
@@ -654,7 +654,7 @@ describe('Forget against registering', () => {
 		reply.give({ status: 200, body: { tokens: { openai: T3 } } });
 		await settle();
 		expect(a.forgotten()).toEqual([T3]);
-		expect(b.forgotten()).toEqual([`koi_${'0'.repeat(31)}1`]);
+		expect(b.forgotten()).toEqual([`previewlane_${'0'.repeat(31)}1`]);
 		expect(a.saved()).toBeUndefined();
 		expect(a.shown()).toEqual([]);
 		expect(b.status()).toBe(FORGOTTEN);
@@ -673,14 +673,14 @@ describe('Forget against registering', () => {
 		const t2 = b.saved().previews[LABEL].tokens.openai;
 		expect(b.forgotten()).toEqual([T1]);
 		expect(a.shown()).toEqual([T1]);
-		a.storageChanged('koi.keys');
+		a.storageChanged('previewlane.keys');
 		expect(a.shown()).toEqual([t2]);
 		expect(a.status()).toBe(
 			'Another tab registered keys for this preview; these are its tokens now.',
 		);
 		// The same tokens again change nothing; a later automatic
 		// registration finds them unchanged.
-		a.storageChanged('koi.keys');
+		a.storageChanged('previewlane.keys');
 		expect(a.status()).toBe(
 			'Another tab registered keys for this preview; these are its tokens now.',
 		);
@@ -709,7 +709,7 @@ describe('Forget against registering', () => {
 		expect(a.registered()).toEqual([{ openai: 'sk-1' }, { openai: 'sk-2' }]);
 		expect(a.shown()).toEqual([t2]);
 		expect(a.status()).toBe(
-			'The koi box gave a new token for OpenAI. Paste it into the preview in place of the old one; the rest are unchanged.',
+			'The previewlane box gave a new token for OpenAI. Paste it into the preview in place of the old one; the rest are unchanged.',
 		);
 		expect(a.page.status?.className).toBe('err');
 		expect(a.forgotten()).toEqual([]);
@@ -737,7 +737,7 @@ describe('Forget against registering', () => {
 		reply.give({ status: 200, body: { tokens: { openai: T1 } } });
 		await settle();
 		expect(a.forgotten()).toEqual([T1]);
-		expect(a.storage.get('koi.keys.forgetting')).toBeUndefined();
+		expect(a.storage.get('previewlane.keys.forgetting')).toBeUndefined();
 		// A's attempt was refused, so B asks again, and says what is left.
 		expect(b.forgotten()).toEqual([T1]);
 		expect(b.status()).toContain('has not confirmed it forgot 1 of your tokens');
@@ -795,8 +795,8 @@ describe('Forget against registering', () => {
 		await settle();
 		expect(a.forgotten()).toEqual([T2]);
 		expect(a.saved().previews[LABEL].tokens).toEqual({ openai: T1 });
-		expect(a.storage.get('koi.keys.forgetting')).toBe('1');
-		b.storageChanged('koi.keys');
+		expect(a.storage.get('previewlane.keys.forgetting')).toBe('1');
+		b.storageChanged('previewlane.keys');
 		expect(b.shown()).toEqual([]);
 		expect(b.status()).toBe('Forgetting...');
 		// A tab that missed the Forget's count still shows the tokens until
@@ -807,7 +807,7 @@ describe('Forget against registering', () => {
 		await settle();
 		expect(b.status()).toBe(FORGOTTEN);
 		expect(b.saved()).toBeUndefined();
-		a.storageChanged('koi.keys');
+		a.storageChanged('previewlane.keys');
 		expect(a.shown()).toEqual([]);
 	});
 
@@ -830,7 +830,7 @@ describe('Forget against registering', () => {
 		reply.give({ status: 200, body: { tokens: { openai: T1 } } });
 		await settle();
 		expect(a.saved().previews[LABEL].keys).toEqual({ openai: 'sk-1' });
-		expect(a.storage.get('koi.keys.forgetting')).toBe('1');
+		expect(a.storage.get('previewlane.keys.forgetting')).toBe('1');
 		const c = new Browser(a.shared, 'c');
 		c.now = a.now + MINUTE + 1;
 		c.open();
@@ -841,7 +841,7 @@ describe('Forget against registering', () => {
 		expect(c.registered()).toEqual([]);
 		expect(c.forgotten()).toEqual([T1]);
 		expect(c.saved()).toBeUndefined();
-		expect(c.storage.get('koi.keys.forgetting')).toBeUndefined();
+		expect(c.storage.get('previewlane.keys.forgetting')).toBeUndefined();
 		expect(c.status()).toBe(FORGOTTEN);
 	});
 
@@ -865,7 +865,7 @@ describe('Forget against registering', () => {
 		expect(a.registered()).toHaveLength(1);
 		expect(a.forgotten()).toEqual([T1]);
 		expect(a.saved()).toBeUndefined();
-		expect(a.storage.get('koi.keys.forgetting')).toBeUndefined();
+		expect(a.storage.get('previewlane.keys.forgetting')).toBeUndefined();
 	});
 
 	test('a Forget in a tab that holds nothing still reaches the others', async () => {
@@ -873,7 +873,7 @@ describe('Forget against registering', () => {
 		a.open();
 		await settle();
 		const b = new Browser(a.shared, 'b');
-		b.storage.delete('koi.keys');
+		b.storage.delete('previewlane.keys');
 		b.open();
 		b.forget();
 		await settle();
@@ -900,7 +900,7 @@ describe('Forget against registering', () => {
 		expect(b.registered()).toEqual([]);
 		reply.give({ status: 200, body: { tokens: { openai: T1, anthropic: T2 } } });
 		await settle();
-		const t3 = `koi_${'0'.repeat(31)}1`;
+		const t3 = `previewlane_${'0'.repeat(31)}1`;
 		expect(b.registered()).toEqual([{ openai: 'sk-1', anthropic: 'sk-3' }]);
 		expect(a.shared.calls.filter((c) => c.path === '/api/forget').map((c) => c.body.token)).toEqual(
 			[T2],
@@ -951,7 +951,7 @@ describe('without the Web Locks API', () => {
 		b.open(LABEL, { locks: false });
 		b.register({ openai: 'sk-1', anthropic: 'sk-3' });
 		await settle();
-		const t3 = `koi_${'0'.repeat(31)}1`;
+		const t3 = `previewlane_${'0'.repeat(31)}1`;
 		expect(b.saved().previews[LABEL].tokens).toEqual({ openai: T1, anthropic: t3 });
 		expect(b.forgotten()).toEqual([T2]);
 		reply.give({ status: 200, body: { tokens: { openai: T1, anthropic: T2 } } });
@@ -1021,7 +1021,7 @@ describe('forgetting', () => {
 
 	test('a later visit revokes what an earlier one could not', async () => {
 		const b = new Browser();
-		b.storage.set('koi.keys', JSON.stringify(state({}, {}, [T1])));
+		b.storage.set('previewlane.keys', JSON.stringify(state({}, {}, [T1])));
 		b.open();
 		await settle();
 		expect(b.forgotten()).toEqual([T1]);
@@ -1031,7 +1031,7 @@ describe('forgetting', () => {
 
 	test('a later visit cleans up old tokens quietly while keys are still held', async () => {
 		const b = returning({ openai: 'sk-1' }, { openai: T2 });
-		b.storage.set('koi.keys', JSON.stringify({ ...b.saved(), revoke: [T1] }));
+		b.storage.set('previewlane.keys', JSON.stringify({ ...b.saved(), revoke: [T1] }));
 		b.open();
 		await settle();
 		expect(b.forgotten()).toEqual([T1]);
@@ -1043,8 +1043,8 @@ describe('forgetting', () => {
 
 	test('a token the box calls malformed leaves the list', async () => {
 		const b = new Browser();
-		b.storage.set('koi.keys', JSON.stringify(state({}, {}, ['koi_bad'])));
-		b.answer = () => ({ status: 400, body: { error: 'expected a koi token' } });
+		b.storage.set('previewlane.keys', JSON.stringify(state({}, {}, ['previewlane_bad'])));
+		b.answer = () => ({ status: 400, body: { error: 'expected a previewlane token' } });
 		b.open();
 		await settle();
 		expect(b.saved()).toBeUndefined();
@@ -1085,7 +1085,7 @@ describe('forgetting', () => {
 		// revoked, then registered sk-1 again: T1 is in use once more, and
 		// the retry of its revocation finds it so.
 		const b = returning({ openai: 'sk-2' }, { openai: T2 });
-		b.storage.set('koi.keys', JSON.stringify({ ...b.saved(), revoke: [T1] }));
+		b.storage.set('previewlane.keys', JSON.stringify({ ...b.saved(), revoke: [T1] }));
 		b.know('openai', 'sk-1', T1);
 		const accept = b.answer;
 		b.answer = (call) =>
@@ -1111,7 +1111,7 @@ describe('forgetting', () => {
 
 	test('"Forgotten" comes only after a Forget of the keys held, even when an old token was pending', async () => {
 		const b = returning({ openai: 'sk-1' }, { openai: T2 });
-		b.storage.set('koi.keys', JSON.stringify({ ...b.saved(), revoke: [T1] }));
+		b.storage.set('previewlane.keys', JSON.stringify({ ...b.saved(), revoke: [T1] }));
 		b.answer = () => 'offline';
 		b.open();
 		await settle();
@@ -1141,7 +1141,7 @@ describe('registering and forgetting, one at a time', () => {
 		const call = b.calls[0] as Call;
 		reply.give({ status: 200, body: { tokens: b.tokensFor(call) } });
 		await settle();
-		expect(b.forgotten().sort()).toEqual([`koi_${'0'.repeat(31)}1`, `koi_${'0'.repeat(31)}2`]);
+		expect(b.forgotten().sort()).toEqual([`previewlane_${'0'.repeat(31)}1`, `previewlane_${'0'.repeat(31)}2`]);
 		expect(b.saved()).toBeUndefined();
 		expect(b.inputs.every((i) => i.value === '')).toBe(true);
 		expect(b.status()).toBe(FORGOTTEN);

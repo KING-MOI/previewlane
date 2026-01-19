@@ -14,10 +14,10 @@ import {
 	UpAcceptedSchema,
 	type UpRequest,
 	UpRequestSchema,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { type Box, BoxUnavailableError, type CtlResult, ctlErrorText } from './box.ts';
 import { ExecError } from './exec.ts';
-import { finishTarball, type Git, koiFiles, packWorkingTree } from './git.ts';
+import { finishTarball, type Git, previewlaneFiles, packWorkingTree } from './git.ts';
 import {
 	commentBody,
 	commentMarker,
@@ -53,12 +53,12 @@ export interface UpResult {
 	label: string;
 	url: string;
 	status: 'running' | 'failed';
-	// What koi built: for a pull request, GitHub's merge of it into its base,
+	// What previewlane built: for a pull request, GitHub's merge of it into its base,
 	// with the merge's parents in `merge`, or with --head the head as pushed.
 	commit: string;
 	pr?: number;
 	merge?: PullRequestMerge;
-	// The deployment serving the preview as koi up ended, absent while
+	// The deployment serving the preview as previewlane up ended, absent while
 	// nothing serves. After a failed build it is the previous one, so a
 	// caller compares its commit with the one it asked for.
 	deployment?: DeploymentIdentity;
@@ -70,8 +70,8 @@ export interface UpResult {
 	comment?: string;
 }
 
-// How long koi up waits for koid to start building a request queued behind
-// other builds. koid keeps the request after that and builds it in turn.
+// How long previewlane up waits for previewlaned to start building a request queued behind
+// other builds. previewlaned keeps the request after that and builds it in turn.
 export const QUEUE_WAIT_MS = 6 * 60 * 60_000;
 
 // What a build takes beyond its recipe's build and health time limits:
@@ -79,12 +79,12 @@ export const QUEUE_WAIT_MS = 6 * 60 * 60_000;
 // and the time between polls.
 export const BUILD_MARGIN_MS = 15 * 60_000;
 
-// How long koi up keeps asking for a preview's status while SSM or koid
-// cannot answer, as while koid restarts.
+// How long previewlane up keeps asking for a preview's status while SSM or previewlaned
+// cannot answer, as while previewlaned restarts.
 export const STATUS_RETRY_MS = 5 * 60_000;
 
 // The keys page for one preview, where reviewers register provider keys and
-// get koi tokens that work only in that preview: the reserved label keys
+// get previewlane tokens that work only in that preview: the reserved label keys
 // under the previews' domain, with the preview's label in ?for=.
 export function keysPageUrl(domain: string, label: string): string {
 	return `https://keys.${domain}/?for=${encodeURIComponent(label)}`;
@@ -101,7 +101,7 @@ export interface WakeDeps {
 	progress: (message: string) => void;
 }
 
-// How long koi lease waits for a preview to answer its health check, and
+// How long previewlane lease waits for a preview to answer its health check, and
 // how often it asks. A start takes seconds, or the recipe's health time
 // limit when the app is slow; past this, something is wrong and the
 // caller should look rather than wait.
@@ -112,13 +112,13 @@ const WAKE_REPORT_MS = 15_000;
 
 // Starts a preview the way a visit does, and returns once it serves. After
 // the box wakes every preview is stopped until someone asks for it, and
-// koid refuses to lease a stopped one. Caddy sends /__koi/* to koid
-// whatever the preview does; koid starts a stopped preview on the request
+// previewlaned refuses to lease a stopped one. Caddy sends /__previewlane/* to previewlaned
+// whatever the preview does; previewlaned starts a stopped preview on the request
 // and answers 200 only once the container runs and is routed, which is the
-// check koid makes before it leases. Throws after WAKE_WAIT_MS with the
-// last answer, and at once when koid has no such preview.
+// check previewlaned makes before it leases. Throws after WAKE_WAIT_MS with the
+// last answer, and at once when previewlaned has no such preview.
 export async function wakePreview(label: string, domain: string, deps: WakeDeps): Promise<void> {
-	const url = `https://${label}.${domain}/__koi/health`;
+	const url = `https://${label}.${domain}/__previewlane/health`;
 	const since = deps.now().getTime();
 	// Whether the wait has been announced, and when it last said anything.
 	let said = false;
@@ -127,13 +127,13 @@ export async function wakePreview(label: string, domain: string, deps: WakeDeps)
 		const answer = await deps.probe(url);
 		if ('status' in answer && answer.status === 200) return;
 		if ('status' in answer && answer.status === 404) {
-			throw new Error(`koid has no preview named ${label}; see koi list`);
+			throw new Error(`previewlaned has no preview named ${label}; see previewlane list`);
 		}
 		const last = 'status' in answer ? `HTTP ${answer.status}` : `no answer (${answer.error})`;
 		const now = deps.now().getTime();
 		if (now - since >= WAKE_WAIT_MS) {
 			throw new Error(
-				`${label} did not start within ${seconds(WAKE_WAIT_MS)} seconds; the last check of ${url} got ${last}. See koi list, or koi logs ${label}`,
+				`${label} did not start within ${seconds(WAKE_WAIT_MS)} seconds; the last check of ${url} got ${last}. See previewlane list, or previewlane logs ${label}`,
 			);
 		}
 		if (!said) {
@@ -153,7 +153,7 @@ export async function up(options: UpOptions, deps: UpDeps): Promise<UpResult> {
 	const { git, box } = deps;
 	const root = await git.root();
 	const repo = repoIdFromRemote(await git.remote());
-	const work = await mkdtemp(join(tmpdir(), 'koi-up-'));
+	const work = await mkdtemp(join(tmpdir(), 'previewlane-up-'));
 	const tar = join(work, 'source.tar');
 	try {
 		let commit: string;
@@ -207,20 +207,20 @@ export async function up(options: UpOptions, deps: UpDeps): Promise<UpResult> {
 			read = (path) => git.show(at, path);
 			// What the pull request changes decides the preview's slice (what the
 			// recipe keeps of the project), so the list must describe the tree
-			// koi builds, whole. A merge build lists it from the merge itself,
+			// previewlane builds, whole. A merge build lists it from the merge itself,
 			// against the base it was merged into: the one list tied to that
 			// tree, with no limit. A head build takes GitHub's list, which
 			// describes the head GitHub has now and stops at 3,000 files, so it
-			// is taken only when that head is the one koi fetched and the list
+			// is taken only when that head is the one previewlane fetched and the list
 			// is short of the limit; when gh cannot list the files, git can,
 			// given GitHub's merge: the head against the merge's base parent.
-			// Without either, koi stops here rather than guess.
+			// Without either, previewlane stops here rather than guess.
 			if (merge !== undefined) {
 				changed = await git.mergeFiles(options.pr, commit);
 			} else {
 				const listed =
 					ownerRepo === undefined
-						? new Error('koi has no GitHub repository to ask')
+						? new Error('previewlane has no GitHub repository to ask')
 						: await pullRequestFiles(deps, ownerRepo, options.pr);
 				if (listed instanceof Error) {
 					const base = refs.merge?.parents[0];
@@ -257,7 +257,7 @@ export async function up(options: UpOptions, deps: UpDeps): Promise<UpResult> {
 			);
 		}
 
-		const tarball = await finishTarball(tar, koiFiles(changed));
+		const tarball = await finishTarball(tar, previewlaneFiles(changed));
 		const { project, recipe, limits } = await resolveRecipe(repo, deps.builtins, read);
 		const label = previewHostLabel(
 			project,
@@ -287,7 +287,7 @@ export async function up(options: UpOptions, deps: UpDeps): Promise<UpResult> {
 			throw new Error(ctlErrorText(accepted) || 'the box refused the request');
 		if (UpAcceptedSchema.parse(JSON.parse(accepted.stdout)).queued) {
 			deps.progress(
-				`waiting for another build on the box to finish; koi waits up to ${hours(QUEUE_WAIT_MS)} hours for its turn`,
+				`waiting for another build on the box to finish; previewlane waits up to ${hours(QUEUE_WAIT_MS)} hours for its turn`,
 			);
 		}
 
@@ -327,7 +327,7 @@ export async function up(options: UpOptions, deps: UpDeps): Promise<UpResult> {
 	}
 }
 
-// What a build was made from, in plain words, for koi up's output and the
+// What a build was made from, in plain words, for previewlane up's output and the
 // pull request comment: "#7 (abc1234) merged into develop (def5678), merge
 // commit 9abcdef" for a pull request built as GitHub's merge of it, the head
 // for one built with --head, and the commit alone for a working tree.
@@ -344,19 +344,19 @@ export function builtFrom(p: {
 	return `#${p.pr} (${short(p.merge.head)}) merged into ${p.merge.baseBranch ?? 'its base branch'} (${short(p.merge.base)}), merge commit ${short(p.commit)}`;
 }
 
-// Why koi up --pr stops when the fetch found no head: a pull request that
+// Why previewlane up --pr stops when the fetch found no head: a pull request that
 // origin does not have, as opposed to a fetch that failed.
 function noPullRequest(pr: number): string {
 	return `origin has no pull request ${pr} (no refs/pull/${pr}/head there). Check the number, and that origin is the repository the pull request was opened in.`;
 }
 
-// Why koi up --pr stops when origin has the pull request's head but GitHub
+// Why previewlane up --pr stops when origin has the pull request's head but GitHub
 // has made no merge of it into its base: the two conflict, or GitHub has not
 // got to it yet. `base` is the base branch's name when gh could say.
 function noMerge(pr: number, base: string | undefined): string {
 	const into = base ?? 'its base branch';
 	const onto = base ?? 'the base branch';
-	return `GitHub has no merge of pull request ${pr} into ${into} (no refs/pull/${pr}/merge on origin). Either the pull request conflicts with ${into}, or GitHub has not finished checking it. Rebase onto ${onto} or merge it in and push, or try again in a minute. To build the head as pushed instead, without ${onto}'s later changes, run koi up --pr ${pr} --head.`;
+	return `GitHub has no merge of pull request ${pr} into ${into} (no refs/pull/${pr}/merge on origin). Either the pull request conflicts with ${into}, or GitHub has not finished checking it. Rebase onto ${onto} or merge it in and push, or try again in a minute. To build the head as pushed instead, without ${onto}'s later changes, run previewlane up --pr ${pr} --head.`;
 }
 
 // How GitHub's merge of a pull request lags what it should merge now, as
@@ -391,21 +391,21 @@ function mergeBehind(
 	return behind;
 }
 
-// Why koi up --pr stops when GitHub's merge lags the pull request or its
+// Why previewlane up --pr stops when GitHub's merge lags the pull request or its
 // base: building it would preview code the author or the base branch has
 // since replaced.
 function staleMerge(pr: number, base: string, behind: string[]): string {
-	return `GitHub's merge of pull request ${pr} into ${base} (refs/pull/${pr}/merge on origin) is out of date. ${behind.join(' ')} GitHub has not recomputed the merge yet. Try again in a minute, or build the head as pushed with koi up --pr ${pr} --head.`;
+	return `GitHub's merge of pull request ${pr} into ${base} (refs/pull/${pr}/merge on origin) is out of date. ${behind.join(' ')} GitHub has not recomputed the merge yet. Try again in a minute, or build the head as pushed with previewlane up --pr ${pr} --head.`;
 }
 
 // Why a merge build stops when gh could not name the pull request's base
-// branch: without the name koi cannot check GitHub's merge against the base,
+// branch: without the name previewlane cannot check GitHub's merge against the base,
 // and a merge GitHub kept after the base moved on would preview the pull
 // request on a base that is gone. `failed` is what stood in gh's way, if
 // anything did.
 function needsGh(pr: number, ownerRepo: string, failed: GhMissingError | ExecError | undefined) {
 	const need = `checking GitHub's merge of pull request ${pr} against its base branch needs gh`;
-	const orHead = `or build the head as pushed with koi up --pr ${pr} --head`;
+	const orHead = `or build the head as pushed with previewlane up --pr ${pr} --head`;
 	if (failed instanceof GhMissingError) return `${need}, and ${failed.message}, ${orHead}.`;
 	if (failed !== undefined) {
 		return `${need}, and gh could not describe the pull request (${failed.message}). Sign in with gh auth login and check that it can see ${ownerRepo}, ${orHead}.`;
@@ -447,44 +447,44 @@ async function pullRequestFiles(
 	}
 }
 
-// Why koi stops when gh could not list a pull request's files and there is
+// Why previewlane stops when gh could not list a pull request's files and there is
 // no merge of it to compare the head with. The list decides the preview's
 // slice (what the recipe keeps of the project), so a guess would build a
 // preview without the pull request's own nodes and apps.
 function noFileList(pr: number, failed: Error): string {
-	return `koi could not tell which files pull request ${pr} changes: gh could not list them (${failed.message}), and without GitHub's merge of the pull request there is nothing to compare its head with. The preview keeps only what that list names, so koi stops rather than build one without the pull request's nodes and apps. Install and sign in to gh (gh auth login), or push the branch so GitHub makes the merge, and try again.`;
+	return `previewlane could not tell which files pull request ${pr} changes: gh could not list them (${failed.message}), and without GitHub's merge of the pull request there is nothing to compare its head with. The preview keeps only what that list names, so previewlane stops rather than build one without the pull request's nodes and apps. Install and sign in to gh (gh auth login), or push the branch so GitHub makes the merge, and try again.`;
 }
 
 // A head build takes GitHub's file list, which describes the head GitHub
-// has now; a push between koi's fetch and gh's answer makes it describe
+// has now; a push between previewlane's fetch and gh's answer makes it describe
 // another tree, and slicing by it could drop what the fetched tree changed.
 function movedHead(pr: number, fetched: string, now: string): string {
-	return `pull request ${pr} moved while koi was fetching it: koi fetched its head ${fetched.slice(0, 7)}, and GitHub now lists files for ${now.slice(0, 7)}. Run koi up again.`;
+	return `pull request ${pr} moved while previewlane was fetching it: previewlane fetched its head ${fetched.slice(0, 7)}, and GitHub now lists files for ${now.slice(0, 7)}. Run previewlane up again.`;
 }
 
 function cutFileList(pr: number, count: number): string {
-	return `GitHub lists at most ${GITHUB_FILES_LIMIT.toLocaleString('en-US')} files for a pull request, and pull request ${pr} lists ${count}, so the list may be cut, and koi cannot decide what the preview keeps from it. Build GitHub's merge of the pull request instead (koi up --pr ${pr} without --head), which lists the files from git.`;
+	return `GitHub lists at most ${GITHUB_FILES_LIMIT.toLocaleString('en-US')} files for a pull request, and pull request ${pr} lists ${count}, so the list may be cut, and previewlane cannot decide what the preview keeps from it. Build GitHub's merge of the pull request instead (previewlane up --pr ${pr} without --head), which lists the files from git.`;
 }
 
 function noBaseBranch(): string {
-	return 'koi could not tell which files this working tree changes: there is no origin/HEAD, origin/main, origin/master or origin/develop to compare it with. The preview keeps only what that list names, so koi stops. Fetch origin (git fetch origin) and try again.';
+	return 'previewlane could not tell which files this working tree changes: there is no origin/HEAD, origin/main, origin/master or origin/develop to compare it with. The preview keeps only what that list names, so previewlane stops. Fetch origin (git fetch origin) and try again.';
 }
 
 // Polls the preview's status until this request has finished, passing along
 // its build log, and returns the record and the identity of the deployment
-// then serving. The first poll learns which attempt at the request koid is
+// then serving. The first poll learns which attempt at the request previewlaned is
 // on. Each poll after asks for the lines of that attempt's log from where the
-// last page ended (koid's `next`), so no line is skipped or shown twice
+// last page ended (previewlaned's `next`), so no line is skipped or shown twice
 // however many arrive between polls, and no other request's line is shown.
-// Until the build opens its log there are no lines. When koid builds this
+// Until the build opens its log there are no lines. When previewlaned builds this
 // request again, the new attempt's log is shown from its start.
 //
-// An attempt may wait QUEUE_WAIT_MS in koid's queue, then buildMs from when
-// koi first sees it out of the queue. Time spent behind other builds does not
+// An attempt may wait QUEUE_WAIT_MS in previewlaned's queue, then buildMs from when
+// previewlane first sees it out of the queue. Time spent behind other builds does not
 // count against the build's own limit.
 //
 // A status read that fails in a way that can pass is tried again, for up to
-// STATUS_RETRY_MS. Any other failure, such as koid no longer having the
+// STATUS_RETRY_MS. Any other failure, such as previewlaned no longer having the
 // preview, ends the wait.
 async function follow(
 	label: string,
@@ -495,7 +495,7 @@ async function follow(
 	let attempt: string | undefined;
 	let next = 0;
 	let wait = true;
-	// When koi first saw this attempt, or saw it leave the queue.
+	// When previewlane first saw this attempt, or saw it leave the queue.
 	let since = deps.now().getTime();
 	let building = false;
 	let finished = false;
@@ -522,13 +522,13 @@ async function follow(
 			// Lines of the attempt asked about, which is this request's.
 			for (const line of log.lines) deps.buildLine(line);
 			next = log.next;
-			// koid recorded this request before accepting it, so another id means a
-			// newer koi up for the label replaced it.
-			if (record.requestId !== id) throw new Error(`superseded by a newer koi up for ${label}`);
+			// previewlaned recorded this request before accepting it, so another id means a
+			// newer previewlane up for the label replaced it.
+			if (record.requestId !== id) throw new Error(`superseded by a newer previewlane up for ${label}`);
 			if (record.attempt !== attempt) {
 				if (attempt !== undefined) {
 					deps.progress(
-						'koid is building this request again; showing its new build log from the start',
+						'previewlaned is building this request again; showing its new build log from the start',
 					);
 				}
 				attempt = record.attempt;
@@ -560,7 +560,7 @@ async function follow(
 		const waited = deps.now().getTime() - since;
 		if (!building && waited > QUEUE_WAIT_MS) {
 			throw new Error(
-				`gave up after ${hours(QUEUE_WAIT_MS)} hours waiting for ${label} to start building behind other builds on the box. koid keeps it queued and builds it in turn; see koi list, or run koi up again later`,
+				`gave up after ${hours(QUEUE_WAIT_MS)} hours waiting for ${label} to start building behind other builds on the box. previewlaned keeps it queued and builds it in turn; see previewlane list, or run previewlane up again later`,
 			);
 		}
 		if (building && waited > buildMs) {
@@ -571,7 +571,7 @@ async function follow(
 	}
 }
 
-// One status read: koid's reply, or why it could not be had this time.
+// One status read: previewlaned's reply, or why it could not be had this time.
 // Throws on a failure that asking again will not fix.
 async function readStatus(
 	box: Box,
@@ -587,10 +587,10 @@ async function readStatus(
 	}
 	if (r.code === CTL_EXIT.unavailable) return { unavailable: ctlErrorText(r) };
 	if (r.code !== CTL_EXIT.ok) {
-		const why = ctlErrorText(r) || `koid ctl status exited ${r.code}`;
+		const why = ctlErrorText(r) || `previewlaned ctl status exited ${r.code}`;
 		throw new Error(
 			why === NO_SUCH_PREVIEW
-				? `koid no longer has ${label}; someone may have removed it with koi down`
+				? `previewlaned no longer has ${label}; someone may have removed it with previewlane down`
 				: `stopped following ${label}: ${why}`,
 		);
 	}

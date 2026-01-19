@@ -5,15 +5,15 @@ import {
 	PROVIDERS,
 	RegisterKeysSchema,
 	TOKEN_PREFIXES,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import type { EgressControl } from './egress.ts';
 import type { RateLimit, RateLimits } from './ratelimit.ts';
 
-// https://keys.<domain>/?for=<label>: where reviewers give koi their provider
+// https://keys.<domain>/?for=<label>: where reviewers give previewlane their provider
 // keys for one preview. The page keeps the keys in this origin's localStorage
 // (previews live on other origins and cannot read it) and registers them
 // with the egress proxy, which holds them in memory. For each key the proxy
-// derives a koi token from the key, its provider and the preview under a
+// derives a previewlane token from the key, its provider and the preview under a
 // secret on the box, good for that provider and only in requests from that
 // preview's container, and swaps it for the key on the way to the provider.
 // The preview's code only ever sees the tokens.
@@ -109,7 +109,7 @@ export async function handleKeys(
 				return json(200, { tokens });
 			}
 			const parsed = ForgetTokenSchema.safeParse(body);
-			if (!parsed.success) return json(400, { error: 'expected a koi token' });
+			if (!parsed.success) return json(400, { error: 'expected a previewlane token' });
 			await egress.forget(parsed.data.token);
 			return json(200, { ok: true });
 		} catch {
@@ -145,13 +145,13 @@ async function smallBody(request: Request): Promise<string | undefined> {
 
 // Where a request came from, for limits. CloudFront appends the viewer's
 // address to X-Forwarded-For, and Caddy passes that header on as
-// X-Koi-Forwarded-For (see caddy.ts), so its last entry is the viewer's.
+// X-Previewlane-Forwarded-For (see caddy.ts), so its last entry is the viewer's.
 // Entries before it are whatever the client sent. An IPv6 address counts by
 // its /64, which one subscriber usually holds whole; an IPv4 address written
 // as IPv6 (::ffff:...) is that IPv4 address. Without an address, every such
 // request shares the source 'unknown'.
 export function viewerSource(request: Request): string {
-	const entries = (request.headers.get('x-koi-forwarded-for') ?? '').split(',');
+	const entries = (request.headers.get('x-previewlane-forwarded-for') ?? '').split(',');
 	const last = (entries[entries.length - 1] ?? '').trim();
 	switch (isIP(last)) {
 		case 4:
@@ -216,22 +216,22 @@ export const KEYS_HTML = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>koi keys</title>
+<title>previewlane keys</title>
 <link rel="stylesheet" href="/keys.css">
 <script src="/keys.js" defer></script>
 </head>
 <body>
 <main>
-  <h1>Your API keys for koi previews</h1>
+  <h1>Your API keys for previewlane previews</h1>
   <p id="no-preview" hidden>This page registers keys for one preview, named in its address. Open it from the link in the pull request's preview comment; that link ends in <code>?for=</code> and the preview's name.</p>
   <section id="for-preview" hidden>
-    <p>For the preview <strong id="label"></strong>. Paste the provider keys you want it to use. They stay in this browser and in the koi box's memory. The preview never sees them: you give it the koi tokens this page shows instead, and koi swaps each for your key on the way to its provider.</p>
+    <p>For the preview <strong id="label"></strong>. Paste the provider keys you want it to use. They stay in this browser and in the previewlane box's memory. The preview never sees them: you give it the previewlane tokens this page shows instead, and previewlane swaps each for your key on the way to its provider.</p>
     <form id="keys">
       ${providerRows}
       <button type="submit">Register for this preview</button>
     </form>
     <section id="token-box" hidden>
-      <h2>Your koi tokens</h2>
+      <h2>Your previewlane tokens</h2>
       <p>Paste each one where a node in the preview asks for that provider's API key. A token works only for its provider, and only in this preview.</p>
       <ul id="tokens"></ul>
     </section>
@@ -242,8 +242,8 @@ export const KEYS_HTML = `<!doctype html>
     <h2>What this protects, and what it does not</h2>
     <ul>
       <li>The preview runs code from a pull request. It can use your tokens to call the providers above, up to 600 requests an hour each, but it cannot read your keys or send them anywhere else, and the tokens work in no other preview.</li>
-      <li>When the koi box sleeps, it forgets your keys. This browser remembers them, and this page registers them again whenever you open or return to it, and gets the same tokens back, so the tokens you pasted into the preview keep working. If a node says its token is not registered, open this page or return to its tab.</li>
-      <li>Realtime (WebSocket) APIs do not take koi tokens; nodes that use a provider's HTTP API do.</li>
+      <li>When the previewlane box sleeps, it forgets your keys. This browser remembers them, and this page registers them again whenever you open or return to it, and gets the same tokens back, so the tokens you pasted into the preview keep working. If a node says its token is not registered, open this page or return to its tab.</li>
+      <li>Realtime (WebSocket) APIs do not take previewlane tokens; nodes that use a provider's HTTP API do.</li>
       <li>Database passwords and other secrets that are not an API key in a request header are not covered. If you type one into a preview, the pull request's code can see it.</li>
     </ul>
   </aside>
@@ -268,19 +268,19 @@ const providerNames = JSON.stringify(Object.fromEntries(PROVIDERS.map((p) => [p.
 const tokenPrefixes = JSON.stringify(TOKEN_PREFIXES);
 
 export const KEYS_JS = `(function () {
-  var STORE = 'koi.keys';
+  var STORE = 'previewlane.keys';
   // How many times this browser has forgotten its keys, from any tab.
   // Never removed. A registration asked for at one count saves nothing,
   // and revokes what it got, if the count has moved by the time it runs or
   // its reply comes; a tab that sees the count move in a storage event
   // shows the keys are gone.
-  var FORGOT = 'koi.keys.forgot';
+  var FORGOT = 'previewlane.keys.forgot';
   // Set while a Forget has moved the count but not yet run under the lock
   // (its tab may close meanwhile): the next operation under the lock, in
   // any tab, or the next page to open, finishes it first (finishForget).
-  var PENDING = 'koi.keys.forgetting';
+  var PENDING = 'previewlane.keys.forgetting';
   // When this browser last sent a registration for each preview, {label: ms}.
-  var SENT = 'koi.keys.sent';
+  var SENT = 'previewlane.keys.sent';
   var LABEL = ${PREVIEW_LABEL};
   var NAMES = ${providerNames};
   // Shown before each provider's token, so nodes that check how a key
@@ -289,14 +289,14 @@ export const KEYS_JS = `(function () {
   // How long to wait before trying again to revoke tokens the box did not
   // confirm it forgot.
   var RETRY_MS = 10000;
-  // The koi box forgets every registration when it sleeps, and gives the
+  // The previewlane box forgets every registration when it sleeps, and gives the
   // same tokens back when the same keys are registered again. So the page
   // registers the keys it last registered for this preview again, on its
   // own, when it opens and whenever its tab becomes visible again, unless a
   // registration was sent within this long: the box sleeps only after ten
-  // idle minutes, and koid limits registrations from one address.
+  // idle minutes, and previewlaned limits registrations from one address.
   var REGISTER_AGAIN_MS = 60000;
-  var HELD = 'Your tokens for this preview. They keep working after the koi box sleeps: this page registers your keys again whenever you open or return to it.';
+  var HELD = 'Your tokens for this preview. They keep working after the previewlane box sleeps: this page registers your keys again whenever you open or return to it.';
   var form = document.getElementById('keys');
   var box = document.getElementById('token-box');
   var list = document.getElementById('tokens');
@@ -331,7 +331,7 @@ export const KEYS_JS = `(function () {
         return op();
       });
     };
-    if (navigator.locks) return navigator.locks.request('koi-keys', run);
+    if (navigator.locks) return navigator.locks.request('previewlane-keys', run);
     var next = chain.then(run);
     chain = next.catch(function () {});
     return next;
@@ -407,12 +407,12 @@ export const KEYS_JS = `(function () {
       .then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (j) {
           if (r.ok) return j;
-          var err = new Error(j.error || 'the koi box answered ' + r.status);
+          var err = new Error(j.error || 'the previewlane box answered ' + r.status);
           err.status = r.status;
           throw err;
         });
       }, function (e) {
-        var err = new Error('the koi box could not be reached (' + e.message + ')');
+        var err = new Error('the previewlane box could not be reached (' + e.message + ')');
         err.status = 0;
         throw err;
       });
@@ -477,12 +477,12 @@ export const KEYS_JS = `(function () {
     if (done.left === 0) {
       if (speak) {
         forgetting = false;
-        status('Forgotten. This browser and the koi box no longer hold your keys.');
+        status('Forgotten. This browser and the previewlane box no longer hold your keys.');
       }
       return;
     }
     if (speak) {
-      status('This browser no longer holds your keys, but the koi box has not confirmed it forgot ' + done.left + ' of your tokens: ' + done.why + '. Trying again in ' + (RETRY_MS / 1000) + ' seconds; leave this page open, or open it again later.', true);
+      status('This browser no longer holds your keys, but the previewlane box has not confirmed it forgot ' + done.left + ' of your tokens: ' + done.why + '. Trying again in ' + (RETRY_MS / 1000) + ' seconds; leave this page open, or open it again later.', true);
     }
     if (retrying === null) {
       retrying = setTimeout(function () {
@@ -547,12 +547,12 @@ export const KEYS_JS = `(function () {
         keys = before.keys;
         if (Object.keys(keys).length === 0) return;
         if (Date.now() - (sentAt()[label] || 0) < REGISTER_AGAIN_MS) return;
-        status('Registering your keys with the koi box again...');
+        status('Registering your keys with the previewlane box again...');
       }
       markSent();
       return post('/api/register', { label: label, keys: keys })
         .then(function (reply) {
-          if (!reply.tokens || typeof reply.tokens !== 'object') throw new Error('the koi box sent no tokens');
+          if (!reply.tokens || typeof reply.tokens !== 'object') throw new Error('the previewlane box sent no tokens');
           var next = load();
           var latest = next.previews[label] || { keys: {}, tokens: {} };
           if (count() !== asked || !same(latest.keys, before.keys) || !same(latest.tokens, before.tokens)) {
@@ -586,11 +586,11 @@ export const KEYS_JS = `(function () {
           for (var p in reply.tokens) { if (seen[p] !== reply.tokens[p]) changed.push(p); }
           if (changed.length > 0 || !quiet) showTokens(reply.tokens);
           return revokeAll().then(function (done) {
-            var pending = done.left > 0 ? ' The koi box has not yet confirmed it forgot ' + done.left + ' token(s) of an earlier registration; this page keeps asking.' : '';
-            if (!quiet) status('Registered. Paste these tokens into the preview. They keep working after the koi box sleeps: this page registers your keys again whenever you open or return to it.' + pending);
-            else if (changed.length === 1) status('The koi box gave a new token for ' + names(changed) + '. Paste it into the preview in place of the old one; the rest are unchanged.' + pending, true);
-            else if (changed.length > 0) status('The koi box gave new tokens for ' + names(changed) + '. Paste them into the preview in place of the old ones; the rest are unchanged.' + pending, true);
-            else status('Keys registered again, in case the koi box slept. Your tokens are unchanged.' + pending);
+            var pending = done.left > 0 ? ' The previewlane box has not yet confirmed it forgot ' + done.left + ' token(s) of an earlier registration; this page keeps asking.' : '';
+            if (!quiet) status('Registered. Paste these tokens into the preview. They keep working after the previewlane box sleeps: this page registers your keys again whenever you open or return to it.' + pending);
+            else if (changed.length === 1) status('The previewlane box gave a new token for ' + names(changed) + '. Paste it into the preview in place of the old one; the rest are unchanged.' + pending, true);
+            else if (changed.length > 0) status('The previewlane box gave new tokens for ' + names(changed) + '. Paste them into the preview in place of the old ones; the rest are unchanged.' + pending, true);
+            else status('Keys registered again, in case the previewlane box slept. Your tokens are unchanged.' + pending);
             report(done);
           });
         })
@@ -624,7 +624,7 @@ export const KEYS_JS = `(function () {
     forPreview = true;
     document.getElementById('for-preview').hidden = false;
     document.getElementById('label').textContent = label;
-    document.title = 'koi keys for ' + label;
+    document.title = 'previewlane keys for ' + label;
     var mine = saved.previews[label];
     if (mine) {
       showTokens(mine.tokens);
@@ -656,7 +656,7 @@ export const KEYS_JS = `(function () {
       if (el.name && el.value.trim()) { keys[el.name] = el.value.trim(); any = true; }
     }
     if (!any) { status('Paste at least one key.', true); return; }
-    status('Registering with the koi box...');
+    status('Registering with the previewlane box...');
     register(keys, false);
   });
 

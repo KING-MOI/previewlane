@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { ProjectNameSchema, type Recipe, RecipeSchema } from '@koi/shared';
+import { ProjectNameSchema, type Recipe, RecipeSchema } from '@previewlane/shared';
 
 export interface LoadedRecipe {
 	recipe: Recipe;

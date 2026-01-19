@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { PreviewLabelSchema } from './preview.ts';
 import { RequestIdSchema, UpRequestSchema } from './request.ts';
 
-// The upload API on koid's control socket, for a CLI that reaches the box
+// The upload API on previewlaned's control socket, for a CLI that reaches the box
 // over SSH and has no bucket to put a request in. Three calls, in order:
 // POST /v1/uploads for a ticket, PUT /v1/uploads/<upload-id>/source with
 // the archive, POST /v1/uploads/<upload-id>/commit with the request. The
@@ -57,7 +57,7 @@ export const CommitUploadSchema = UpRequestSchema;
 
 export type CommitUpload = z.infer<typeof CommitUploadSchema>;
 
-// 200 from the commit: the request is published under its id, for `koid ctl
+// 200 from the commit: the request is published under its id, for `previewlaned ctl
 // up <request-id>`.
 export const CommitReplySchema = z.object({
 	requestId: RequestIdSchema,

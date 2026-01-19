@@ -94,8 +94,8 @@ def test_a_denied_request_without_a_body_still_gets_a_403(proxy, upstream):
 
 
 def test_a_denial_does_not_repeat_the_host_the_preview_asked_for(proxy, upstream):
-    # The preview chose that text, and it can carry a key or a koi token.
-    host = "koi-0123456789abcdefghij.example"
+    # The preview chose that text, and it can carry a key or a previewlane token.
+    host = "previewlane-0123456789abcdefghij.example"
     status, body = request(proxy.connect(), host, target=f"http://{host}/")
     assert status == 403 and host.encode() not in body and b"0123456789" not in body
 

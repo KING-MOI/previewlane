@@ -10,17 +10,17 @@ import type { Env } from './config.ts';
 // add a ProxyCommand, a forwarding or another identity. The host key is
 // pinned in the target's own known_hosts file under its alias and nothing
 // else is consulted; a key that is missing or changed stops the connection
-// (StrictHostKeyChecking=yes), and `koi target trust` is the only way to
+// (StrictHostKeyChecking=yes), and `previewlane target trust` is the only way to
 // enroll one. The identity is the target's private key file alone, or the
 // one key ssh-agent holds for the target's public key (IdentitiesOnly=yes
 // with a public key file). No PTY, no agent or X11 forwarding, no local
 // command, batch mode so nothing ever prompts.
 //
-// One master connection serves every session of a koi process
+// One master connection serves every session of a previewlane process
 // (ControlMaster=auto): the first ssh opens the connection and stays in the
 // background as the master, each later one is a cheap session on it. The
 // control socket lives in a directory of this process alone, mode 0700, and
-// close() ends the master and removes the directory. Should koi die without
+// close() ends the master and removes the directory. Should previewlane die without
 // closing, the master ends itself after CONTROL_PERSIST_S idle.
 //
 // ssh reads each `-o` value with its ssh_config parser, which splits on
@@ -30,7 +30,7 @@ import type { Env } from './config.ts';
 // and a path ssh could not read back whole is refused (sshPathProblem).
 
 // What the client needs to know of a target. The config schema (config.ts,
-// SshEndpoint) fixes the user to koi-connect; this type leaves it a string so
+// SshEndpoint) fixes the user to previewlane-connect; this type leaves it a string so
 // a test can run a throwaway sshd as the current user.
 export interface SshTarget {
 	host: string;
@@ -81,7 +81,7 @@ export const spawnSsh: SshSpawn = (request) => {
 	const resolved = Bun.which(program ?? '', { PATH: request.env.PATH ?? '' });
 	if (resolved === null) {
 		throw new SshMissingError(
-			`cannot find ${program} on PATH; koi reaches an SSH target through the system OpenSSH client`,
+			`cannot find ${program} on PATH; previewlane reaches an SSH target through the system OpenSSH client`,
 		);
 	}
 	const proc = Bun.spawn([resolved, ...rest], {
@@ -206,7 +206,7 @@ export function sshArgs(target: SshTarget, controlPath: string, command?: string
 
 // The environment ssh runs with: PATH, so that it finds itself and its
 // helpers, and the agent socket only when the target's identity lives in
-// the agent. Nothing else of koi's environment reaches it.
+// the agent. Nothing else of previewlane's environment reaches it.
 export function sshEnv(target: SshTarget, env: Env): Record<string, string> {
 	const out: Record<string, string> = {};
 	if (env.PATH !== undefined) out.PATH = env.PATH;
@@ -246,7 +246,7 @@ export class SshClient {
 		this.target = options.target;
 		this.env = options.env;
 		this.spawn = options.spawn ?? spawnSsh;
-		this.makeControlDir = options.controlDir ?? (() => mkdtemp(join(tmpdir(), 'koi-ssh-')));
+		this.makeControlDir = options.controlDir ?? (() => mkdtemp(join(tmpdir(), 'previewlane-ssh-')));
 	}
 
 	// The control socket's path; its directory is made on first use.
@@ -298,7 +298,7 @@ export class SshClient {
 	}
 
 	// Runs `command` with no stdin and collects what it printed, up to
-	// `maxStdout` bytes of stdout. Throws on more: koid's replies are
+	// `maxStdout` bytes of stdout. Throws on more: previewlaned's replies are
 	// bounded, so longer output is not one of them.
 	async run(
 		command: string,
@@ -319,7 +319,7 @@ export class SshClient {
 		const code = await proc.exited;
 		if (stdout === undefined) {
 			throw new Error(
-				`the output of ${command.split(' ')[0]} on ${this.target.host} passed ${maxStdout} bytes; koi does not use part of a reply`,
+				`the output of ${command.split(' ')[0]} on ${this.target.host} passed ${maxStdout} bytes; previewlane does not use part of a reply`,
 			);
 		}
 		return { code, stdout, stderr: stderr ?? '' };

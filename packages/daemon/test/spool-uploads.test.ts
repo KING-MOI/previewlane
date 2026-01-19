@@ -11,7 +11,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { UpRequest } from '@koi/shared';
+import type { UpRequest } from '@previewlane/shared';
 import {
 	BrokenUploadError,
 	NoSuchUploadError,
@@ -37,7 +37,7 @@ const claims = {
 };
 
 async function spool() {
-	const root = await mkdtemp(join(tmpdir(), 'koid-spool-'));
+	const root = await mkdtemp(join(tmpdir(), 'previewlaned-spool-'));
 	const layout = spoolLayout(root);
 	await mkdir(layout.incoming, { recursive: true });
 	await mkdir(layout.ready, { recursive: true });

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { PreviewRecord } from '@koi/shared';
+import type { PreviewRecord } from '@previewlane/shared';
 import {
 	BuildLogs,
 	capLine,
@@ -33,7 +33,7 @@ const B = 'b'.repeat(16);
 
 describe('BuildLogs', () => {
 	test("a new request's log replaces the label's earlier ones", async () => {
-		const state = await mkdtemp(join(tmpdir(), 'koi-buildlog-'));
+		const state = await mkdtemp(join(tmpdir(), 'previewlane-buildlog-'));
 		const logs = new BuildLogs(state);
 		await write(logs, 'hello', A, ['first build, line 1', 'first build, line 2']);
 		await write(logs, 'other', A, ['another label']);
@@ -47,7 +47,7 @@ describe('BuildLogs', () => {
 	});
 
 	test('flush writes out the lines line() holds', async () => {
-		const state = await mkdtemp(join(tmpdir(), 'koi-buildlog-'));
+		const state = await mkdtemp(join(tmpdir(), 'previewlane-buildlog-'));
 		const log = await new BuildLogs(state).open('hello', A);
 		log.line('one');
 		log.line('two');
@@ -58,7 +58,7 @@ describe('BuildLogs', () => {
 	});
 
 	test('a request built again starts its log afresh', async () => {
-		const state = await mkdtemp(join(tmpdir(), 'koi-buildlog-'));
+		const state = await mkdtemp(join(tmpdir(), 'previewlane-buildlog-'));
 		const logs = new BuildLogs(state);
 		await write(logs, 'hello', A, ['first attempt, line 1', 'first attempt, line 2']);
 		await write(logs, 'hello', A, ['second attempt']);
@@ -111,7 +111,7 @@ describe('pageAt', () => {
 			const cut = await page(text, 0, 200, 12_000);
 			expect(cut.next).toBe(offset(text, 1));
 			expect(cut.lines).toHaveLength(1);
-			expect(cut.lines[0]).toEndWith(' [cut by koid]');
+			expect(cut.lines[0]).toEndWith(' [cut by previewlaned]');
 			expect(cut.lines[0]).not.toContain('\ufffd');
 			expect(jsonSize(cut.lines[0] as string) + 1).toBeLessThanOrEqual(12_000);
 			expect(await page(text, cut.next, 200, 12_000)).toEqual({
@@ -170,13 +170,13 @@ describe('tailAt', () => {
 			}
 		}
 		const one = await tailAt(memoryFile(`${'x'.repeat(20_000)}\n`), 1, 16_000);
-		expect(one).toStartWith('[koid: earlier output cut');
+		expect(one).toStartWith('[previewlaned: earlier output cut');
 	});
 });
 
 describe('BuildLogs reads', () => {
 	test('read a several-MiB log only as far as a reply needs', async () => {
-		const state = await mkdtemp(join(tmpdir(), 'koi-buildlog-'));
+		const state = await mkdtemp(join(tmpdir(), 'previewlane-buildlog-'));
 		const files = countingFiles(diskFiles);
 		const logs = new BuildLogs(state, files);
 		const log = await logs.open('hello', A);
@@ -204,7 +204,7 @@ describe('BuildLogs reads', () => {
 		expect(end).toEqual({ result: { next: size, lines: [] }, bytes: 0 });
 		const before = files.bytesRead();
 		const tail = await logs.tail('hello', A, 5000, 16_000);
-		expect(tail).toStartWith('[koid: earlier output cut');
+		expect(tail).toStartWith('[previewlaned: earlier output cut');
 		expect(tail).toContain(`step 059999 ${'x'.repeat(80)}\n`);
 		expect(files.bytesRead() - before).toBeLessThanOrEqual(16_001 + 16 * 1024);
 	});
@@ -222,7 +222,7 @@ describe('fitJson', () => {
 			const cut = fitJson(text, 1000);
 			expect(jsonSize(cut)).toBeLessThanOrEqual(1000);
 			expect(jsonSize(cut)).toBeGreaterThan(990);
-			expect(cut).toEndWith(' [cut by koid]');
+			expect(cut).toEndWith(' [cut by previewlaned]');
 			expect(cut).not.toMatch(/[\ud800-\udbff] \[cut/);
 		}
 	});
@@ -248,7 +248,7 @@ function oneLongLine(size: number, ended: boolean) {
 
 describe('long lines', () => {
 	test('line() stores at most 4 KiB of a line, cut on a character', async () => {
-		const state = await mkdtemp(join(tmpdir(), 'koi-buildlog-'));
+		const state = await mkdtemp(join(tmpdir(), 'previewlane-buildlog-'));
 		const logs = new BuildLogs(state);
 		const long = ['x'.repeat(1024 ** 2), 'é'.repeat(1024 ** 2), '😀'.repeat(300_000)];
 		await write(logs, 'hello', A, [...long, 'ok']);
@@ -258,14 +258,14 @@ describe('long lines', () => {
 		for (const line of stored.slice(0, 3)) {
 			expect(Buffer.byteLength(`${line}\n`)).toBeLessThanOrEqual(LINE_MAX_BYTES);
 			expect(Buffer.byteLength(`${line}\n`)).toBeGreaterThan(LINE_MAX_BYTES - 4);
-			expect(line).toEndWith(' [cut by koid]');
+			expect(line).toEndWith(' [cut by previewlaned]');
 			expect(line).not.toContain('\ufffd');
 		}
 		expect(capLine('short')).toBe('short');
 	});
 
 	test('line() masks a key before it cuts, so a key across the cut is not left in part', async () => {
-		const state = await mkdtemp(join(tmpdir(), 'koi-buildlog-'));
+		const state = await mkdtemp(join(tmpdir(), 'previewlane-buildlog-'));
 		const logs = new BuildLogs(state);
 		const key = `sk-ant-api03-${'abcdefghij0123456789'.repeat(3)}`;
 		// The key starts just before where line() cuts and ends after it, and
@@ -274,7 +274,7 @@ describe('long lines', () => {
 		await write(logs, 'hello', A, [`${before}${key} ${'y '.repeat(100)}`]);
 		const file = await readFile(join(state, 'logs', 'hello', `${A}.build.log`), 'utf8');
 		expect(Buffer.byteLength(file)).toBeLessThanOrEqual(LINE_MAX_BYTES);
-		expect(file).toEndWith(' [cut by koid]\n');
+		expect(file).toEndWith(' [cut by previewlaned]\n');
 		expect(file).toContain(`${before}[redacted]`);
 		expect(file).not.toContain(key.slice(0, 8));
 	});
@@ -285,7 +285,7 @@ describe('long lines', () => {
 			const big = oneLongLine(MiB64, ended);
 			const first = await pageAt(big.file, 0, 200, 12_000);
 			expect(first.lines).toHaveLength(1);
-			expect(first.lines[0]).toEndWith(' [cut by koid]');
+			expect(first.lines[0]).toEndWith(' [cut by previewlaned]');
 			expect(first.next).toBe(64 * 1024);
 			const second = await pageAt(big.file, first.next, 200, 12_000);
 			expect(second.next).toBe(2 * 64 * 1024);
@@ -305,7 +305,7 @@ describe('long lines', () => {
 		for (const ended of [true, false]) {
 			const big = oneLongLine(MiB64, ended);
 			const out = await tailAt(big.file, 1, 16_000);
-			expect(out).toStartWith('[koid: earlier output cut');
+			expect(out).toStartWith('[previewlaned: earlier output cut');
 			expect(Buffer.byteLength(out)).toBeLessThanOrEqual(16_000);
 			expect(big.bytesRead()).toBeLessThanOrEqual(64 * 1024 + 16_001);
 		}
@@ -315,9 +315,9 @@ describe('long lines', () => {
 
 describe('BuildLogs.upgrade', () => {
 	test('moves logs from before attempts to their latest attempt and removes the rest', async () => {
-		// The state an older koid left: records with no attempt, and one log
+		// The state an older previewlaned left: records with no attempt, and one log
 		// per label in logs/<label>.build.log.
-		const state = await mkdtemp(join(tmpdir(), 'koi-upgrade-'));
+		const state = await mkdtemp(join(tmpdir(), 'previewlane-upgrade-'));
 		await mkdir(join(state, 'previews'));
 		await mkdir(join(state, 'logs'));
 		const old = {
@@ -336,7 +336,7 @@ describe('BuildLogs.upgrade', () => {
 		const legacy = (label: string) => join(state, 'logs', `${label}.build.log`);
 		await writeFile(join(state, 'previews', 'hello.json'), JSON.stringify(old));
 		await writeFile(legacy('hello'), 'previous build output\nready\n');
-		// A record a koid that read old records with an empty attempt wrote back.
+		// A record a previewlaned that read old records with an empty attempt wrote back.
 		await writeFile(
 			join(state, 'previews', 'empty.json'),
 			JSON.stringify({ ...old, label: 'empty', attempt: '' }),
@@ -353,7 +353,7 @@ describe('BuildLogs.upgrade', () => {
 		await mkdir(join(state, 'logs', 'both'));
 		await writeFile(join(state, 'logs', 'both', `${B}.build.log`), 'newer output\n');
 
-		// As koid starts.
+		// As previewlaned starts.
 		const store = new PreviewStore(state);
 		await store.init();
 		const logs = new BuildLogs(state);
@@ -379,7 +379,7 @@ describe('BuildLogs.upgrade', () => {
 
 describe('a record with no attempt', () => {
 	test('has no log to read, and keeps its old log for the next start', async () => {
-		const state = await mkdtemp(join(tmpdir(), 'koi-buildlog-'));
+		const state = await mkdtemp(join(tmpdir(), 'previewlane-buildlog-'));
 		const logs = new BuildLogs(state);
 		expect(await logs.read('hello', '', 0, 200, 12_000)).toEqual({ next: 0, lines: [] });
 		expect(await logs.tail('hello', '', 200, 16_000)).toBe('');
@@ -393,7 +393,7 @@ describe('a record with no attempt', () => {
 
 describe('BuildLogs.read', () => {
 	test("reads a request's lines by offset from its file, and nothing when there is none", async () => {
-		const state = await mkdtemp(join(tmpdir(), 'koi-buildlog-'));
+		const state = await mkdtemp(join(tmpdir(), 'previewlane-buildlog-'));
 		const logs = new BuildLogs(state);
 		expect(await logs.read('hello', A, 0, 200, 12_000)).toEqual({ next: 0, lines: [] });
 		expect(await logs.read('hello', A, 3, 200, 12_000)).toEqual({ next: 3, lines: [] });

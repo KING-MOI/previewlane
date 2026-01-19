@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "koi",
+      "name": "previewlane",
       "devDependencies": {
         "@biomejs/biome": "^2.5.15",
         "@types/bun": "^1.4.2",
@@ -11,7 +11,7 @@
       },
     },
     "host/recorder": {
-      "name": "@koi/recorder",
+      "name": "@previewlane/recorder",
       "version": "0.0.0",
       "dependencies": {
         "playwright-core": "1.64.1",
@@ -22,10 +22,10 @@
       },
     },
     "packages/cli": {
-      "name": "@koi/cli",
+      "name": "@previewlane/cli",
       "version": "0.0.0",
       "bin": {
-        "koi": "./src/main.ts",
+        "previewlane": "./src/main.ts",
       },
       "dependencies": {
         "@aws-sdk/client-ec2": "^3.900.0",
@@ -34,17 +34,17 @@
         "@aws-sdk/client-sts": "^3.900.0",
         "@aws-sdk/credential-providers": "^3.900.0",
         "@aws-sdk/lib-storage": "^3.900.0",
-        "@koi/shared": "workspace:*",
+        "@previewlane/shared": "workspace:*",
         "zod": "^4.1.0",
       },
     },
     "packages/daemon": {
-      "name": "@koi/daemon",
+      "name": "@previewlane/daemon",
       "version": "0.0.0",
       "dependencies": {
         "@aws-sdk/client-s3": "^3.900.0",
         "@aws-sdk/client-ssm": "^3.900.0",
-        "@koi/shared": "workspace:*",
+        "@previewlane/shared": "workspace:*",
         "zod": "^4.1.0",
       },
       "devDependencies": {
@@ -52,16 +52,16 @@
       },
     },
     "packages/lambda": {
-      "name": "@koi/lambda",
+      "name": "@previewlane/lambda",
       "version": "0.0.0",
       "dependencies": {
         "@aws-sdk/client-ec2": "^3.900.0",
         "@aws-sdk/client-ssm": "^3.900.0",
-        "@koi/shared": "workspace:*",
+        "@previewlane/shared": "workspace:*",
       },
     },
     "packages/shared": {
-      "name": "@koi/shared",
+      "name": "@previewlane/shared",
       "version": "0.0.0",
       "dependencies": {
         "zod": "^4.1.0",
@@ -137,15 +137,15 @@
 
     "@biomejs/cli-win32-x64": ["@biomejs/cli-win32-x64@2.5.15", "", { "os": "win32", "cpu": "x64" }, "sha512-yAzh4UqEImV6Hcy0zjUqNfJAsUhoD64FBQCdTG8Md/Z2wQeVP/ZmJ3XRYAs1g8J9fjTFyl2fCtc5FB5til47+g=="],
 
-    "@koi/cli": ["@koi/cli@workspace:packages/cli"],
+    "@previewlane/cli": ["@previewlane/cli@workspace:packages/cli"],
 
-    "@koi/daemon": ["@koi/daemon@workspace:packages/daemon"],
+    "@previewlane/daemon": ["@previewlane/daemon@workspace:packages/daemon"],
 
-    "@koi/lambda": ["@koi/lambda@workspace:packages/lambda"],
+    "@previewlane/lambda": ["@previewlane/lambda@workspace:packages/lambda"],
 
-    "@koi/recorder": ["@koi/recorder@workspace:host/recorder"],
+    "@previewlane/recorder": ["@previewlane/recorder@workspace:host/recorder"],
 
-    "@koi/shared": ["@koi/shared@workspace:packages/shared"],
+    "@previewlane/shared": ["@previewlane/shared@workspace:packages/shared"],
 
     "@smithy/core": ["@smithy/core@3.35.1", "", { "dependencies": { "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-i4YPS4B6ts7bjn7UwLnGjiZdprOvHvgGobFZsYK3GIY3E5hIqtj0rReU69BcTpGp+fvtraSNXeG1l+jtJvF55w=="],
 

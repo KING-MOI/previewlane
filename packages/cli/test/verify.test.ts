@@ -15,7 +15,7 @@ import {
 	type RunAccepted,
 	type RunEventsPage,
 	type RunStatusReply,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { USAGE } from '../src/args.ts';
 import { type Box, BoxUnavailableError, type CtlResult } from '../src/box.ts';
 import { type Runtime, run } from '../src/main.ts';
@@ -59,7 +59,7 @@ function plan(over: Partial<PlanReply> = {}): PlanReply {
 		counts: { selected: 2, blocked: 1, uncovered: 1, required: 1 },
 		policy: {
 			source: 'none',
-			advisory: { path: '.koi/required.yaml', required: [{ id: 'hello.home', revision: 2 }] },
+			advisory: { path: '.previewlane/required.yaml', required: [{ id: 'hello.home', revision: 2 }] },
 		},
 		limits,
 		runnerImage: 'curlimages/curl:8.11.1',
@@ -161,7 +161,7 @@ const refused = (status: number, code: string, message: string): CtlResult => ({
 
 type Handler = (args: string[], count: number) => CtlResult | Promise<CtlResult>;
 
-// A box whose koid ctl verify answers come from `handle`, given the ctl
+// A box whose previewlaned ctl verify answers come from `handle`, given the ctl
 // arguments and how many calls came before. Health answers 200 unless told
 // otherwise, so the preview is running.
 function verifyRuntime(
@@ -219,7 +219,7 @@ async function capture(argv: string[], runtime: Runtime) {
 	return { code, stdout, stderr };
 }
 
-describe('koi verify plan', () => {
+describe('previewlane verify plan', () => {
 	test('reads every page of the plan and prints it, or JSON with --json', async () => {
 		const runtime = verifyRuntime((args) => {
 			if (args[1] === 'plan') return ok(plan({ next: 'blocked:0', truncated: ['notes'] }));
@@ -269,13 +269,13 @@ describe('koi verify plan', () => {
 		expect(r).toEqual({
 			code: 1,
 			stdout: '',
-			stderr: 'koi: the verification inputs were not kept (inputs_missing)\n',
+			stderr: 'previewlane: the verification inputs were not kept (inputs_missing)\n',
 		});
 	});
 });
 
-describe('koi verify run', () => {
-	// koid answers a run: the plan, the acceptance, then `statuses` in order,
+describe('previewlane verify run', () => {
+	// previewlaned answers a run: the plan, the acceptance, then `statuses` in order,
 	// the last repeating.
 	function running(statuses: RunStatusReply[]): Handler {
 		let polls = 0;
@@ -304,8 +304,8 @@ describe('koi verify run', () => {
 		expect(r.code).toBe(1);
 		expect(runtime.events.slice(0, 5)).toEqual([
 			'awake',
-			'probe https://hello-pr-7.previews.example.net/__koi/health',
-			'probe https://hello-pr-7.previews.example.net/__koi/health',
+			'probe https://hello-pr-7.previews.example.net/__previewlane/health',
+			'probe https://hello-pr-7.previews.example.net/__previewlane/health',
 			'ctl verify plan',
 			'ctl verify run',
 		]);
@@ -316,14 +316,14 @@ describe('koi verify run', () => {
 		expect(report.plan.planId).toBe(PLAN);
 		expect(report.accepted).toEqual(accepted);
 		expect(report.run).toEqual(finished);
-		expect(r.stderr).toContain('koi  waking hello-pr-7\n');
+		expect(r.stderr).toContain('previewlane  waking hello-pr-7\n');
 		expect(r.stderr).toContain(
-			`koi  plan ${PLAN}: 2 point(s) selected, 1 blocked, 1 uncovered change(s)\n`,
+			`previewlane  plan ${PLAN}: 2 point(s) selected, 1 blocked, 1 uncovered change(s)\n`,
 		);
-		expect(r.stderr).toContain('koi  note: the verifier does not exist yet\n');
-		expect(r.stderr).toContain(`koi  run ${RUN} started; lease until 2026-10-06T12:12:00.000Z\n`);
-		expect(r.stderr).toContain('koi  hello.home: blocked\n');
-		expect(r.stderr).toContain('koi  app.search: blocked\n');
+		expect(r.stderr).toContain('previewlane  note: the verifier does not exist yet\n');
+		expect(r.stderr).toContain(`previewlane  run ${RUN} started; lease until 2026-10-06T12:12:00.000Z\n`);
+		expect(r.stderr).toContain('previewlane  hello.home: blocked\n');
+		expect(r.stderr).toContain('previewlane  app.search: blocked\n');
 	});
 
 	test('exits 0 only for an evaluated run that passed, and prints the summary', async () => {
@@ -344,7 +344,7 @@ describe('koi verify run', () => {
 			state: 'completed',
 			completion: 'interrupted',
 			outcome: 'incomplete',
-			interruption: 'koid_restarted',
+			interruption: 'previewlaned_restarted',
 		});
 		expect(
 			(await capture(['verify', 'run', 'hello-pr-7'], verifyRuntime(running([interrupted])))).code,
@@ -381,7 +381,7 @@ describe('koi verify run', () => {
 		const gaveUp = await capture(['verify', 'run', 'hello-pr-7'], silent);
 		expect(gaveUp.code).toBe(1);
 		expect(gaveUp.stderr).toContain(
-			`koi: could not read the status of run ${RUN} for 5 minutes: TimeoutError\n`,
+			`previewlane: could not read the status of run ${RUN} for 5 minutes: TimeoutError\n`,
 		);
 	});
 
@@ -390,13 +390,13 @@ describe('koi verify run', () => {
 		const r = await capture(['verify', 'run', 'hello-pr-7'], runtime);
 		expect(r.code).toBe(1);
 		expect(r.stderr).toContain(
-			`koi: run ${RUN} is still running after its limit of 600 seconds and the follow margin; see koi verify status ${RUN}, or koi verify cancel ${RUN}\n`,
+			`previewlane: run ${RUN} is still running after its limit of 600 seconds and the follow margin; see previewlane verify status ${RUN}, or previewlane verify cancel ${RUN}\n`,
 		);
 		const polls = runtime.calls.filter((c) => c[1] === 'status').length;
 		expect(polls).toBe(Math.ceil((600_000 + FOLLOW_MARGIN_MS) / VERIFY_POLL_MS));
 	});
 
-	test('stops at once when koid refuses the run, with the lease untouched', async () => {
+	test('stops at once when previewlaned refuses the run, with the lease untouched', async () => {
 		const runtime = verifyRuntime((args) => {
 			if (args[1] === 'plan') return ok(plan());
 			return refused(
@@ -408,13 +408,13 @@ describe('koi verify run', () => {
 		const r = await capture(['verify', 'run', 'hello-pr-7'], runtime);
 		expect(r.code).toBe(1);
 		expect(r.stderr).toEndWith(
-			'koi: hello-pr-7 serves another deployment; plan again (deployment_mismatch)\n',
+			'previewlane: hello-pr-7 serves another deployment; plan again (deployment_mismatch)\n',
 		);
 		expect(runtime.calls.filter((c) => c[1] === 'status')).toEqual([]);
 	});
 });
 
-describe('koi verify status and cancel', () => {
+describe('previewlane verify status and cancel', () => {
 	test('status reads every page of points and exits 0 whatever the outcome', async () => {
 		const runtime = verifyRuntime((args) => {
 			if (args[1] !== 'status') return refused(404, 'not_found', 'no');
@@ -444,7 +444,7 @@ describe('koi verify status and cancel', () => {
 		);
 	});
 
-	test('status shows a point by its id, with the reason as koid masked it', async () => {
+	test('status shows a point by its id, with the reason as previewlaned masked it', async () => {
 		const reason = 'capability_missing: the recorder said [redacted]';
 		const runtime = verifyRuntime((args) => {
 			if (args[1] !== 'status') return refused(404, 'not_found', 'no');
@@ -461,7 +461,7 @@ describe('koi verify status and cancel', () => {
 		expect(text.stdout).toContain(`hello.home  blocked  ${reason}`);
 	});
 
-	test('an id that is no point id is not a status koi takes', async () => {
+	test('an id that is no point id is not a status previewlane takes', async () => {
 		const runtime = verifyRuntime((args) => {
 			if (args[1] !== 'status') return refused(404, 'not_found', 'no');
 			return ok({
@@ -473,7 +473,7 @@ describe('koi verify status and cancel', () => {
 		expect(text.code).not.toBe(0);
 	});
 
-	test('cancel asks koid to stop the run and prints the status', async () => {
+	test('cancel asks previewlaned to stop the run and prints the status', async () => {
 		const runtime = verifyRuntime((args) => {
 			if (args[1] === 'cancel') return ok(status({ cancelRequested: true }));
 			return ok(
@@ -492,7 +492,7 @@ describe('koi verify status and cancel', () => {
 	});
 });
 
-describe('koi verify evidence', () => {
+describe('previewlane verify evidence', () => {
 	const aria = `${'x'.repeat(99)}\n`.repeat(100);
 	const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]);
 	const artifact = (
@@ -626,7 +626,7 @@ describe('koi verify evidence', () => {
 	};
 
 	test('writes the manifest, status, events and every artifact, checked against the manifest', async () => {
-		const out = join(await mkdtemp(join(tmpdir(), 'koi-evidence-')), 'export');
+		const out = join(await mkdtemp(join(tmpdir(), 'previewlane-evidence-')), 'export');
 		const runtime = verifyRuntime(handler);
 		const r = await capture(['verify', 'evidence', RUN, '--out', out, '--json'], runtime);
 		expect(r.code).toBe(0);
@@ -726,7 +726,7 @@ describe('koi verify evidence', () => {
 			now: runtime.now,
 			limits: { artifactBytes: 10_000, exportBytes: 12_000 },
 		};
-		const out = join(await mkdtemp(join(tmpdir(), 'koi-evidence-')), 'export');
+		const out = join(await mkdtemp(join(tmpdir(), 'previewlane-evidence-')), 'export');
 		const report = await exportEvidence(RUN, out, deps);
 		// The first artifact is a hundred bytes over its ceiling: exactly the
 		// ceiling is fetched and written, and it is partial.
@@ -755,7 +755,7 @@ describe('koi verify evidence', () => {
 		expect(report.bytes).toBe(12_000);
 	});
 
-	// koid, honoring `after` and `limit` over `all`, and keeping count of what
+	// previewlaned, honoring `after` and `limit` over `all`, and keeping count of what
 	// it sent, so a test can hold the export to what actually crossed SSM.
 	const serving = (all: RunEventsPage['events']) => {
 		const sent = { bytes: 0, limits: [] as number[] };
@@ -788,7 +788,7 @@ describe('koi verify evidence', () => {
 			now: runtime.now,
 			limits: { artifactBytes: 1024 ** 2, exportBytes },
 		};
-		const out = join(await mkdtemp(join(tmpdir(), 'koi-evidence-')), 'export');
+		const out = join(await mkdtemp(join(tmpdir(), 'previewlane-evidence-')), 'export');
 		return { out, report: await exportEvidence(RUN, out, deps) };
 	};
 	// An event whose line is exactly `size` bytes. Sequence numbers from 100
@@ -807,7 +807,7 @@ describe('koi verify evidence', () => {
 		// at the average of 100 is 6. The 50 left holds none, so the minimum
 		// of 1 is asked for, which does not fit. Then nothing more is asked.
 		expect(sent.limits).toEqual([4, 6, 1]);
-		// Of 20,000 bytes koid holds, one line past the ceiling crossed SSM.
+		// Of 20,000 bytes previewlaned holds, one line past the ceiling crossed SSM.
 		expect(sent.bytes).toBe(1100);
 		expect(report.bytes).toBe(sent.bytes);
 		expect(report.events.count).toBe(10);
@@ -873,7 +873,7 @@ describe('koi verify evidence', () => {
 						]),
 					);
 		});
-		const out = join(await mkdtemp(join(tmpdir(), 'koi-evidence-')), 'export');
+		const out = join(await mkdtemp(join(tmpdir(), 'previewlane-evidence-')), 'export');
 		const r = await capture(['verify', 'evidence', RUN, '--out', out, '--json'], runtime);
 		expect(r.code).toBe(0);
 		const evidence = EvidenceReplySchema.parse(
@@ -906,7 +906,7 @@ describe('koi verify evidence', () => {
 			more: Partial<VerifyDeps>,
 		) => {
 			const { box } = await runtime.box({} as never);
-			const out = join(await mkdtemp(join(tmpdir(), 'koi-evidence-')), 'out');
+			const out = join(await mkdtemp(join(tmpdir(), 'previewlane-evidence-')), 'out');
 			const done = exportEvidence(RUN, out, {
 				box,
 				domain: 'previews.example.net',
@@ -987,7 +987,7 @@ describe('koi verify evidence', () => {
 
 	describe('an export that fails part way', () => {
 		const exportFrom = async (handle: Handler) => {
-			const out = join(await mkdtemp(join(tmpdir(), 'koi-evidence-')), 'out');
+			const out = join(await mkdtemp(join(tmpdir(), 'previewlane-evidence-')), 'out');
 			const r = await capture(['verify', 'evidence', RUN, '--out', out], verifyRuntime(handle));
 			expect(r.code).toBe(1);
 			const left = await readdir(out, { recursive: true });
@@ -1019,7 +1019,7 @@ describe('koi verify evidence', () => {
 					? ok({ ...chunkOf('recorder:aria:2', png, 0), offset: 7 })
 					: handler(args, n),
 			);
-			expect(wrong.r.stderr).toContain('koid sent');
+			expect(wrong.r.stderr).toContain('previewlaned sent');
 			expect(wrong.left).not.toContain('artifacts/aria-2.txt');
 		});
 	});
@@ -1046,7 +1046,7 @@ describe('koi verify evidence', () => {
 			};
 		const exportWith = async (openFile: OpenExportFile) => {
 			const { box } = await verifyRuntime(handler).box({} as never);
-			const out = join(await mkdtemp(join(tmpdir(), 'koi-evidence-')), 'out');
+			const out = join(await mkdtemp(join(tmpdir(), 'previewlane-evidence-')), 'out');
 			const done = exportEvidence(RUN, out, {
 				box,
 				domain: 'previews.example.net',
@@ -1086,7 +1086,7 @@ describe('koi verify evidence', () => {
 	});
 
 	describe('expired evidence', () => {
-		// As koid answers once expiry has run: the manifest's fields and no
+		// As previewlaned answers once expiry has run: the manifest's fields and no
 		// artifacts, and 410 for the events and for any artifact.
 		const gone = (args: string[]): CtlResult => {
 			switch (args[1]) {
@@ -1103,7 +1103,7 @@ describe('koi verify evidence', () => {
 			}
 		};
 		const exportGone = async (argv: string[] = []) => {
-			const out = join(await mkdtemp(join(tmpdir(), 'koi-evidence-')), 'out');
+			const out = join(await mkdtemp(join(tmpdir(), 'previewlane-evidence-')), 'out');
 			const runtime = verifyRuntime(gone);
 			const r = await capture(['verify', 'evidence', RUN, '--out', out, ...argv], runtime);
 			return { out, runtime, r };
@@ -1143,7 +1143,7 @@ describe('koi verify evidence', () => {
 				'3 of 3 artifacts: they have expired',
 			]);
 			expect(report.notes).toContain(
-				'events are unavailable: koid no longer keeps them for this run',
+				'events are unavailable: previewlaned no longer keeps them for this run',
 			);
 		});
 
@@ -1186,7 +1186,7 @@ describe('koi verify evidence', () => {
 
 	describe('what a whole export says', () => {
 		const exportOf = async (handle: Handler) => {
-			const out = join(await mkdtemp(join(tmpdir(), 'koi-evidence-')), 'out');
+			const out = join(await mkdtemp(join(tmpdir(), 'previewlane-evidence-')), 'out');
 			const r = await capture(
 				['verify', 'evidence', RUN, '--out', out, '--json'],
 				verifyRuntime(handle),
@@ -1224,7 +1224,7 @@ describe('koi verify evidence', () => {
 			const unlisted = await exportOf((args, n) =>
 				args[1] === 'evidence' ? ok({ ...reply(available), artifactCount: 5 }) : handler(args, n),
 			);
-			expect(unlisted.missing).toContain('3 of 5 artifacts: koid did not list them');
+			expect(unlisted.missing).toContain('3 of 5 artifacts: previewlaned did not list them');
 		});
 
 		test('not complete with fewer events than the manifest records', async () => {
@@ -1238,10 +1238,10 @@ describe('koi verify evidence', () => {
 					: handler(args, n),
 			);
 			expect(report.complete).toBe(false);
-			expect(report.missing).toEqual(['events: koid gave 3 of the 9 recorded']);
+			expect(report.missing).toEqual(['events: previewlaned gave 3 of the 9 recorded']);
 		});
 
-		describe('events koid gave that are not the events recorded', () => {
+		describe('events previewlaned gave that are not the events recorded', () => {
 			const withEvents = (lines: RunEventsPage['events']): Handler => {
 				return (args, n) => {
 					if (args[1] === 'evidence') return ok({ ...reply(available), artifactCount: 2 });
@@ -1286,11 +1286,11 @@ describe('koi verify evidence', () => {
 				);
 				expect(report.complete).toBe(false);
 				expect(report.missing).toHaveLength(1);
-				expect(report.missing[0]).toStartWith('events: the 3 lines koid gave hash to sha256:');
+				expect(report.missing[0]).toStartWith('events: the 3 lines previewlaned gave hash to sha256:');
 				expect(report.missing[0]).toEndWith(`and the manifest says ${recordedEvents.sha256}`);
 			});
 
-			test('the manifest counts no more than koid gave, and more than it recorded is not complete', async () => {
+			test('the manifest counts no more than previewlaned gave, and more than it recorded is not complete', async () => {
 				const report = await exportOf(withEvents([first, second, third, { ...third, seq: 4 }]));
 				expect(report.complete).toBe(false);
 				expect(report.missing[0]).toContain('and the manifest says');
@@ -1327,7 +1327,7 @@ describe('koi verify evidence', () => {
 	});
 
 	test('discards bytes that do not hash to the manifest, and refuses a directory that is not empty', async () => {
-		const root = await mkdtemp(join(tmpdir(), 'koi-evidence-'));
+		const root = await mkdtemp(join(tmpdir(), 'previewlane-evidence-'));
 		const runtime = verifyRuntime((args, n) => {
 			if (args[1] === 'artifact' && args[3] === 'recorder:screenshot:1') {
 				const wrong = chunkOf('recorder:screenshot:1', png, 0);
@@ -1383,7 +1383,7 @@ describe('control characters in what a person reads', () => {
 		policy: {
 			source: 'none',
 			advisory: {
-				path: '.koi/required.yaml',
+				path: '.previewlane/required.yaml',
 				required: [{ id: 'hello.home', revision: 2 }],
 				error: 'required: Invalid input',
 			},
@@ -1414,7 +1414,7 @@ describe('control characters in what a person reads', () => {
 	const fullExport: EvidenceExport = {
 		version: 1,
 		runId: RUN,
-		out: '/tmp/koi-evidence',
+		out: '/tmp/previewlane-evidence',
 		finalized: false,
 		expired: true,
 		complete: false,
@@ -1474,7 +1474,7 @@ describe('control characters in what a person reads', () => {
 		expect(r.stdout.match(/^blocked \(/gm)?.length).toBe(1);
 	});
 
-	test('an error koid sends is escaped, and only for koi verify', async () => {
+	test('an error previewlaned sends is escaped, and only for previewlane verify', async () => {
 		const refusal = await capture(
 			['verify', 'plan', 'hello-pr-7'],
 			verifyRuntime(() => refused(409, 'no_such_point', `no point ${HOSTILE}`)),
@@ -1501,8 +1501,8 @@ describe('control characters in what a person reads', () => {
 		const r = await capture(['verify', 'run', 'hello-pr-7'], runtime);
 		expect(r.stderr).toContain('note: a note \\x1b]52;c;QUJD\\x07');
 		expect(r.stderr.replaceAll('\n', '')).not.toMatch(CONTROL);
-		// Each line is one of koi's own, so a note cannot start one.
-		for (const line of r.stderr.trimEnd().split('\n')) expect(line).toStartWith('koi  ');
+		// Each line is one of previewlane's own, so a note cannot start one.
+		for (const line of r.stderr.trimEnd().split('\n')) expect(line).toStartWith('previewlane  ');
 	});
 
 	test('--json stays as it is: the value is whole, and JSON escapes what can end a line', async () => {
@@ -1514,7 +1514,7 @@ describe('control characters in what a person reads', () => {
 	});
 });
 
-describe('koi verify usage', () => {
+describe('previewlane verify usage', () => {
 	test('exits 2 and asks nothing of the box for bad arguments', async () => {
 		const runtime = verifyRuntime(() => ok({}));
 		const bad = [
@@ -1536,7 +1536,7 @@ describe('koi verify usage', () => {
 			const r = await capture(argv, runtime);
 			expect(r.code).toBe(2);
 			expect(r.stdout).toBe('');
-			expect(r.stderr).toStartWith('koi: ');
+			expect(r.stderr).toStartWith('previewlane: ');
 			expect(r.stderr).toEndWith(USAGE);
 		}
 		expect(runtime.calls).toEqual([]);

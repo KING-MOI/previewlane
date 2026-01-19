@@ -27,9 +27,9 @@ const ROTATED = `${ED25519.slice(0, -4)}AAAA`;
 const SCAN_ROTATED = `[203.0.113.10]:22 ssh-ed25519 ${ROTATED}\n`;
 
 async function home(targets: Record<string, unknown>) {
-	const dir = await mkdtemp(join(tmpdir(), 'koi-home-'));
-	await mkdir(join(dir, '.config', 'koi'), { recursive: true, mode: 0o700 });
-	await writeFile(join(dir, '.config', 'koi', 'config.yaml'), toYaml({ version: 1, targets }), {
+	const dir = await mkdtemp(join(tmpdir(), 'previewlane-home-'));
+	await mkdir(join(dir, '.config', 'previewlane'), { recursive: true, mode: 0o700 });
+	await writeFile(join(dir, '.config', 'previewlane', 'config.yaml'), toYaml({ version: 1, targets }), {
 		mode: 0o600,
 	});
 	return dir;
@@ -43,8 +43,8 @@ function sshTarget(dir: string, over: Record<string, unknown> = {}) {
 			endpoint: {
 				host: '203.0.113.10',
 				port: 2222,
-				user: 'koi-connect',
-				identityFile: '/home/operator/.ssh/koi_team_ed25519',
+				user: 'previewlane-connect',
+				identityFile: '/home/operator/.ssh/previewlane_team_ed25519',
 				knownHostsFile: join(dir, 'known_hosts'),
 				hostKeyAlias: 'team',
 				...over,
@@ -57,7 +57,7 @@ function sshTarget(dir: string, over: Record<string, unknown> = {}) {
 const AWS = {
 	domain: 'previews.example.net',
 	transport: { kind: 'aws-ssm' },
-	aws: { instanceId: 'i-0abc', uploadsBucket: 'koi-uploads-123456789012' },
+	aws: { instanceId: 'i-0abc', uploadsBucket: 'previewlane-uploads-123456789012' },
 	power: { kind: 'ec2' },
 };
 
@@ -90,7 +90,7 @@ async function capture(
 		});
 		return { code, stdout, stderr };
 	} catch (err) {
-		return { code: 1, stdout, stderr: `koi: ${(err as Error).message}\n` };
+		return { code: 1, stdout, stderr: `previewlane: ${(err as Error).message}\n` };
 	}
 }
 
@@ -109,7 +109,7 @@ describe('fingerprint and keyscan', () => {
 	});
 });
 
-describe('koi target trust', () => {
+describe('previewlane target trust', () => {
 	test('enrolls the key whose fingerprint matches, under the alias, in a private file', async () => {
 		const h = await home({ team: sshTarget(h0) });
 		const r = await capture(
@@ -131,7 +131,7 @@ describe('koi target trust', () => {
 	});
 
 	test('refuses when no offered key has the fingerprint, and writes nothing', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-kh-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-kh-'));
 		const h = await home({ team: sshTarget(dir) });
 		const wrong = 'SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 		const r = await capture(
@@ -141,7 +141,7 @@ describe('koi target trust', () => {
 		);
 		expect(r.code).toBe(1);
 		expect(r.stderr).toContain(
-			`none of the 2 host keys 203.0.113.10:2222 offers has the fingerprint ${wrong}, so koi trusts nothing`,
+			`none of the 2 host keys 203.0.113.10:2222 offers has the fingerprint ${wrong}, so previewlane trusts nothing`,
 		);
 		expect(r.stderr).toContain(
 			`Offered: ${ED25519_FP} (ssh-ed25519), ${fingerprint(ECDSA)} (ecdsa-sha2-nistp256)`,
@@ -150,7 +150,7 @@ describe('koi target trust', () => {
 	});
 
 	test("replaces the alias's old key and keeps every other line", async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-kh-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-kh-'));
 		const file = join(dir, 'known_hosts');
 		await writeFile(
 			file,
@@ -170,7 +170,7 @@ describe('koi target trust', () => {
 	});
 
 	test('an entry the alias shares with other names keeps them; the alias gets a line of its own', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-kh-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-kh-'));
 		const file = join(dir, 'known_hosts');
 		// A plain shared entry, and a marked one with a comment after the key.
 		await writeFile(
@@ -197,7 +197,7 @@ describe('koi target trust', () => {
 	});
 
 	test("rotating the alias's key leaves it one line, and the names it shared an entry with their key", async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-kh-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-kh-'));
 		const file = join(dir, 'known_hosts');
 		await writeFile(file, `team,prod ssh-ed25519 ${ECDSA}\n`);
 		const h = await home({ team: sshTarget(dir) });
@@ -239,7 +239,7 @@ describe('koi target trust', () => {
 		};
 		const NEW_LINE = `team ssh-ed25519 ${ED25519}`;
 		const knownHosts = async (text: string) => {
-			const dir = await mkdtemp(join(tmpdir(), 'koi-kh-'));
+			const dir = await mkdtemp(join(tmpdir(), 'previewlane-kh-'));
 			const file = join(dir, 'known_hosts');
 			await writeFile(file, text);
 			return { dir, file };
@@ -388,7 +388,7 @@ describe('koi target trust', () => {
 		});
 
 		test('fails and changes nothing when ssh-keygen still finds another key for the alias', async () => {
-			// Stands for any line koi's reading and OpenSSH's disagree on.
+			// Stands for any line previewlane's reading and OpenSSH's disagree on.
 			const text = `team,* ssh-ed25519 ${ECDSA}\n`;
 			const { dir, file } = await knownHosts(text);
 			const seen: string[] = [];
@@ -411,7 +411,7 @@ describe('koi target trust', () => {
 			const { dir, file } = await knownHosts(text);
 			const none = await trustNew(dir, async () => '');
 			expect(none.code).toBe(1);
-			expect(none.stderr).toContain(`ssh-keygen does not find the key koi wrote for team`);
+			expect(none.stderr).toContain(`ssh-keygen does not find the key previewlane wrote for team`);
 			expect(await readFile(file, 'utf8')).toBe(text);
 			const broken = await trustNew(dir, async () => {
 				throw new Error('cannot run ssh-keygen');
@@ -428,7 +428,7 @@ describe('koi target trust', () => {
 		// back whole; without the lock the last rename would erase the
 		// other's key. Several rounds, since the race is decided by timing.
 		for (let round = 0; round < 5; round++) {
-			const dir = await mkdtemp(join(tmpdir(), 'koi-kh-'));
+			const dir = await mkdtemp(join(tmpdir(), 'previewlane-kh-'));
 			const file = join(dir, 'known_hosts');
 			const h = await home({
 				team: sshTarget(dir),
@@ -458,7 +458,7 @@ describe('koi target trust', () => {
 	});
 
 	test('a host that offers no key, a target without SSH, and a missing target are errors', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-kh-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-kh-'));
 		const h = await home({ team: sshTarget(dir), aws: AWS });
 		const none = await capture(
 			['target', 'trust', 'team', '--fingerprint', ED25519_FP],
@@ -485,11 +485,11 @@ describe('koi target trust', () => {
 			{ HOME: '/nonexistent' },
 			async () => SCAN,
 		);
-		expect(noFile.stderr).toContain('no config file at /nonexistent/.config/koi/config.yaml');
+		expect(noFile.stderr).toContain('no config file at /nonexistent/.config/previewlane/config.yaml');
 	});
 
 	test('--json says what was written', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-kh-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-kh-'));
 		const h = await home({ team: sshTarget(dir) });
 		const r = await capture(
 			['target', 'trust', 'team', '--fingerprint', ED25519_FP, '--json'],
@@ -511,7 +511,7 @@ describe('koi target trust', () => {
 
 describe('a known_hosts file with a NUL byte', () => {
 	test('stops trust and show, and leaves the file as it was', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-nul-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-nul-'));
 		const file = join(dir, 'known_hosts');
 		const text = '@revoked *\0ssh-ed25519-cert-v01@openssh.com AAAA\n';
 		await writeFile(file, text);
@@ -520,20 +520,20 @@ describe('a known_hosts file with a NUL byte', () => {
 	});
 });
 
-describe('koi target show', () => {
+describe('previewlane target show', () => {
 	test("prints an SSH target's endpoint and whether a host key is trusted", async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-kh-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-kh-'));
 		const h = await home({ team: sshTarget(dir) });
 		const before = await capture(['target', 'show', 'team'], { HOME: h });
 		expect(before.code).toBe(0);
 		expect(before.stdout).toStartWith(
-			`target team in ${join(h, '.config', 'koi', 'config.yaml')}:\n`,
+			`target team in ${join(h, '.config', 'previewlane', 'config.yaml')}:\n`,
 		);
 		expect(before.stdout).toContain('    host: 203.0.113.10\n');
 		expect(before.stdout).toContain('    port: 2222\n');
-		expect(before.stdout).toContain('    identityFile: /home/operator/.ssh/koi_team_ed25519\n');
+		expect(before.stdout).toContain('    identityFile: /home/operator/.ssh/previewlane_team_ed25519\n');
 		expect(before.stdout).toContain(
-			`  host key: none trusted for team in ${join(dir, 'known_hosts')}; run koi target trust team --fingerprint SHA256:...`,
+			`  host key: none trusted for team in ${join(dir, 'known_hosts')}; run previewlane target trust team --fingerprint SHA256:...`,
 		);
 		await writeFile(join(dir, 'known_hosts'), `team ssh-ed25519 ${ED25519}\n`);
 		const after = await capture(['target', 'show', 'team'], { HOME: h });
@@ -602,7 +602,7 @@ describe('revocations and certificates, with keys from the real ssh-keygen', () 
 	const base64 = async (file: string) => (await readFile(file, 'utf8')).split(' ')[1] ?? '';
 
 	beforeAll(async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-certs-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-certs-'));
 		const makeKey = async (name: string) => {
 			const path = join(dir, name);
 			await execOk(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', path]);
@@ -630,7 +630,7 @@ describe('revocations and certificates, with keys from the real ssh-keygen', () 
 	});
 
 	const knownHosts = async (text: string) => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-kh-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-kh-'));
 		const file = join(dir, 'known_hosts');
 		await writeFile(file, text);
 		return { dir, file };
@@ -658,7 +658,7 @@ describe('revocations and certificates, with keys from the real ssh-keygen', () 
 		expect(listed.stdout).toContain(`team ED25519 ${hostFp}\n`);
 	});
 
-	describe('koi target trust', () => {
+	describe('previewlane target trust', () => {
 		test.each([
 			['a wildcard', '@revoked *'],
 			['the alias among other names', '@revoked team,prod'],
@@ -673,7 +673,7 @@ describe('revocations and certificates, with keys from the real ssh-keygen', () 
 				expect(r.stderr).toContain(
 					`${file} revokes the key ${hostFp} for team, on the line "${prefix}`,
 				);
-				expect(r.stderr).toContain('so ssh would refuse it. koi changed nothing');
+				expect(r.stderr).toContain('so ssh would refuse it. previewlane changed nothing');
 				expect(await readFile(file, 'utf8')).toBe(text);
 				expect(await readdir(dir)).toEqual(['known_hosts']);
 			},
@@ -756,7 +756,7 @@ describe('revocations and certificates, with keys from the real ssh-keygen', () 
 		});
 	});
 
-	describe('koi target show', () => {
+	describe('previewlane target show', () => {
 		test('a key the file revokes for the alias is not listed, by its own line or a certificate, before or after', async () => {
 			const trusted = `team ssh-ed25519 ${hostKey}`;
 			for (const revocation of [
@@ -857,4 +857,4 @@ describe('revocations and certificates, with keys from the real ssh-keygen', () 
 });
 
 // The directory the first trust test writes its known_hosts into.
-const h0 = await mkdtemp(join(tmpdir(), 'koi-kh-'));
+const h0 = await mkdtemp(join(tmpdir(), 'previewlane-kh-'));

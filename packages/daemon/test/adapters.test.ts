@@ -7,7 +7,7 @@ import { loadConfig } from '../src/config.ts';
 import { NoSuchUploadError, REQUEST_FILE, SOURCE_FILE, spoolLayout } from '../src/spool-uploads.ts';
 import { request, setup } from './fakes.ts';
 
-const DOMAIN = { KOI_DOMAIN: 'previews.example.net' };
+const DOMAIN = { PREVIEWLANE_DOMAIN: 'previews.example.net' };
 
 // 62 characters each: 64 of them are more than an SSM parameter holds.
 const long = (i: number) => `x${String(i).padStart(3, '0')}${'a'.repeat(58)}`;
@@ -28,7 +28,7 @@ async function committed(readyDir: string, id: string, bytes: Uint8Array) {
 
 describe('buildAdapters', () => {
 	test('the AWS settings alone give S3 uploads, an SSM live list with its cap, and no spool', () => {
-		const config = loadConfig({ ...DOMAIN, KOI_UPLOADS_BUCKET: 'bucket' });
+		const config = loadConfig({ ...DOMAIN, PREVIEWLANE_UPLOADS_BUCKET: 'bucket' });
 		const adapters = buildAdapters(config, deps());
 		expect(adapters.spool).toBeUndefined();
 		expect(adapters.live.room(labels(63))).toEqual({ ok: true });
@@ -39,13 +39,13 @@ describe('buildAdapters', () => {
 	});
 
 	test('the spool gives a reader over its ready directory, the upload API, and a file live list without a cap', async () => {
-		const root = await mkdtemp(join(tmpdir(), 'koid-adapters-'));
+		const root = await mkdtemp(join(tmpdir(), 'previewlaned-adapters-'));
 		const config = loadConfig({
 			...DOMAIN,
-			KOI_UPLOADS: 'spool',
-			KOI_SPOOL_DIR: join(root, 'uploads'),
-			KOI_SPOOL_BUDGET_BYTES: '1048576',
-			KOI_LIVE_FILE: join(root, 'live.json'),
+			PREVIEWLANE_UPLOADS: 'spool',
+			PREVIEWLANE_SPOOL_DIR: join(root, 'uploads'),
+			PREVIEWLANE_SPOOL_BUDGET_BYTES: '1048576',
+			PREVIEWLANE_LIVE_FILE: join(root, 'live.json'),
 		});
 		const adapters = buildAdapters(config, deps());
 		expect(adapters.spool).toBeDefined();
@@ -62,12 +62,12 @@ describe('buildAdapters', () => {
 	});
 
 	test('the deployer claims an upload as it accepts the request, so cleanup leaves it until the build has the source', async () => {
-		const root = await mkdtemp(join(tmpdir(), 'koid-adapters-'));
+		const root = await mkdtemp(join(tmpdir(), 'previewlaned-adapters-'));
 		const config = loadConfig({
 			...DOMAIN,
-			KOI_UPLOADS: 'spool',
-			KOI_SPOOL_DIR: join(root, 'uploads'),
-			KOI_LIVE_FILE: join(root, 'live.json'),
+			PREVIEWLANE_UPLOADS: 'spool',
+			PREVIEWLANE_SPOOL_DIR: join(root, 'uploads'),
+			PREVIEWLANE_LIVE_FILE: join(root, 'live.json'),
 		});
 		const adapters = buildAdapters(config, deps());
 		const spool = adapters.spool;
@@ -75,7 +75,7 @@ describe('buildAdapters', () => {
 		const id = 'claimed0123456789abc';
 		const bytes = Buffer.from('the source archive');
 		const ready = spoolLayout(join(root, 'uploads')).ready;
-		// Committed by an earlier koid: this one reads it in at startup.
+		// Committed by an earlier previewlaned: this one reads it in at startup.
 		await committed(ready, id, bytes);
 		await spool.init();
 		// The real deployer over the real reader. Its build stops after it is
@@ -99,12 +99,12 @@ describe('buildAdapters', () => {
 	});
 
 	test('S3 uploads with a file live list, when asked', async () => {
-		const root = await mkdtemp(join(tmpdir(), 'koid-adapters-'));
+		const root = await mkdtemp(join(tmpdir(), 'previewlaned-adapters-'));
 		const config = loadConfig({
 			...DOMAIN,
-			KOI_UPLOADS_BUCKET: 'bucket',
-			KOI_LIVE: 'file',
-			KOI_LIVE_FILE: join(root, 'live.json'),
+			PREVIEWLANE_UPLOADS_BUCKET: 'bucket',
+			PREVIEWLANE_LIVE: 'file',
+			PREVIEWLANE_LIVE_FILE: join(root, 'live.json'),
 		});
 		const adapters = buildAdapters(config, deps());
 		expect(adapters.spool).toBeUndefined();

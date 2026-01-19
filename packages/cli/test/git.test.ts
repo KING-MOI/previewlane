@@ -3,11 +3,11 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { exec } from '../src/exec.ts';
-import { cliGit, FETCH_TIMEOUT_MS, finishTarball, koiFiles, packWorkingTree } from '../src/git.ts';
+import { cliGit, FETCH_TIMEOUT_MS, finishTarball, previewlaneFiles, packWorkingTree } from '../src/git.ts';
 import { pullRequestOrigin, shallowCheckout } from './pulls.ts';
 
 async function repo() {
-	const dir = await mkdtemp(join(tmpdir(), 'koi-git-'));
+	const dir = await mkdtemp(join(tmpdir(), 'previewlane-git-'));
 	const git = (...args: string[]) =>
 		exec(['git', '-C', dir, '-c', 'user.email=t@example.com', '-c', 'user.name=t', ...args]);
 	await git('init', '-q', '-b', 'main');
@@ -68,19 +68,19 @@ describe('cliGit', () => {
 			head: o.head7,
 			merge: { commit: o.merge7, parents: [o.base, o.head7] },
 		});
-		const out = join(await mkdtemp(join(tmpdir(), 'koi-pack-')), 'src.tar');
+		const out = join(await mkdtemp(join(tmpdir(), 'previewlane-pack-')), 'src.tar');
 		await g.archive(o.merge7, out);
-		const extracted = await mkdtemp(join(tmpdir(), 'koi-x-'));
+		const extracted = await mkdtemp(join(tmpdir(), 'previewlane-x-'));
 		await exec(['tar', '-xf', out, '-C', extracted]);
 		expect(await Bun.file(join(extracted, 'pr.txt')).text()).toBe('seven\n');
 		expect(await Bun.file(join(extracted, 'base.txt')).text()).toBe('base moved\n');
-		expect(await o.userGit('for-each-ref', 'refs/koi')).toBe('');
+		expect(await o.userGit('for-each-ref', 'refs/previewlane')).toBe('');
 	});
 
 	test('a pull request with no merge ref, as when it conflicts, comes back with its head only', async () => {
 		const o = await pullRequestOrigin();
 		expect(await cliGit(o.user).fetchPullRequest(8)).toEqual({ head: o.head8, merge: undefined });
-		expect(await o.userGit('for-each-ref', 'refs/koi')).toBe('');
+		expect(await o.userGit('for-each-ref', 'refs/previewlane')).toBe('');
 	});
 
 	test("a pull request origin does not have comes back with neither, not another's refs", async () => {
@@ -127,7 +127,7 @@ describe('cliGit', () => {
 			head: o.head8,
 			merge: { commit: o.head8, parents: [o.init] },
 		});
-		expect(await o.userGit('for-each-ref', 'refs/koi')).toBe('');
+		expect(await o.userGit('for-each-ref', 'refs/previewlane')).toBe('');
 	});
 
 	test("reads the merge's parents from a shallow checkout of it, as actions/checkout makes", async () => {
@@ -146,7 +146,7 @@ describe('cliGit', () => {
 
 	test('reads the refs it fetched even if FETCH_HEAD changes before they are read', async () => {
 		const o = await pullRequestOrigin();
-		// Another koi up in the same checkout fetches pull request 8 right after
+		// Another previewlane up in the same checkout fetches pull request 8 right after
 		// this one's fetch finished.
 		let raced = false;
 		const g = cliGit(o.user, async (cmd, options) => {
@@ -185,14 +185,14 @@ describe('cliGit', () => {
 		const g = cliGit(dir);
 		const head = await g.head();
 		expect(await g.show(head, 'Dockerfile')).toBe('FROM scratch\n');
-		expect(await g.show(head, 'koi.yaml')).toBeUndefined();
+		expect(await g.show(head, 'previewlane.yaml')).toBeUndefined();
 	});
 });
 
 describe('changedFiles', () => {
 	test('lists what changed since the default branch, committed or not, and untracked files', async () => {
 		const { dir, git } = await repo();
-		const bare = await mkdtemp(join(tmpdir(), 'koi-origin-'));
+		const bare = await mkdtemp(join(tmpdir(), 'previewlane-origin-'));
 		await exec(['git', 'init', '-q', '--bare', bare]);
 		await git('remote', 'set-url', 'origin', bare);
 		await git('push', '-q', 'origin', 'main');
@@ -243,80 +243,80 @@ describe('mergeFiles', () => {
 		expect(parent.code).not.toBe(0);
 		expect(await cliGit(shallow).mergeFiles(7, o.merge7)).toEqual(['pr.txt']);
 		expect((await exec(['git', '-C', shallow, 'cat-file', '-e', `${o.merge7}^1`])).code).toBe(0);
-		// Tidied: no ref of koi's left behind.
-		const refs = await exec(['git', '-C', shallow, 'for-each-ref', 'refs/koi/']);
+		// Tidied: no ref of previewlane's left behind.
+		const refs = await exec(['git', '-C', shallow, 'for-each-ref', 'refs/previewlane/']);
 		expect(refs.stdout).toBe('');
 	});
 });
 
-describe('koiFiles', () => {
+describe('previewlaneFiles', () => {
 	test('lists every changed file, however many', () => {
 		const changed = Array.from({ length: 6000 }, (_, i) => `src/m${i}/x.py`);
-		const text = koiFiles(changed)['changed-files.txt'] ?? '';
+		const text = previewlaneFiles(changed)['changed-files.txt'] ?? '';
 		expect(text.split('\n').filter((l) => l !== '')).toEqual(changed);
 	});
 });
 
 describe('finishTarball', () => {
-	test("adds koi's own files under .koi-runtime/, keeps the tree's .koi/ and gzips", async () => {
+	test("adds previewlane's own files under .previewlane-runtime/, keeps the tree's .previewlane/ and gzips", async () => {
 		const { dir } = await repo();
-		await mkdir(join(dir, '.koi'));
-		await writeFile(join(dir, '.koi', 'verify.yaml'), 'version: 1\n');
-		await writeFile(join(dir, '.koi', 'changed-files.txt'), 'the project may name a file so\n');
-		const tar = join(await mkdtemp(join(tmpdir(), 'koi-pack-')), 'src.tar');
-		await exec(['tar', '-cf', tar, '-C', dir, 'Dockerfile', '.koi']);
+		await mkdir(join(dir, '.previewlane'));
+		await writeFile(join(dir, '.previewlane', 'verify.yaml'), 'version: 1\n');
+		await writeFile(join(dir, '.previewlane', 'changed-files.txt'), 'the project may name a file so\n');
+		const tar = join(await mkdtemp(join(tmpdir(), 'previewlane-pack-')), 'src.tar');
+		await exec(['tar', '-cf', tar, '-C', dir, 'Dockerfile', '.previewlane']);
 		const gz = await finishTarball(tar, { 'changed-files.txt': 'real\n' });
 		expect(gz).toBe(`${tar}.gz`);
 		expect(await listTarball(gz)).toEqual([
-			'.koi-runtime/',
-			'.koi-runtime/changed-files.txt',
-			'.koi/',
-			'.koi/changed-files.txt',
-			'.koi/verify.yaml',
+			'.previewlane-runtime/',
+			'.previewlane-runtime/changed-files.txt',
+			'.previewlane/',
+			'.previewlane/changed-files.txt',
+			'.previewlane/verify.yaml',
 			'Dockerfile',
 		]);
-		const runtime = await exec(['tar', '-xzOf', gz, '.koi-runtime/changed-files.txt']);
+		const runtime = await exec(['tar', '-xzOf', gz, '.previewlane-runtime/changed-files.txt']);
 		expect(runtime.stdout).toBe('real\n');
-		const project = await exec(['tar', '-xzOf', gz, '.koi/changed-files.txt']);
+		const project = await exec(['tar', '-xzOf', gz, '.previewlane/changed-files.txt']);
 		expect(project.stdout).toBe('the project may name a file so\n');
 	});
 
-	test('refuses a tree with a .koi-runtime/ of its own, naming what is there', async () => {
+	test('refuses a tree with a .previewlane-runtime/ of its own, naming what is there', async () => {
 		const { dir } = await repo();
-		await mkdir(join(dir, '.koi-runtime'));
-		await writeFile(join(dir, '.koi-runtime', 'changed-files.txt'), 'forged\n');
-		const tar = join(await mkdtemp(join(tmpdir(), 'koi-pack-')), 'src.tar');
-		await exec(['tar', '-cf', tar, '-C', dir, 'Dockerfile', '.koi-runtime']);
+		await mkdir(join(dir, '.previewlane-runtime'));
+		await writeFile(join(dir, '.previewlane-runtime', 'changed-files.txt'), 'forged\n');
+		const tar = join(await mkdtemp(join(tmpdir(), 'previewlane-pack-')), 'src.tar');
+		await exec(['tar', '-cf', tar, '-C', dir, 'Dockerfile', '.previewlane-runtime']);
 		const err = await finishTarball(tar, { 'changed-files.txt': 'real\n' }).catch(
 			(e: unknown) => e,
 		);
 		expect(err).toBeInstanceOf(Error);
-		expect((err as Error).message).toContain('.koi-runtime/, which koi reserves');
-		expect((err as Error).message).toContain('.koi-runtime/changed-files.txt');
+		expect((err as Error).message).toContain('.previewlane-runtime/, which previewlane reserves');
+		expect((err as Error).message).toContain('.previewlane-runtime/changed-files.txt');
 		expect(await Bun.file(`${tar}.gz`).exists()).toBe(false);
 	});
 });
 
 describe('packWorkingTree', () => {
-	test("packs tracked and untracked files, the project's .koi/ among them, skips ignored and deleted ones", async () => {
+	test("packs tracked and untracked files, the project's .previewlane/ among them, skips ignored and deleted ones", async () => {
 		const { dir } = await repo();
 		await writeFile(join(dir, 'untracked.ts'), 'u\n');
 		await mkdir(join(dir, 'node_modules'));
 		await writeFile(join(dir, 'node_modules', 'big.js'), 'ignored\n');
 		await writeFile(join(dir, 'debug.log'), 'ignored\n');
-		await mkdir(join(dir, '.koi', 'points'), { recursive: true });
-		await writeFile(join(dir, '.koi', 'verify.yaml'), 'version: 1\n');
-		await writeFile(join(dir, '.koi', 'points', 'home.yaml'), 'id: hello.home\n');
+		await mkdir(join(dir, '.previewlane', 'points'), { recursive: true });
+		await writeFile(join(dir, '.previewlane', 'verify.yaml'), 'version: 1\n');
+		await writeFile(join(dir, '.previewlane', 'points', 'home.yaml'), 'id: hello.home\n');
 		await rm(join(dir, 'gone.txt'));
 		await symlink('src/a.ts', join(dir, 'link.ts'));
-		const out = join(await mkdtemp(join(tmpdir(), 'koi-pack-')), 'src.tar');
+		const out = join(await mkdtemp(join(tmpdir(), 'previewlane-pack-')), 'src.tar');
 		const count = await packWorkingTree(dir, await cliGit(dir).files(), out);
 		const names = await listTarball(await finishTarball(out, {}));
 		expect(names).toEqual([
 			'.gitignore',
-			'.koi-runtime/',
-			'.koi/points/home.yaml',
-			'.koi/verify.yaml',
+			'.previewlane-runtime/',
+			'.previewlane/points/home.yaml',
+			'.previewlane/verify.yaml',
 			'Dockerfile',
 			'link.ts',
 			'src/a.ts',
@@ -325,27 +325,27 @@ describe('packWorkingTree', () => {
 		expect(count).toBe(7);
 	});
 
-	test('refuses a working tree with a .koi-runtime/ in it', async () => {
+	test('refuses a working tree with a .previewlane-runtime/ in it', async () => {
 		const { dir } = await repo();
-		await mkdir(join(dir, '.koi-runtime'));
-		await writeFile(join(dir, '.koi-runtime', 'changed-files.txt'), 'forged\n');
-		const out = join(await mkdtemp(join(tmpdir(), 'koi-pack-')), 'src.tar');
+		await mkdir(join(dir, '.previewlane-runtime'));
+		await writeFile(join(dir, '.previewlane-runtime', 'changed-files.txt'), 'forged\n');
+		const out = join(await mkdtemp(join(tmpdir(), 'previewlane-pack-')), 'src.tar');
 		await packWorkingTree(dir, await cliGit(dir).files(), out);
 		await expect(finishTarball(out, { 'changed-files.txt': 'real\n' })).rejects.toThrow(
-			'.koi-runtime/changed-files.txt',
+			'.previewlane-runtime/changed-files.txt',
 		);
 	});
 
 	test('refuses files under a directory that became a symlink to somewhere else', async () => {
 		const { dir } = await repo();
-		const outside = await mkdtemp(join(tmpdir(), 'koi-outside-'));
+		const outside = await mkdtemp(join(tmpdir(), 'previewlane-outside-'));
 		await writeFile(join(outside, 'a.ts'), 'secret\n');
 		await rm(join(dir, 'src'), { recursive: true });
 		await symlink(outside, join(dir, 'src'));
 		const files = await cliGit(dir).files();
 		// The index still lists src/a.ts; on disk it is the file outside.
 		expect(files).toContain('src/a.ts');
-		const out = join(await mkdtemp(join(tmpdir(), 'koi-pack-')), 'src.tar');
+		const out = join(await mkdtemp(join(tmpdir(), 'previewlane-pack-')), 'src.tar');
 		const err = await packWorkingTree(dir, files, out).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(Error);
 		expect((err as Error).message).toContain('src/a.ts (src is a symlink)');
@@ -359,7 +359,7 @@ describe('packWorkingTree', () => {
 		// Another repository inside the tree, not a submodule.
 		await exec(['git', 'init', '-q', join(dir, 'nested')]);
 		await writeFile(join(dir, 'nested', 'n.ts'), 'n\n');
-		const out = join(await mkdtemp(join(tmpdir(), 'koi-pack-')), 'src.tar.gz');
+		const out = join(await mkdtemp(join(tmpdir(), 'previewlane-pack-')), 'src.tar.gz');
 		const err = await packWorkingTree(dir, await cliGit(dir).files(), out).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(Error);
 		const message = (err as Error).message;
@@ -374,7 +374,7 @@ describe('packWorkingTree', () => {
 		const lib = await repo();
 		await git('-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', lib.dir, 'vendor/lib');
 		await git('submodule', 'deinit', '-q', '-f', 'vendor/lib');
-		const out = join(await mkdtemp(join(tmpdir(), 'koi-pack-')), 'src.tar.gz');
+		const out = join(await mkdtemp(join(tmpdir(), 'previewlane-pack-')), 'src.tar.gz');
 		expect(await packWorkingTree(dir, await cliGit(dir).files(), out)).toBe(5);
 		expect(await listTarball(out)).toEqual([
 			'.gitignore',
@@ -385,7 +385,7 @@ describe('packWorkingTree', () => {
 		]);
 	});
 
-	test('packs the whole tree when koi starts in a subdirectory', async () => {
+	test('packs the whole tree when previewlane starts in a subdirectory', async () => {
 		const { dir } = await repo();
 		await writeFile(join(dir, 'src', 'b.ts'), 'untracked\n');
 		const g = cliGit(join(dir, 'src'));
@@ -397,7 +397,7 @@ describe('packWorkingTree', () => {
 			'src/a.ts',
 			'src/b.ts',
 		]);
-		const out = join(await mkdtemp(join(tmpdir(), 'koi-pack-')), 'src.tar');
+		const out = join(await mkdtemp(join(tmpdir(), 'previewlane-pack-')), 'src.tar');
 		expect(await packWorkingTree(await g.root(), files, out)).toBe(5);
 		expect(await listTarball(out)).toEqual([
 			'.gitignore',
@@ -406,7 +406,7 @@ describe('packWorkingTree', () => {
 			'src/a.ts',
 			'src/b.ts',
 		]);
-		const archived = join(await mkdtemp(join(tmpdir(), 'koi-pack-')), 'src.tar');
+		const archived = join(await mkdtemp(join(tmpdir(), 'previewlane-pack-')), 'src.tar');
 		await g.archive(await g.head(), archived);
 		expect(await listTarball(archived)).toEqual([
 			'.gitignore',
@@ -421,9 +421,9 @@ describe('packWorkingTree', () => {
 		const { dir } = await repo();
 		await writeFile(join(dir, 'Dockerfile'), 'FROM changed\n');
 		const g = cliGit(dir);
-		const out = join(await mkdtemp(join(tmpdir(), 'koi-pack-')), 'src.tar');
+		const out = join(await mkdtemp(join(tmpdir(), 'previewlane-pack-')), 'src.tar');
 		await g.archive(await g.head(), out);
-		const extracted = await mkdtemp(join(tmpdir(), 'koi-x-'));
+		const extracted = await mkdtemp(join(tmpdir(), 'previewlane-x-'));
 		await exec(['tar', '-xf', out, '-C', extracted]);
 		expect(await Bun.file(join(extracted, 'Dockerfile')).text()).toBe('FROM scratch\n');
 	});

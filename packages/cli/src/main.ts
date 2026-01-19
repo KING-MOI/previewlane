@@ -8,7 +8,7 @@ import {
 	PreviewListPageSchema,
 	type PreviewSummary,
 	randomId,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { parseCli, USAGE } from './args.ts';
 import { type Box, ctlErrorText } from './box.ts';
 import { BUILTIN_RECIPES } from './builtins.ts';
@@ -50,7 +50,7 @@ const processIo: Io = {
 };
 
 // What a command needs to reach its host: the selectors from the command
-// line, the environment, the checkout (for .koi/target.yaml) and where to
+// line, the environment, the checkout (for .previewlane/target.yaml) and where to
 // print notices.
 export interface HostContext {
 	flags: TargetFlags;
@@ -65,19 +65,19 @@ export interface Runtime {
 	// Told of the host a command opened, so that a signal can close it
 	// (main). Nothing, unless main or a test passes its own.
 	opened?: (box: Box) => void;
-	// The environment; process.env unless a test passes its own. Before koi
+	// The environment; process.env unless a test passes its own. Before previewlane
 	// reads it from source, environ.ts refuses a checkout whose dotenv or
 	// bunfig files Bun has already loaded.
 	env?: Record<string, string | undefined>;
-	// How koi up and koi lease wait between polls; Bun.sleep unless a test
+	// How previewlane up and previewlane lease wait between polls; Bun.sleep unless a test
 	// passes its own.
 	sleep?: (ms: number) => Promise<void>;
 	// The clock those waits measure by; Date unless a test passes its own.
 	now?: () => Date;
-	// One request to a preview's health URL, for koi lease; fetch unless a
+	// One request to a preview's health URL, for previewlane lease; fetch unless a
 	// test passes its own.
 	probe?: (url: string) => Promise<HealthAnswer>;
-	// The git and gh clients koi up uses; cliGit(cwd) and ghCli unless a test
+	// The git and gh clients previewlane up uses; cliGit(cwd) and ghCli unless a test
 	// passes its own.
 	git?: Git;
 	github?: (ownerRepo: string) => GitHub;
@@ -91,7 +91,7 @@ const realRuntime: Runtime = {
 	},
 };
 
-// The top of the checkout koi runs in, or the directory itself outside one.
+// The top of the checkout previewlane runs in, or the directory itself outside one.
 async function checkoutDir(runtime: Runtime): Promise<string> {
 	return (runtime.git ?? cliGit(runtime.cwd)).root().catch(() => runtime.cwd);
 }
@@ -105,10 +105,10 @@ export async function run(
 	try {
 		cli = parseCli(argv);
 	} catch (err) {
-		io.stderr(`koi: ${message(err)}\n\n${USAGE}`);
+		io.stderr(`previewlane: ${message(err)}\n\n${USAGE}`);
 		return 2;
 	}
-	const progress = (m: string) => io.stderr(`koi  ${m}\n`);
+	const progress = (m: string) => io.stderr(`previewlane  ${m}\n`);
 	const environment = async () => {
 		if (runtime.env !== undefined) return runtime.env;
 		await refuseAutoloadedCheckout({ cwd: runtime.cwd });
@@ -135,7 +135,7 @@ export async function run(
 				io.stdout(USAGE);
 				return 0;
 			case 'version':
-				io.stdout(cli.json ? `${JSON.stringify({ version: VERSION })}\n` : `koi ${VERSION}\n`);
+				io.stdout(cli.json ? `${JSON.stringify({ version: VERSION })}\n` : `previewlane ${VERSION}\n`);
 				return 0;
 			case 'up': {
 				const { box, domain } = await connect();
@@ -160,7 +160,7 @@ export async function run(
 				} else if (result.status === 'running') {
 					io.stdout(`\n  preview   ${result.url}\n`);
 					if (result.loginKey) io.stdout(`  login     ${result.loginKey}\n`);
-					// For a pull request, what koi built and what it holds; the merge
+					// For a pull request, what previewlane built and what it holds; the merge
 					// commit alone would not say which push of the pull request.
 					if (result.pr !== undefined) io.stdout(`  built     ${builtFrom(result)}\n`);
 					else io.stdout(`  commit    ${result.commit.slice(0, 12)}\n`);
@@ -185,8 +185,8 @@ export async function run(
 			case 'logs': {
 				const { box } = await connect();
 				await box.ensureAwake(progress);
-				// koid ctl returns the last lines asked for, cut to fit through SSM
-				// with a line saying so when they are too long. koi prints that as
+				// previewlaned ctl returns the last lines asked for, cut to fit through SSM
+				// with a line saying so when they are too long. previewlane prints that as
 				// it is, so the line stays. With --json the line becomes `truncated`.
 				const label = cli.label as string;
 				const command = cli.build ? 'buildlog' : 'logs';
@@ -210,7 +210,7 @@ export async function run(
 				const { box, domain } = await connect();
 				await box.ensureAwake(progress);
 				const label = cli.label as string;
-				// koid leases only a preview that runs and is routed, and after
+				// previewlaned leases only a preview that runs and is routed, and after
 				// the box wakes none is until someone visits. So visit first.
 				await wakePreview(label, domain, {
 					probe: runtime.probe ?? probeHealth,
@@ -324,14 +324,14 @@ export async function run(
 	try {
 		return await command();
 	} catch (err) {
-		// A verify error can quote koid, and through it what a pull request named. Other
+		// A verify error can quote previewlaned, and through it what a pull request named. Other
 		// commands' errors can be several lines on purpose, a build's for one.
-		io.stderr(`koi: ${cli.command === 'verify' ? escapeControls(message(err)) : message(err)}\n`);
+		io.stderr(`previewlane: ${cli.command === 'verify' ? escapeControls(message(err)) : message(err)}\n`);
 		return 1;
 	} finally {
 		if (host !== undefined) {
 			await closeHost(host).catch((err: unknown) =>
-				io.stderr(`koi: closing the connection to the host failed: ${message(err)}\n`),
+				io.stderr(`previewlane: closing the connection to the host failed: ${message(err)}\n`),
 			);
 		}
 	}
@@ -362,8 +362,8 @@ function defaultHolder(): string {
 	return `${user}@${hostname()}`;
 }
 
-// One request to a preview's health URL, which reaches koid through Caddy
-// as a visit does. Redirects are not followed: a 200 must be koid's own.
+// One request to a preview's health URL, which reaches previewlaned through Caddy
+// as a visit does. Redirects are not followed: a 200 must be previewlaned's own.
 async function probeHealth(url: string): Promise<HealthAnswer> {
 	try {
 		const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(10_000) });
@@ -377,11 +377,11 @@ async function probeHealth(url: string): Promise<HealthAnswer> {
 
 async function ctlOk(box: Box, args: string[]): Promise<string> {
 	const r = await box.ctl(args);
-	if (r.code !== 0) throw new Error(ctlErrorText(r) || `koid ctl ${args[0]} failed`);
+	if (r.code !== 0) throw new Error(ctlErrorText(r) || `previewlaned ctl ${args[0]} failed`);
 	return r.stdout;
 }
 
-// Every preview. koid ctl list prints a page at a time, small enough for SSM
+// Every preview. previewlaned ctl list prints a page at a time, small enough for SSM
 // to return whole, and the label to ask for the previews after.
 async function listPreviews(box: Box): Promise<PreviewSummary[]> {
 	const all: PreviewSummary[] = [];
@@ -395,7 +395,7 @@ async function listPreviews(box: Box): Promise<PreviewSummary[]> {
 		// Pages come in label order. A next that does not move on would ask
 		// for the same page forever.
 		if (after !== undefined && page.next <= after) {
-			throw new Error(`koid ctl list did not move past ${after}`);
+			throw new Error(`previewlaned ctl list did not move past ${after}`);
 		}
 		after = page.next;
 	}
@@ -432,7 +432,7 @@ function message(err: unknown): string {
 // own once nothing is left to do. A call the transport stopped waiting for
 // is still running inside the SDK, though. What the SDK started for it, a
 // credential_process or a retry's timer, keeps the runtime alive until it
-// ends, and a stuck helper never ends. Then koi exits itself, once its
+// ends, and a stuck helper never ends. Then previewlane exits itself, once its
 // output is written. Tests pass their own runtime.
 //
 // SIGINT and SIGTERM end the command at once, as they did when nothing

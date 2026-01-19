@@ -31,7 +31,7 @@ import {
 	VERIFICATION_ERROR_MESSAGE_MAX,
 	type VerificationErrorReply,
 	VerifyIdSchema,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { ZodError, z } from 'zod';
 import { BodyTimeoutError, BodyTooLargeError, readJson } from './body.ts';
 import { type BuildLogs, fitJson } from './buildlog.ts';
@@ -55,13 +55,13 @@ export interface ControlDeps {
 	buildLogs: Pick<BuildLogs, 'read' | 'tail'>;
 	// Refreshes the activity stamp the idle timer reads (Activity.touch).
 	keepAwake: () => Promise<void>;
-	// This host's descriptor, for `koid ctl describe` (host-info.ts).
+	// This host's descriptor, for `previewlaned ctl describe` (host-info.ts).
 	describe: () => Promise<HostInfo>;
-	// Serves /v1/uploads when uploads come through this socket (KOI_UPLOADS=
+	// Serves /v1/uploads when uploads come through this socket (PREVIEWLANE_UPLOADS=
 	// spool). Absent on AWS, where the CLI puts them in S3; the route then
 	// answers 404.
 	uploadApi?: Pick<UploadApi, 'handle'> | undefined;
-	// Serves the verification routes (verification.ts). Absent in a koid
+	// Serves the verification routes (verification.ts). Absent in a previewlaned
 	// without the controller; the routes then answer 404.
 	verification?: VerificationApi | undefined;
 	limits?: Partial<ControlLimits> | undefined;
@@ -104,23 +104,23 @@ const STATUS_LOG_CHARS = 12_000;
 const STATUS_ERROR_CHARS = 2_000;
 const LIST_PAGE_CHARS = 16_000;
 // A branch name in a list reply is cut to this, so that any one preview fits
-// in a page with room to spare. koi sends at most 255 characters.
+// in a page with room to spare. previewlane sends at most 255 characters.
 const LIST_BRANCH_CHARS = 2_000;
 
 export interface ControlOptions {
 	// The group the socket is given once it exists, so that an account in
-	// it can connect: the SSH gateway's koi-connect (host/ssh), which is in
-	// koi-control. Without one the socket keeps koid's own group, and only
-	// root and koi can open it, as before the gateway.
+	// it can connect: the SSH gateway's previewlane-connect (host/ssh), which is in
+	// previewlane-control. Without one the socket keeps previewlaned's own group, and only
+	// root and previewlane can open it, as before the gateway.
 	gid?: number | undefined;
-	// Where a group koid could not give the socket is reported.
+	// Where a group previewlaned could not give the socket is reported.
 	log?: ((message: string) => void) | undefined;
 }
 
-// The control API, on a unix socket only root, koi and the socket's group
-// can open. `koid ctl` is its client; the CLI reaches it through an SSM
-// command that runs `koid ctl ...` as root on the box, or over SSH through
-// the gateway, which connects as koi-connect.
+// The control API, on a unix socket only root, previewlane and the socket's group
+// can open. `previewlaned ctl` is its client; the CLI reaches it through an SSM
+// command that runs `previewlaned ctl ...` as root on the box, or over SSH through
+// the gateway, which connects as previewlane-connect.
 export async function startControlServer(
 	socket: string,
 	deps: ControlDeps,
@@ -149,15 +149,15 @@ export async function startControlServer(
 	const server = Bun.serve(serveOptions as unknown as Parameters<typeof Bun.serve>[0]);
 	// The group is set every time the socket is made, never assumed from
 	// the directory, and before the mode opens the socket to that group. A
-	// group koid may not give (it is not a member, as on a box provisioned
-	// before the group) leaves the socket as it was, and koid running: the
+	// group previewlaned may not give (it is not a member, as on a box provisioned
+	// before the group) leaves the socket as it was, and previewlaned running: the
 	// SSH path then fails at the socket, and the log says why.
 	if (options.gid !== undefined) {
 		try {
 			await chown(socket, -1, options.gid);
 		} catch (err) {
 			options.log?.(
-				`control socket: could not give ${socket} the group ${options.gid}: ${err instanceof Error ? err.message : String(err)}; the SSH gateway's account cannot open it. Run scripts/provision-host.sh, which puts koi in the group`,
+				`control socket: could not give ${socket} the group ${options.gid}: ${err instanceof Error ? err.message : String(err)}; the SSH gateway's account cannot open it. Run scripts/provision-host.sh, which puts previewlane in the group`,
 			);
 		}
 	}
@@ -187,13 +187,13 @@ export async function control(request: Request, deps: ControlDeps): Promise<Resp
 	const url = new URL(request.url);
 	const parts = url.pathname.split('/').filter((p) => p !== '');
 	const limits = { ...CONTROL_LIMITS, ...deps.limits };
-	// Every command is someone using the box: koi up following a build,
-	// koi logs, a person on the box. A stamp that cannot be written does not
+	// Every command is someone using the box: previewlane up following a build,
+	// previewlane logs, a person on the box. A stamp that cannot be written does not
 	// stop the command.
 	await deps.keepAwake().catch(() => {});
 	try {
 		// The control socket listens only once startup is done (see main.ts), so
-		// an answer here means koid takes commands.
+		// an answer here means previewlaned takes commands.
 		if (request.method === 'GET' && url.pathname === '/health') {
 			return Response.json({ ok: true } satisfies PingReply);
 		}
@@ -288,7 +288,7 @@ export async function control(request: Request, deps: ControlDeps): Promise<Resp
 		if (parts[0] === 'v1' && parts[1] === 'uploads') {
 			if (deps.uploadApi === undefined) {
 				return Response.json(
-					{ error: 'uploads do not come through this socket; koid reads them from S3' },
+					{ error: 'uploads do not come through this socket; previewlaned reads them from S3' },
 					{ status: 404 },
 				);
 			}
@@ -350,7 +350,7 @@ async function verification(
 			{ status },
 		);
 	if (api === undefined) {
-		return error(404, 'verification_unavailable', 'this koid has no verification controller');
+		return error(404, 'verification_unavailable', 'this previewlaned has no verification controller');
 	}
 	const { method } = request;
 	try {

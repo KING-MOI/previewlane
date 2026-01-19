@@ -10,12 +10,12 @@ import { parseOrigin } from './origin.ts';
 import { startProxy } from './proxy.ts';
 
 // The recorder of one verification run (docs/verify.md, "Recorder and
-// evidence"). koid starts it inside the run's private network with the run
+// evidence"). previewlaned starts it inside the run's private network with the run
 // id, the app's private URL and two tokens in its environment, and talks to
 // it on TCP 4318; the verifier connects to the browser on TCP 4317 with the
 // other token. Nothing is written to stdout or stderr: the container has no
 // log driver, and capture data must never go through one anyway. What the
-// recorder has to say goes into its event feed, which koid reads.
+// recorder has to say goes into its event feed, which previewlaned reads.
 //
 // Control API, every request with `Authorization: Bearer <control token>`:
 //   GET    /health                          what runs, or 503 with the reason while
@@ -26,16 +26,16 @@ import { startProxy } from './proxy.ts';
 //   POST   /contexts/:id/captures           {kind, label, pageId?} -> a capture record
 //   POST   /contexts/:id/reads              {method, path, maxBodyBytes} -> a capture record
 //   GET    /captures/:id                    the raw bytes, from memory
-//   DELETE /captures/:id                    koid's acknowledgment; the bytes go
+//   DELETE /captures/:id                    previewlaned's acknowledgment; the bytes go
 //   GET    /events?after=N&limit=M          {events, next, dropped}
 // Errors are {error, code} with the status that fits.
 
 const CONTROL_PORT = 4318;
 const BROWSER_PORT = 4317;
-const STATE_DIR = '/tmp/koi-recorder';
+const STATE_DIR = '/tmp/previewlane-recorder';
 const MAX_BODY_BYTES = 64 * 1024;
 const EVENT_CAPACITY = 20_000;
-// Raw captures live in this process's memory until koid acknowledges them
+// Raw captures live in this process's memory until previewlaned acknowledges them
 // (captures.ts), never under /tmp, which the browser shares.
 const CAPTURE_LIMITS = { perCapture: 32 * 1024 ** 2, total: 256 * 1024 ** 2 };
 
@@ -56,7 +56,7 @@ interface Settings {
 	browserToken: string;
 }
 
-// The settings koid passes in the environment. The tokens are read once and
+// The settings previewlaned passes in the environment. The tokens are read once and
 // removed, so no child process inherits them.
 function settings(env: NodeJS.ProcessEnv): Settings {
 	const take = (name: string): string => {
@@ -65,17 +65,17 @@ function settings(env: NodeJS.ProcessEnv): Settings {
 		return value;
 	};
 	const result = {
-		runId: take('KOI_RUN_ID'),
-		previewUrl: take('KOI_PREVIEW_URL'),
-		controlToken: take('KOI_RECORDER_CONTROL_TOKEN'),
-		browserToken: take('KOI_RECORDER_BROWSER_TOKEN'),
+		runId: take('PREVIEWLANE_RUN_ID'),
+		previewUrl: take('PREVIEWLANE_PREVIEW_URL'),
+		controlToken: take('PREVIEWLANE_RECORDER_CONTROL_TOKEN'),
+		browserToken: take('PREVIEWLANE_RECORDER_BROWSER_TOKEN'),
 	};
-	for (const name of ['KOI_RECORDER_CONTROL_TOKEN', 'KOI_RECORDER_BROWSER_TOKEN']) delete env[name];
+	for (const name of ['PREVIEWLANE_RECORDER_CONTROL_TOKEN', 'PREVIEWLANE_RECORDER_BROWSER_TOKEN']) delete env[name];
 	if (!/^[0-9a-f]{32,128}$/.test(result.controlToken)) {
-		throw new Error('KOI_RECORDER_CONTROL_TOKEN is not a hex token');
+		throw new Error('PREVIEWLANE_RECORDER_CONTROL_TOKEN is not a hex token');
 	}
 	if (!/^[0-9a-f]{32,128}$/.test(result.browserToken)) {
-		throw new Error('KOI_RECORDER_BROWSER_TOKEN is not a hex token');
+		throw new Error('PREVIEWLANE_RECORDER_BROWSER_TOKEN is not a hex token');
 	}
 	return result;
 }
@@ -331,7 +331,7 @@ async function main(): Promise<void> {
 	process.once('SIGINT', shutdown);
 }
 
-// The package's version is the browser contract koid records.
+// The package's version is the browser contract previewlaned records.
 function playwrightVersion(): string {
 	try {
 		const load = createRequire(import.meta.url);

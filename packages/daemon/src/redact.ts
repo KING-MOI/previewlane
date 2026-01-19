@@ -1,7 +1,7 @@
-// Masks text that looks like a credential before koid writes it to a build
+// Masks text that looks like a credential before previewlaned writes it to a build
 // log, a preview record, its own log or a run's evidence. A pull request's
-// Dockerfile and its container can print anything, a reviewer's koi token or
-// provider key included. The patterns cover what the key proxy swaps (koi
+// Dockerfile and its container can print anything, a reviewer's previewlane token or
+// provider key included. The patterns cover what the key proxy swaps (previewlane
 // tokens, and the headers and query parameter SDKs send keys in), the
 // providers' key formats, AWS key ids, preview login keys, and, after a word
 // such as key or token, any long value that mixes upper case, lower case
@@ -10,7 +10,7 @@
 // checksums npm and pip print when one does not match.
 //
 // The second half is for evidence (docs/verify.md, "Recorder and
-// evidence"): a registry of the exact secret values koid knows, replaced in
+// evidence"): a registry of the exact secret values previewlaned knows, replaced in
 // the forms a page or a log is likely to carry them in; a scrubber that
 // takes text in chunks and finds a value split across them; and the
 // stripping of a PNG's metadata chunks. What none of this can do is listed
@@ -79,10 +79,10 @@ const RULES: Array<[RegExp, Replacer, (value: string) => boolean]> = [
 	// The space stays as it was: a rule only ever puts a mask in place of a credential, so
 	// it cannot make a known value that the pass before it did not see.
 	[/\b(bearer)([ \t]+)(?<value>[A-Za-z0-9._~+/=-]{8,})/gi, `$1$2${MASK}`, namedCredential],
-	// koi tokens, as the keys page issues them.
-	[/koi_[a-z0-9]{32}/g, MASK, anyMatch],
+	// previewlane tokens, as the keys page issues them.
+	[/previewlane_[a-z0-9]{32}/g, MASK, anyMatch],
 	// Preview login keys (LoginKeySchema).
-	[/(?<![A-Za-z0-9-])koi-[a-z0-9]{24}(?![a-z0-9])/g, MASK, prefixedCredential],
+	[/(?<![A-Za-z0-9-])previewlane-[a-z0-9]{24}(?![a-z0-9])/g, MASK, prefixedCredential],
 	// OpenAI, Anthropic (sk-ant-), OpenRouter (sk-or-) and DeepSeek.
 	[new RegExp(`(?<![A-Za-z0-9])sk-[${TOKEN}]{16,}`, 'g'), MASK, prefixedCredential],
 	[/\b(?:gsk_|xai-|pplx-|tgp_v1_)[A-Za-z0-9_-]{20,}/g, MASK, prefixedCredential],
@@ -119,7 +119,7 @@ function applyRules(text: string): string {
 
 // The rules run until nothing changes, so a second scrub never changes what the first
 // wrote. One pass can fall short because a mask can open the way for an earlier rule:
-// masking a koi token that ran straight into "bearer xyz" leaves a word boundary before
+// masking a previewlane token that ran straight into "bearer xyz" leaves a word boundary before
 // "bearer". This ends, since a change always puts a mask in place of other text.
 export function redact(text: string): string {
 	let out = text;
@@ -209,10 +209,10 @@ export function secretForms(value: string): string[] {
 }
 
 // The most values the registry holds. Past it the oldest value goes, with
-// every form of it, and the owner is told, so koid's log says that a
+// every form of it, and the owner is told, so previewlaned's log says that a
 // sanitizer may now miss it. The bound is there because the keys page
 // registers whatever a caller the egress proxy accepts sends it, so an
-// unbounded registry would be a way to grow koid's memory from outside;
+// unbounded registry would be a way to grow previewlaned's memory from outside;
 // 10,000 values is far more than a box's previews and keys come to.
 export const MAX_SECRET_VALUES = 10_000;
 
@@ -223,7 +223,7 @@ export interface SecretRegistryOptions {
 	onEvict?: (count: number) => void;
 }
 
-// The exact secret values koid knows while it runs: provider keys and koi
+// The exact secret values previewlaned knows while it runs: provider keys and previewlane
 // tokens from the keys page, preview login keys. Kept in memory only, never
 // written, hashed or counted anywhere a reader could learn from. Values are
 // kept in the order they were added, and a value added again moves to the
@@ -257,7 +257,7 @@ export class SecretRegistry {
 		// what the last one wrote: `docs/redacted.md`, then `docs/[[redacted]].md`. Anyone
 		// who can reach the keys page could do that to a digest or an export. A form that
 		// holds the mask would need the scrub to go round again, each time a mask completed
-		// it, and a line built for that is a stall in koid. No real credential holds the
+		// it, and a line built for that is a stall in previewlaned. No real credential holds the
 		// text `[redacted]`, so one scrub is enough.
 		if (forms.some((form) => MASK.includes(form) || form.includes(MASK))) return;
 		this.values.set(value, forms);
@@ -320,7 +320,7 @@ export const MAX_SCRUB_LINE_BYTES = 64 * 1024;
 // The fixed diagnostic that stands in for a discarded line. It carries
 // nothing of the line.
 export function overlongLine(maxLineBytes: number): string {
-	return `[koi: a line over ${maxLineBytes} bytes was discarded]`;
+	return `[previewlane: a line over ${maxLineBytes} bytes was discarded]`;
 }
 
 export const OVERLONG_LINE = overlongLine(MAX_SCRUB_LINE_BYTES);

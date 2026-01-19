@@ -17,7 +17,7 @@ out() { tofu -chdir="$repo/infra" output -raw "$1"; }
 instance=$(out box_instance_id)
 domain=$(out domain)
 if ! [[ $domain =~ ^[a-z0-9.-]+$ ]]; then
-	echo "the domain output '$domain' is not a bare hostname; check var.domain in infra/koi.auto.tfvars" >&2
+	echo "the domain output '$domain' is not a bare hostname; check var.domain in infra/previewlane.auto.tfvars" >&2
 	exit 1
 fi
 # The pool verification run networks come from (var.verify_pool), checked
@@ -28,11 +28,11 @@ if ! [[ $verify_pool =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}/(1[6-9]|2[0-8])$ ]]; then
 	exit 1
 fi
 
-# cloud-init.sh reads the domain from KOI_DOMAIN and the pool from
-# KOI_VERIFY_POOL. Lines in front of the script set them, the same way
+# cloud-init.sh reads the domain from PREVIEWLANE_DOMAIN and the pool from
+# PREVIEWLANE_VERIFY_POOL. Lines in front of the script set them, the same way
 # infra/box.tf passes them to the box at first boot.
 payload=$({
-	printf '#!/bin/bash\nKOI_DOMAIN=%s\nKOI_VERIFY_POOL=%s\n' "$domain" "$verify_pool"
+	printf '#!/bin/bash\nPREVIEWLANE_DOMAIN=%s\nPREVIEWLANE_VERIFY_POOL=%s\n' "$domain" "$verify_pool"
 	cat "$repo/host/cloud-init.sh"
 } | base64 -w0)
 # SSM may run its commands with /bin/sh (dash on Ubuntu), so the script is
@@ -40,17 +40,17 @@ payload=$({
 # the run, so the box cannot power off half way through an update, and is
 # started again however the run ends.
 params=$(python3 -c 'import json,sys; print(json.dumps({"commands": [
-    "systemctl stop koi-idle.timer 2>/dev/null || true",
-    "touch /var/lib/koi/last-activity 2>/dev/null || true",
-    "trap \"touch /var/lib/koi/last-activity 2>/dev/null; systemctl start koi-idle.timer 2>/dev/null || true\" EXIT",
-    "echo " + sys.argv[1] + " | base64 -d > /root/koi-provision.sh",
-    "bash /root/koi-provision.sh",
+    "systemctl stop previewlane-idle.timer 2>/dev/null || true",
+    "touch /var/lib/previewlane/last-activity 2>/dev/null || true",
+    "trap \"touch /var/lib/previewlane/last-activity 2>/dev/null; systemctl start previewlane-idle.timer 2>/dev/null || true\" EXIT",
+    "echo " + sys.argv[1] + " | base64 -d > /root/previewlane-provision.sh",
+    "bash /root/previewlane-provision.sh",
 ], "executionTimeout": ["1800"]}))' "$payload")
 
 command_id=$(aws ssm send-command --region "$region" \
 	--instance-ids "$instance" \
 	--document-name AWS-RunShellScript \
-	--comment "koi: re-run host provisioning" \
+	--comment "previewlane: re-run host provisioning" \
 	--parameters "$params" \
 	--query 'Command.CommandId' --output text)
 echo "sent $command_id; waiting"

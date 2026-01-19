@@ -114,13 +114,13 @@ describe('wake page script', () => {
 	test('keeps calling wake until a stopping box comes back, then reloads', async () => {
 		const states = ['stopping', 'stopping', 'pending', 'running'];
 		const h = harness((path, n) => {
-			if (path.startsWith('/__koi-wake/wake')) {
+			if (path.startsWith('/__previewlane-wake/wake')) {
 				return { ok: true, json: { known: true, instance: states[n] ?? 'running' } };
 			}
 			return { ok: n >= 3 };
 		});
 		await h.advance(WAKE_POLL_MS * 6);
-		expect(h.calls.filter((c) => c === '/__koi-wake/wake').length).toBeGreaterThanOrEqual(4);
+		expect(h.calls.filter((c) => c === '/__previewlane-wake/wake').length).toBeGreaterThanOrEqual(4);
 		expect(h.reloads()).toBe(1);
 		expect(h.els.title?.textContent).toBe('');
 	});
@@ -130,7 +130,7 @@ describe('wake page script', () => {
 		await h.advance(WAKE_POLL_MS * 5);
 		expect(h.els.title?.textContent).toBe('No preview here');
 		expect(h.els.dot?.className).toBe('dot err');
-		expect(h.calls).toEqual(['/__koi-wake/wake']);
+		expect(h.calls).toEqual(['/__previewlane-wake/wake']);
 	});
 
 	test('gives up at the deadline even when a request never answers', async () => {
@@ -154,23 +154,23 @@ describe('wake page script', () => {
 	test('aborts a hung request and tries again well before the deadline', async () => {
 		let first = true;
 		const h = harness((path) => {
-			if (path.startsWith('/__koi-wake/wake') && first) {
+			if (path.startsWith('/__previewlane-wake/wake') && first) {
 				first = false;
 				return 'stall';
 			}
-			return path.startsWith('/__koi-wake/wake')
+			return path.startsWith('/__previewlane-wake/wake')
 				? { ok: true, json: { known: true, instance: 'pending' } }
 				: { ok: false };
 		});
 		await h.advance(WAKE_FETCH_TIMEOUT_MS + WAKE_POLL_MS + 10);
-		expect(h.calls.filter((c) => c === '/__koi-wake/wake').length).toBeGreaterThanOrEqual(2);
+		expect(h.calls.filter((c) => c === '/__previewlane-wake/wake').length).toBeGreaterThanOrEqual(2);
 		expect(h.els.title?.textContent).toBe('');
 	});
 
 	test('retries when the wake API says to', async () => {
 		let n = 0;
 		const h = harness((path) =>
-			path.startsWith('/__koi-wake/wake')
+			path.startsWith('/__previewlane-wake/wake')
 				? {
 						ok: false,
 						json: n++ === 0 ? { error: 'try again' } : { known: true, instance: 'running' },
@@ -242,6 +242,6 @@ describe('wake page script', () => {
 		}));
 		await h.advance(WAKE_POLL_MS * 3);
 		expect(h.els.title?.textContent).toBe('No preview here');
-		expect(h.calls).toEqual(['/__koi-wake/wake']);
+		expect(h.calls).toEqual(['/__previewlane-wake/wake']);
 	});
 });

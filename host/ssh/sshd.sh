@@ -16,12 +16,12 @@
 # the keywords listed below, each tried with sshd -T; other keywords have
 # rules of their own, and nothing here depends on them.
 #
-# The account's block (koi_match_block) depends on that rule. It must be the
+# The account's block (previewlane_match_block) depends on that rule. It must be the
 # first Match sshd reads, and it sets every keyword that decides who gets
 # in, what runs, where, and with what, so that nothing else in the
 # configuration decides them for the account. What the rule leaves open is
-# checked another way: the walker (koi_check_match_blocks) refuses an
-# AcceptEnv in any other Match block, and koi_check_global reads the one
+# checked another way: the walker (previewlane_check_match_blocks) refuses an
+# AcceptEnv in any other Match block, and previewlane_check_global reads the one
 # keyword sshd does not take inside a Match block.
 #
 # Which of those keywords sshd takes inside a Match block, each tried with
@@ -36,7 +36,7 @@
 #     PermitTunnel, GatewayPorts, PermitOpen, PermitListen, SetEnv,
 #     AcceptEnv.
 #   refused ("not allowed within a Match block"): PermitUserEnvironment.
-#     The global value is read with sshd -T instead (koi_check_global).
+#     The global value is read with sshd -T instead (previewlane_check_global).
 # What `none` does inside the block. For ForceCommand and ChrootDirectory
 # it is a switch: sshd clears both to nothing once the block is applied.
 # For TrustedUserCAKeys, AuthorizedPrincipalsFile, AuthorizedKeysCommand
@@ -52,7 +52,7 @@
 # Match block, and with it on, in the global section or in a later block,
 # sshd adds SSH_USER_AUTH, the path of a file listing how the client
 # authenticated, to the gateway's environment. The AcceptEnv and SetEnv
-# placeholders do not stop that; nothing of koi's reads the variable.
+# placeholders do not stop that; nothing of previewlane's reads the variable.
 #
 # How sshd reads its files, which the walker follows:
 #   - It opens each file with fopen, whatever the name is: a named pipe
@@ -84,8 +84,8 @@
 # no variable the client sends (LD_PRELOAD, say, which the loader would act
 # on before the gateway runs) and none from the configuration, whatever the
 # global AcceptEnv (Ubuntu's default is LANG LC_*) or SetEnv says.
-KOI_SSHD_ACCEPT_ENV=KOI_NO_CLIENT_ENV
-KOI_SSHD_SET_ENV=KOI_NO_SERVER_ENV=
+PREVIEWLANE_SSHD_ACCEPT_ENV=PREVIEWLANE_NO_CLIENT_ENV
+PREVIEWLANE_SSHD_SET_ENV=PREVIEWLANE_NO_SERVER_ENV=
 
 # The Match block for the account. Every keyword that decides who gets in
 # (keys from the one root-owned file: no password, keyboard prompt, host
@@ -93,13 +93,13 @@ KOI_SSHD_SET_ENV=KOI_NO_SERVER_ENV=
 # client asked for, with no PTY and no ~/.ssh/rc), where (no chroot) and
 # what the session may open (nothing) has a value here, so that the first
 # value obtained is the block's. PermitUserEnvironment cannot be set here;
-# the installer reads the global value (koi_check_global).
+# the installer reads the global value (previewlane_check_global).
 #
-#   koi_match_block USER GATEWAY KEYS
-koi_match_block() {
+#   previewlane_match_block USER GATEWAY KEYS
+previewlane_match_block() {
 	local user=$1 gateway=$2 keys=$3
 	cat <<CONF
-# koi: the account the CLI connects as (host/ssh/install.sh). Do not edit;
+# previewlane: the account the CLI connects as (host/ssh/install.sh). Do not edit;
 # the installer rewrites this file. It must be the first Match block sshd
 # reads: for each keyword below the first value sshd obtains wins, except
 # AcceptEnv, to which every matching block adds, so this block settles
@@ -136,8 +136,8 @@ Match User $user
     # Its environment: names nothing reads, in place of an empty list,
     # which sshd does not take. They replace the global AcceptEnv and
     # SetEnv for this account.
-    AcceptEnv $KOI_SSHD_ACCEPT_ENV
-    SetEnv $KOI_SSHD_SET_ENV
+    AcceptEnv $PREVIEWLANE_SSHD_ACCEPT_ENV
+    SetEnv $PREVIEWLANE_SSHD_SET_ENV
 CONF
 }
 
@@ -146,8 +146,8 @@ CONF
 # ForceCommand and the keys file come first, so that a block that does not
 # reach a client is reported by the keyword that says the most.
 #
-#   koi_effective_lines GATEWAY KEYS
-koi_effective_lines() {
+#   previewlane_effective_lines GATEWAY KEYS
+previewlane_effective_lines() {
 	local gateway=$1 keys=$2
 	cat <<LINES
 forcecommand $gateway
@@ -173,18 +173,18 @@ permittunnel no
 gatewayports no
 permitopen none
 permitlisten none
-acceptenv $KOI_SSHD_ACCEPT_ENV
-setenv $KOI_SSHD_SET_ENV
+acceptenv $PREVIEWLANE_SSHD_ACCEPT_ENV
+setenv $PREVIEWLANE_SSHD_SET_ENV
 LINES
 }
 
-# Splits ARGS into KOI_WORDS as sshd's argv_split does (see the top of this
+# Splits ARGS into PREVIEWLANE_WORDS as sshd's argv_split does (see the top of this
 # file). Returns 1 for a quote never closed, which sshd refuses too.
 #
-#   koi_split_words ARGS
-koi_split_words() {
+#   previewlane_split_words ARGS
+previewlane_split_words() {
 	local s=$1 n=${#1} i=0 c next quote word
-	KOI_WORDS=()
+	PREVIEWLANE_WORDS=()
 	while [ "$i" -lt "$n" ]; do
 		c=${s:i:1}
 		if [ "$c" = ' ' ] || [ "$c" = $'\t' ]; then
@@ -225,7 +225,7 @@ koi_split_words() {
 			i=$((i + 1))
 		done
 		[ -n "$quote" ] && return 1
-		KOI_WORDS+=("$word")
+		PREVIEWLANE_WORDS+=("$word")
 	done
 	return 0
 }
@@ -234,8 +234,8 @@ koi_split_words() {
 # tests follow a symbolic link, as sshd's fopen does; a link to nothing is
 # the one thing fopen refuses.
 #
-#   koi_file_kind PATH
-koi_file_kind() {
+#   previewlane_file_kind PATH
+previewlane_file_kind() {
 	local path=$1
 	if [ -d "$path" ]; then
 		echo directory
@@ -257,8 +257,8 @@ koi_file_kind() {
 # NUL and returns 1 at the end of the file without one, so no byte of the
 # file is interpreted. LC_ALL=C so that the count is by byte.
 #
-#   koi_nul_line FILE
-koi_nul_line() {
+#   previewlane_nul_line FILE
+previewlane_nul_line() {
 	local LC_ALL=C before
 	IFS= read -r -d '' before < "$1" || return 1
 	before=${before//[!$'\n']/}
@@ -282,8 +282,8 @@ koi_nul_line() {
 # to be used. BLOCK is the enclosing Match block (`-` at the top level);
 # the caller leaves DEPTH and BLOCK to their defaults.
 #
-#   koi_walk_sshd FILE SSHDIR [DEPTH BLOCK]
-koi_walk_sshd() {
+#   previewlane_walk_sshd FILE SSHDIR [DEPTH BLOCK]
+previewlane_walk_sshd() {
 	local file=$1 sshdir=$2 depth=${3:-0} block=${4:--}
 	# Globs sort as sshd's do, by byte; and match as glob(3) does with no
 	# flags: no file under a leading dot, no case folding, nothing extra.
@@ -294,22 +294,22 @@ koi_walk_sshd() {
 	unset GLOBIGNORE
 	local line n=0 nul keyword rest pattern path
 	if [ "$depth" -gt 16 ]; then
-		echo "koi: Include nested deeper than 16 files at $file" >&2
+		echo "previewlane: Include nested deeper than 16 files at $file" >&2
 		return 1
 	fi
 	# Only a regular file is read: the Include that named anything else
 	# was refused below, and a named pipe is never opened, which would
 	# wait for a writer.
 	if [ ! -f "$file" ] || [ ! -r "$file" ]; then
-		echo "koi: cannot read $file as a regular file" >&2
+		echo "previewlane: cannot read $file as a regular file" >&2
 		return 1
 	fi
 	# sshd copies each line up to its first NUL byte, newline included,
 	# while bash's read drops the byte and keeps the rest of the line: the
 	# two read different files from here on. Refused before any line is
 	# read, since the line could be an Include.
-	if nul=$(koi_nul_line "$file"); then
-		echo "koi: $file:$nul has a NUL byte, at which sshd cuts the line; remove it" >&2
+	if nul=$(previewlane_nul_line "$file"); then
+		echo "previewlane: $file:$nul has a NUL byte, at which sshd cuts the line; remove it" >&2
 		return 1
 	fi
 	while IFS= read -r line || [ -n "$line" ]; do
@@ -325,7 +325,7 @@ koi_walk_sshd() {
 		# read around, is refused rather than read wrong.
 		if ! [[ $line =~ ^([A-Za-z0-9]+)([[:blank:]]*=?[[:blank:]]*)(.*)$ ]] ||
 			{ [ -z "${BASH_REMATCH[2]}" ] && [ -n "${BASH_REMATCH[3]}" ]; }; then
-			echo "koi: $file:$n cannot be read as a keyword and its arguments; write it as sshd_config(5) shows it" >&2
+			echo "previewlane: $file:$n cannot be read as a keyword and its arguments; write it as sshd_config(5) shows it" >&2
 			return 1
 		fi
 		keyword=${BASH_REMATCH[1],,}
@@ -350,31 +350,31 @@ koi_walk_sshd() {
 		# which read would have dropped, was refused with the file), and
 		# quotes that close.
 		if [[ ${rest//$'\t'/} == *[[:cntrl:]]* ]]; then
-			echo "koi: $file:$n has a control character in its arguments" >&2
+			echo "previewlane: $file:$n has a control character in its arguments" >&2
 			return 1
 		fi
-		if ! koi_split_words "$rest"; then
-			echo "koi: $file:$n has a quote that is never closed" >&2
+		if ! previewlane_split_words "$rest"; then
+			echo "previewlane: $file:$n has a quote that is never closed" >&2
 			return 1
 		fi
-		if [ ${#KOI_WORDS[@]} -eq 0 ]; then
-			echo "koi: $file:$n is an Include without a file" >&2
+		if [ ${#PREVIEWLANE_WORDS[@]} -eq 0 ]; then
+			echo "previewlane: $file:$n is an Include without a file" >&2
 			return 1
 		fi
-		for pattern in "${KOI_WORDS[@]}"; do
+		for pattern in "${PREVIEWLANE_WORDS[@]}"; do
 			case $pattern in
 			'' | [Nn][Oo][Nn][Ee])
-				echo "koi: $file:$n is an Include with an empty file name" >&2
+				echo "previewlane: $file:$n is an Include with an empty file name" >&2
 				return 1
 				;;
 			'~'*)
 				# sshd reads it from its working directory, which the walker
 				# does not know.
-				echo "koi: $file:$n includes $(printf %q "$pattern"), a path from sshd's working directory; write it in full" >&2
+				echo "previewlane: $file:$n includes $(printf %q "$pattern"), a path from sshd's working directory; write it in full" >&2
 				return 1
 				;;
 			*[\[\\]*)
-				echo "koi: $file:$n includes $(printf %q "$pattern"); the walker follows * and ? in an Include pattern, not [ or \\" >&2
+				echo "previewlane: $file:$n includes $(printf %q "$pattern"); the walker follows * and ? in an Include pattern, not [ or \\" >&2
 				return 1
 				;;
 			/*) ;;
@@ -396,18 +396,18 @@ koi_walk_sshd() {
 					continue
 				fi
 				if [ ! -f "$path" ]; then
-					echo "koi: $file:$n includes $(printf %q "$path"), a $(koi_file_kind "$path") and not a regular file, which is all the installer reads" >&2
+					echo "previewlane: $file:$n includes $(printf %q "$path"), a $(previewlane_file_kind "$path") and not a regular file, which is all the installer reads" >&2
 					return 1
 				fi
 				case $path in
 				*[$'\t\n']*)
-					echo "koi: $file:$n includes $(printf %q "$path"), whose name the walker cannot carry; rename it" >&2
+					echo "previewlane: $file:$n includes $(printf %q "$path"), whose name the walker cannot carry; rename it" >&2
 					return 1
 					;;
 				esac
 				# The included file starts in this block; this file goes on
 				# in it after.
-				koi_walk_sshd "$path" "$sshdir" $((depth + 1)) "$block" || return 1
+				previewlane_walk_sshd "$path" "$sshdir" $((depth + 1)) "$block" || return 1
 			done
 		done
 	done < "$file"
@@ -423,16 +423,16 @@ koi_walk_sshd() {
 # files before sshd does. Prints the reason to stderr and returns 1 on the
 # first check that fails.
 #
-#   koi_check_sshd SSHD CONFIG OURS SSHDIR USER GATEWAY KEYS
-koi_check_sshd() {
+#   previewlane_check_sshd SSHD CONFIG OURS SSHDIR USER GATEWAY KEYS
+previewlane_check_sshd() {
 	local sshd=$1 config=$2 ours=$3 sshdir=$4 user=$5 gateway=$6 keys=$7 syntax
-	koi_check_match_blocks "$config" "$ours" "$sshdir" || return 1
+	previewlane_check_match_blocks "$config" "$ours" "$sshdir" || return 1
 	if ! syntax=$("$sshd" -t -f "$config" 2>&1); then
-		echo "koi: sshd refuses its configuration with $ours in place: ${syntax:-no reason given}. Not reloaded." >&2
+		echo "previewlane: sshd refuses its configuration with $ours in place: ${syntax:-no reason given}. Not reloaded." >&2
 		return 1
 	fi
-	koi_check_global "$sshd" "$config" || return 1
-	koi_check_effective "$sshd" "$config" "$user" "$gateway" "$keys" || return 1
+	previewlane_check_global "$sshd" "$config" || return 1
+	previewlane_check_effective "$sshd" "$config" "$user" "$gateway" "$keys" || return 1
 }
 
 # Checks the Match blocks sshd reads from CONFIG against OURS, the file
@@ -444,18 +444,18 @@ koi_check_sshd() {
 # appends every matching block's list to the account's, and the walker
 # does not read whom a block is for. sshd reads a block's criteria by
 # rules of its own (strdelim, not the quoting of other keywords), under
-# which `User *,!'koi-connect'` keeps its quotes and excludes nobody;
+# which `User *,!'previewlane-connect'` keeps its quotes and excludes nobody;
 # following those rules is not the installer's job, and on a host
-# dedicated to koi no other account needs a variable from its client.
+# dedicated to previewlane no other account needs a variable from its client.
 # sshd -T answers for one client at a time and cannot show either for
 # every client; only reading the files in sshd's order can
-# (koi_walk_sshd).
+# (previewlane_walk_sshd).
 #
-#   koi_check_match_blocks CONFIG OURS [SSHDIR]
-koi_check_match_blocks() {
+#   previewlane_check_match_blocks CONFIG OURS [SSHDIR]
+previewlane_check_match_blocks() {
 	local config=$1 ours=$2 sshdir=${3:-/etc/ssh}
 	local records record kind block where first=''
-	records=$(koi_walk_sshd "$config" "$sshdir") || return 1
+	records=$(previewlane_walk_sshd "$config" "$sshdir") || return 1
 	while IFS= read -r record; do
 		[ -n "$record" ] || continue
 		IFS=$'\t' read -r kind block where <<< "$record"
@@ -465,7 +465,7 @@ koi_check_match_blocks() {
 				case $first in
 				"$ours":*) ;;
 				*)
-					echo "koi: sshd reads a Match block at $first before the one in $ours, and the first block that matches a client decides its ForceCommand and keys. Move it after the Include of $ours, or into a file that sorts after it. Not reloaded." >&2
+					echo "previewlane: sshd reads a Match block at $first before the one in $ours, and the first block that matches a client decides its ForceCommand and keys. Move it after the Include of $ours, or into a file that sorts after it. Not reloaded." >&2
 					return 1
 					;;
 				esac
@@ -475,11 +475,11 @@ koi_check_match_blocks() {
 		if [ "$block" = "$first" ]; then
 			continue
 		fi
-		echo "koi: the Match block at $block sets AcceptEnv at $where; sshd adds every matching block's AcceptEnv to the account's, and the installer does not read whom a block is for. Set AcceptEnv in the global section instead, which the account's block replaces, or remove it. Not reloaded." >&2
+		echo "previewlane: the Match block at $block sets AcceptEnv at $where; sshd adds every matching block's AcceptEnv to the account's, and the installer does not read whom a block is for. Set AcceptEnv in the global section instead, which the account's block replaces, or remove it. Not reloaded." >&2
 		return 1
 	done <<< "$records"
 	if [ -z "$first" ]; then
-		echo "koi: sshd reading $config never meets the Match block in $ours; $config must include it (Include $(dirname "$ours")/*.conf) before any Match block" >&2
+		echo "previewlane: sshd reading $config never meets the Match block in $ours; $config must include it (Include $(dirname "$ours")/*.conf) before any Match block" >&2
 		return 1
 	fi
 	return 0
@@ -491,21 +491,21 @@ koi_check_match_blocks() {
 # into the account's environment. sshd -T without a client shows the
 # global value.
 #
-#   koi_check_global SSHD CONFIG
-koi_check_global() {
+#   previewlane_check_global SSHD CONFIG
+previewlane_check_global() {
 	local sshd=$1 config=$2 effective value
 	if ! effective=$("$sshd" -T -f "$config" 2>&1); then
-		echo "koi: sshd -T failed: $effective" >&2
+		echo "previewlane: sshd -T failed: $effective" >&2
 		return 1
 	fi
 	value=$(grep -i '^permituserenvironment ' <<< "$effective" | tr '\n' ' ' | sed 's/ $//')
 	if [ "$value" != 'permituserenvironment no' ]; then
-		echo "koi: sshd's global PermitUserEnvironment is '${value#permituserenvironment }'; sshd does not take the keyword inside a Match block, so the global section must set PermitUserEnvironment no. Not reloaded." >&2
+		echo "previewlane: sshd's global PermitUserEnvironment is '${value#permituserenvironment }'; sshd does not take the keyword inside a Match block, so the global section must set PermitUserEnvironment no. Not reloaded." >&2
 		return 1
 	fi
 }
 
-# A sanity check on the account's block, after koi_check_match_blocks has
+# A sanity check on the account's block, after previewlane_check_match_blocks has
 # read the files: sshd -T -C for a client of the account at each of a few
 # addresses shows every keyword of the block with the block's value, and
 # AcceptEnv and SetEnv with the placeholder names and nothing else. It
@@ -515,40 +515,40 @@ koi_check_global() {
 # cannot stand for every Match criterion. sshd -T prints keywords in lower
 # case.
 #
-#   koi_check_effective SSHD CONFIG USER GATEWAY KEYS
-koi_check_effective() {
+#   previewlane_check_effective SSHD CONFIG USER GATEWAY KEYS
+previewlane_check_effective() {
 	local sshd=$1 config=$2 user=$3 gateway=$4 keys=$5 addr effective line keyword value
 	for addr in 127.0.0.1 203.0.113.10 2001:db8::1; do
 		if ! effective=$("$sshd" -T -f "$config" -C "user=$user,host=$addr,addr=$addr" 2>&1); then
-			echo "koi: sshd -T -C user=$user,addr=$addr failed: $effective" >&2
+			echo "previewlane: sshd -T -C user=$user,addr=$addr failed: $effective" >&2
 			return 1
 		fi
 		while IFS= read -r line; do
 			keyword=${line%% *}
 			value=${line#* }
 			case $keyword in
-			acceptenv | setenv) koi_want_only "$addr" "$effective" "$keyword" "$value" || return 1 ;;
-			*) koi_want "$addr" "$effective" "$keyword" "$value" || return 1 ;;
+			acceptenv | setenv) previewlane_want_only "$addr" "$effective" "$keyword" "$value" || return 1 ;;
+			*) previewlane_want "$addr" "$effective" "$keyword" "$value" || return 1 ;;
 			esac
-		done < <(koi_effective_lines "$gateway" "$keys")
+		done < <(previewlane_effective_lines "$gateway" "$keys")
 	done
 }
 
 # The keyword's effective line is exactly "KEYWORD VALUE".
-koi_want() {
+previewlane_want() {
 	local addr=$1 effective=$2 keyword=$3 value=$4
 	if ! grep -Fqix "$keyword $value" <<< "$effective"; then
-		echo "koi: for a client at $addr, sshd would apply '$(grep -i "^$keyword " <<< "$effective" | tr '\n' ' ' | sed 's/ $//')', not '$keyword $value'; the account's block does not reach this client, or sshd reads another file. Not reloaded." >&2
+		echo "previewlane: for a client at $addr, sshd would apply '$(grep -i "^$keyword " <<< "$effective" | tr '\n' ' ' | sed 's/ $//')', not '$keyword $value'; the account's block does not reach this client, or sshd reads another file. Not reloaded." >&2
 		return 1
 	fi
 }
 
 # The keyword's effective lines are "KEYWORD VALUE" and no other.
-koi_want_only() {
+previewlane_want_only() {
 	local addr=$1 effective=$2 keyword=$3 value=$4 lines
 	lines=$(grep -i "^$keyword " <<< "$effective" || true)
 	if [ "$lines" != "$keyword $value" ]; then
-		echo "koi: for a client at $addr, sshd would apply '$(tr '\n' ' ' <<< "$lines" | sed 's/ $//')', not '$keyword $value' alone; another part of the sshd configuration adds to $keyword for this account. Not reloaded." >&2
+		echo "previewlane: for a client at $addr, sshd would apply '$(tr '\n' ' ' <<< "$lines" | sed 's/ $//')', not '$keyword $value' alone; another part of the sshd configuration adds to $keyword for this account. Not reloaded." >&2
 		return 1
 	fi
 }

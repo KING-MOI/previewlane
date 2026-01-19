@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// The fields koid reads from Docker's JSON output. Parsing keeps only these,
+// The fields previewlaned reads from Docker's JSON output. Parsing keeps only these,
 // so a Docker that prints one of them in another shape fails loudly instead
 // of reading as "not running" or "not internal".
 
@@ -100,7 +100,7 @@ export type DockerImageEnv = z.infer<typeof DockerImageEnvSchema>;
 
 // What a container was created with, from `docker container inspect
 // --format '{{json .HostConfig}}'`: the fields the Docker tests read back
-// to check the flags koid passes for a verification helper (the daemon's
+// to check the flags previewlaned passes for a verification helper (the daemon's
 // helperArgs). CapDrop, SecurityOpt and Tmpfs are null on a container
 // created without them.
 export const DockerHostConfigSchema = z.object({

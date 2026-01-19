@@ -11,7 +11,7 @@ import {
 	type RecorderEventsPage,
 	type RecorderHealth,
 	type RunNetworkRecord,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import {
 	type CallOptions,
 	type CaptureRequest,
@@ -35,7 +35,7 @@ import { CapExceededError, EvidenceStore, type RunWriter } from '../src/verifica
 import { PNG_STRIPPED, PNG_WITH_METADATA } from './png.ts';
 
 const RUN = 'abcdefghijklmnop0123';
-const RECORDER = `koi-verify-${RUN}-recorder`;
+const RECORDER = `previewlane-verify-${RUN}-recorder`;
 const AT = '2026-10-06T12:00:00.000Z';
 const sha = (bytes: Uint8Array | string) =>
 	`sha256:${createHash('sha256').update(bytes).digest('hex')}`;
@@ -44,24 +44,24 @@ const encode = (text: string) => new TextEncoder().encode(text);
 const record: RunNetworkRecord = {
 	version: 1,
 	runId: RUN,
-	network: `koi-v-${RUN}`,
+	network: `previewlane-v-${RUN}`,
 	bridge: 'kv0123456789ab',
 	subnet: '10.213.0.0/28',
 	gateway: '10.213.0.1',
-	appContainer: 'koi-hello-pr-7-aaaaaaaaaaaaaaaa1',
+	appContainer: 'previewlane-hello-pr-7-aaaaaaaaaaaaaaaa1',
 	appPort: 8080,
 	state: 'ready',
 	endpoints: [
 		{
 			role: 'app',
-			container: 'koi-hello-pr-7-aaaaaaaaaaaaaaaa1',
+			container: 'previewlane-hello-pr-7-aaaaaaaaaaaaaaaa1',
 			ip: '10.213.0.2',
 			mac: '02:42:0a:d5:00:02',
 		},
 		{ role: 'recorder', container: RECORDER, ip: '10.213.0.3', mac: '02:4b:0a:d5:00:03' },
 		{
 			role: 'verifier',
-			container: `koi-verify-${RUN}-verifier`,
+			container: `previewlane-verify-${RUN}-verifier`,
 			ip: '10.213.0.4',
 			mac: '02:4b:0a:d5:00:04',
 		},
@@ -256,7 +256,7 @@ afterEach(async () => {
 async function setup(
 	options: { limits?: ConstructorParameters<typeof EvidenceStore>[0]['limits'] } = {},
 ) {
-	const root = await mkdtemp(join(tmpdir(), 'koid-recorder-'));
+	const root = await mkdtemp(join(tmpdir(), 'previewlaned-recorder-'));
 	let clock = Date.parse(AT);
 	const secrets = new SecretRegistry();
 	const store = new EvidenceStore({
@@ -330,8 +330,8 @@ describe('tokens', () => {
 		expect(tokens.browser).toMatch(/^[0-9a-f]{64}$/);
 		expect(tokens.control).not.toBe(tokens.browser);
 		expect(recorderEnv(tokens)).toEqual({
-			KOI_RECORDER_CONTROL_TOKEN: tokens.control,
-			KOI_RECORDER_BROWSER_TOKEN: tokens.browser,
+			PREVIEWLANE_RECORDER_CONTROL_TOKEN: tokens.control,
+			PREVIEWLANE_RECORDER_BROWSER_TOKEN: tokens.browser,
 		});
 	});
 });
@@ -436,7 +436,7 @@ describe('RecorderSession.start', () => {
 		expect((await t.events()).map((e) => e.type)).toEqual(['recorder-starting', 'recorder-ready']);
 		const manifest = await t.run.finalize({ limitations: [] });
 		expect(manifest.status.evidence).toBe('incomplete');
-		// A reply koid cannot read is the recorder failing, not missing.
+		// A reply previewlaned cannot read is the recorder failing, not missing.
 		const u = await setup();
 		const garbled: Fetch = async (input) => {
 			if (String(input).endsWith('/health')) return Response.json(healthy);
@@ -463,13 +463,13 @@ describe('RecorderSession.start', () => {
 
 	test("every string of a host event is scrubbed, the page's final URL included", async () => {
 		const t = await setup();
-		const token = `koi_${'f'.repeat(32)}`;
+		const token = `previewlane_${'f'.repeat(32)}`;
 		const login = 'the-login-value-12345';
 		t.secrets.add(login);
 		t.api.healthAnswers = [{ ...healthy, playwright: `1.64.1+${login}` }];
 		const session = await t.start();
 		// The app redirects the first page to a URL carrying a login key and
-		// a koi token; the recorder reports where the page ended up.
+		// a previewlane token; the recorder reports where the page ended up.
 		t.api.openContext = async (r) => {
 			t.api.calls.push(`open ${r.pointId}`);
 			return {
@@ -612,7 +612,7 @@ describe('captures', () => {
 		);
 		expect(artifact.mediaType).toBe('text/plain; charset=utf-8');
 		t.api.bytesByKind.set('console', [
-			encode('[log] token koi_0123456789abcdefghijklmnopqrstuv\n'),
+			encode('[log] token previewlane_0123456789abcdefghijklmnopqrstuv\n'),
 		]);
 		const console = await session.capture({ kind: 'console', label: 'console' });
 		expect(await readFile(join(t.store.runDir(RUN), 'artifacts', console.id), 'utf8')).toBe(
@@ -902,7 +902,7 @@ describe('budget and loss', () => {
 		session.budget = { until: Date.parse(AT) + 60_000, signal: aborter.signal };
 		await session.stop();
 		expect(t.api.calls).toContain('close x1');
-		expect(t.docker.removed).toEqual([`koi-verify-${RUN}-recorder`]);
+		expect(t.docker.removed).toEqual([`previewlane-verify-${RUN}-recorder`]);
 	});
 
 	test("a caller's signal ends a capture or a read as the budget would, with no problem on the run", async () => {
@@ -1082,7 +1082,7 @@ describe('events', () => {
 		await expect(replying('{"events":"none"}').events(0, 10)).rejects.toMatchObject({
 			status: 502,
 			code: 'bad_reply',
-			message: 'the recorder answered with a shape koid cannot read',
+			message: 'the recorder answered with a shape previewlaned cannot read',
 		});
 	});
 
@@ -1276,30 +1276,30 @@ describe('events', () => {
 		});
 	});
 
-	test('events the recorder dropped before koid read them are a gap; ones koid had read are not', async () => {
+	test('events the recorder dropped before previewlaned read them are a gap; ones previewlaned had read are not', async () => {
 		const t = await setup();
 		const session = await t.start();
 		for (let i = 0; i < 10; i++) t.api.emit('navigation', { url: `/${i}` });
-		// The ring lost 1 to 7 before koid read anything.
+		// The ring lost 1 to 7 before previewlaned read anything.
 		t.api.lost = 7;
 		expect(await session.drainEvents()).toBe(3);
 		expect(t.run.status.problems).toMatchObject([
-			{ code: 'observation_gap', detail: 'the recorder dropped 7 events before koid read them' },
+			{ code: 'observation_gap', detail: 'the recorder dropped 7 events before previewlaned read them' },
 		]);
 		await session.drainEvents();
 		expect(t.run.status.problems).toHaveLength(1);
-		// The ring now loses what koid had read already: no gap.
+		// The ring now loses what previewlaned had read already: no gap.
 		t.api.lost = 10;
 		for (let i = 0; i < 3; i++) t.api.emit('navigation', { url: `/${i}` });
 		expect(await session.drainEvents()).toBe(3);
 		expect(t.run.status.problems).toHaveLength(1);
-		// Then loses two more koid had not: a second gap, of exactly those.
+		// Then loses two more previewlaned had not: a second gap, of exactly those.
 		for (let i = 0; i < 4; i++) t.api.emit('navigation', { url: `/${i}` });
 		t.api.lost = 15;
 		expect(await session.drainEvents()).toBe(2);
 		expect(t.run.status.problems.at(-1)).toMatchObject({
 			code: 'observation_gap',
-			detail: 'the recorder dropped 2 events before koid read them',
+			detail: 'the recorder dropped 2 events before previewlaned read them',
 		});
 		await session.stop();
 	});

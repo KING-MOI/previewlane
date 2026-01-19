@@ -14,17 +14,17 @@ import {
 
 describe('isCompiledBinary', () => {
 	test("tells a compiled executable's virtual root from a real path", () => {
-		expect(isCompiledBinary('/$bunfs/root/koi')).toBe(true);
-		expect(isCompiledBinary('B:\\~BUN\\root\\koi.exe')).toBe(true);
-		expect(isCompiledBinary('/home/u/koi/packages/cli/src/main.ts')).toBe(false);
-		expect(isCompiledBinary('C:\\Users\\u\\koi\\packages\\cli\\src\\main.ts')).toBe(false);
+		expect(isCompiledBinary('/$bunfs/root/previewlane')).toBe(true);
+		expect(isCompiledBinary('B:\\~BUN\\root\\previewlane.exe')).toBe(true);
+		expect(isCompiledBinary('/home/u/previewlane/packages/cli/src/main.ts')).toBe(false);
+		expect(isCompiledBinary('C:\\Users\\u\\previewlane\\packages\\cli\\src\\main.ts')).toBe(false);
 		expect(isCompiledBinary('/home/u/$bunfs/main.ts')).toBe(false);
 		// This test runs from source.
 		expect(isCompiledBinary()).toBe(false);
 	});
 
-	// The flags koi is built with, read from the CLI's build script so the
-	// probe is built as koi is. If the script loses a flag, the probe loses
+	// The flags previewlane is built with, read from the CLI's build script so the
+	// probe is built as previewlane is. If the script loses a flag, the probe loses
 	// it too and the test below fails. The script is "bun build <flags>
 	// --outfile <path> <entry>"; the output and the entry are the probe's own.
 	async function buildFlags(): Promise<string[]> {
@@ -45,10 +45,10 @@ describe('isCompiledBinary', () => {
 	// documented promise, so a real compiled probe checks it for the Bun in
 	// use. The probe imports this module and reports what it sees from a
 	// directory with a .env and a bunfig preload that both set the probe
-	// variable. The binary (built like koi) loads neither, so a build script
+	// variable. The binary (built like previewlane) loads neither, so a build script
 	// that lost either flag fails here.
 	test('holds for a binary compiled by the Bun in use, which loads no dotenv file and no bunfig', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-compiled-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-compiled-'));
 		try {
 			const probe = join(dir, 'probe.ts');
 			await writeFile(
@@ -56,7 +56,7 @@ describe('isCompiledBinary', () => {
 				[
 					`import { isCompiledBinary, refuseAutoloadedCheckout } from ${JSON.stringify(join(import.meta.dir, '../src/environ.ts'))};`,
 					'await refuseAutoloadedCheckout({ cwd: process.cwd() });',
-					'console.log(JSON.stringify({ compiled: isCompiledBinary(), main: Bun.main, probe: process.env.KOI_PROBE ?? null }));',
+					'console.log(JSON.stringify({ compiled: isCompiledBinary(), main: Bun.main, probe: process.env.PREVIEWLANE_PROBE ?? null }));',
 				].join('\n'),
 			);
 			const built = Bun.spawnSync(
@@ -72,9 +72,9 @@ describe('isCompiledBinary', () => {
 			);
 			expect(built.exitCode).toBe(0);
 			const checkout = join(dir, 'checkout');
-			await Bun.write(join(checkout, '.env'), 'KOI_PROBE=from-dotenv\n');
+			await Bun.write(join(checkout, '.env'), 'PREVIEWLANE_PROBE=from-dotenv\n');
 			await Bun.write(join(checkout, 'bunfig.toml'), 'preload = ["./preload.ts"]\n');
-			await Bun.write(join(checkout, 'preload.ts'), 'process.env.KOI_PROBE = "from-bunfig";\n');
+			await Bun.write(join(checkout, 'preload.ts'), 'process.env.PREVIEWLANE_PROBE = "from-bunfig";\n');
 			const ran = Bun.spawnSync([join(dir, 'probe')], {
 				cwd: checkout,
 				env: { PATH: process.env.PATH ?? '' },
@@ -95,10 +95,10 @@ describe('isCompiledBinary', () => {
 
 describe('autoloadFilesIn', () => {
 	test('lists every file Bun would load, for any NODE_ENV, and nothing else', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-checkout-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-checkout-'));
 		expect(await autoloadFilesIn(dir)).toEqual([]);
-		await writeFile(join(dir, '.env.example'), 'KOI_CONFIG=~/koi.yaml\n');
-		await writeFile(join(dir, '.envrc'), 'export KOI_TARGET=x\n');
+		await writeFile(join(dir, '.env.example'), 'PREVIEWLANE_CONFIG=~/previewlane.yaml\n');
+		await writeFile(join(dir, '.envrc'), 'export PREVIEWLANE_TARGET=x\n');
 		await writeFile(join(dir, 'package.json'), '{}\n');
 		expect(await autoloadFilesIn(dir)).toEqual([]);
 		for (const name of AUTOLOAD_FILES) await writeFile(join(dir, name), '');
@@ -111,10 +111,10 @@ describe('autoloadFilesIn', () => {
 describe('parseEnviron', () => {
 	test('reads NUL-separated KEY=VALUE entries, the first of a name winning', () => {
 		expect(
-			parseEnviron('HOME=/home/u\0KOI_TARGET=a=b\0EMPTY=\0junk\0=nokey\0KOI_TARGET=c\0'),
+			parseEnviron('HOME=/home/u\0PREVIEWLANE_TARGET=a=b\0EMPTY=\0junk\0=nokey\0PREVIEWLANE_TARGET=c\0'),
 		).toEqual({
 			HOME: '/home/u',
-			KOI_TARGET: 'a=b',
+			PREVIEWLANE_TARGET: 'a=b',
 			EMPTY: '',
 		});
 		expect(parseEnviron('')).toEqual({});
@@ -123,7 +123,7 @@ describe('parseEnviron', () => {
 
 describe('trustsCheckout', () => {
 	test("on Linux, counts the override only in the parent's environment", async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-environ-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-environ-'));
 		const environ = join(dir, 'environ');
 		await writeFile(environ, `HOME=/home/u\0${TRUST_CHECKOUT}=1\0`);
 		const loaded = { HOME: '/home/u', [TRUST_CHECKOUT]: '1' };
@@ -142,7 +142,7 @@ describe('trustsCheckout', () => {
 	});
 
 	test('elsewhere, takes the override from the loaded environment', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-environ-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-environ-'));
 		const missing = join(dir, 'no-such-environ');
 		for (const platform of ['darwin', 'win32', 'freebsd']) {
 			expect(
@@ -181,19 +181,19 @@ describe('refuseAutoloadedCheckout', () => {
 
 	test('from source, refuses a directory with any file Bun autoloads', async () => {
 		for (const name of AUTOLOAD_FILES) {
-			const dir = await mkdtemp(join(tmpdir(), 'koi-checkout-'));
-			await writeFile(join(dir, name), name === 'bunfig.toml' ? '' : 'KOI_TARGET=evil\n');
+			const dir = await mkdtemp(join(tmpdir(), 'previewlane-checkout-'));
+			await writeFile(join(dir, name), name === 'bunfig.toml' ? '' : 'PREVIEWLANE_TARGET=evil\n');
 			const err = await fromSource(dir).catch((e: unknown) => e);
 			expect(err).toBeInstanceOf(Error);
 			const message = (err as Error).message;
 			expect(message).toBe(
-				`koi was started from source in a checkout that has dotenv or bunfig files: ${name} in ${dir}. Bun loads these files before koi runs, so they already took effect before koi could check them, and koi cannot tell what they changed. Run the compiled koi binary instead (bun run --filter @koi/cli build writes packages/cli/dist/koi), which loads neither, or run koi from a directory without such files. To run from source in a checkout you trust, export KOI_TRUST_CHECKOUT=1 in the shell before starting koi.`,
+				`previewlane was started from source in a checkout that has dotenv or bunfig files: ${name} in ${dir}. Bun loads these files before previewlane runs, so they already took effect before previewlane could check them, and previewlane cannot tell what they changed. Run the compiled previewlane binary instead (bun run --filter @previewlane/cli build writes packages/cli/dist/previewlane), which loads neither, or run previewlane from a directory without such files. To run from source in a checkout you trust, export PREVIEWLANE_TRUST_CHECKOUT=1 in the shell before starting previewlane.`,
 			);
 		}
 	});
 
 	test('names every such file, and does not read them', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-checkout-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-checkout-'));
 		// Not a dotenv file at all; existence is what counts.
 		await writeFile(join(dir, '.env'), Buffer.from([0xff, 0xfe, 0x00]));
 		await writeFile(join(dir, '.env.test.local'), 'NODE_ENV: test\r');
@@ -204,7 +204,7 @@ describe('refuseAutoloadedCheckout', () => {
 	});
 
 	test('with the override, goes on; from a dotenv file alone, on Linux, it does not', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-checkout-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-checkout-'));
 		const environ = join(dir, 'environ');
 		for (const name of AUTOLOAD_FILES) {
 			await writeFile(join(dir, name), `${TRUST_CHECKOUT}=1\n`);
@@ -214,30 +214,30 @@ describe('refuseAutoloadedCheckout', () => {
 			// parent's environment does not.
 			await writeFile(environ, 'HOME=/home/u\0');
 			await expect(fromSource(dir, { environ, loaded: { [TRUST_CHECKOUT]: '1' } })).rejects.toThrow(
-				'koi was started from source',
+				'previewlane was started from source',
 			);
 			// Off Linux, process.env is all there is.
 			await fromSource(dir, { environ, platform: 'darwin', loaded: { [TRUST_CHECKOUT]: '1' } });
 			await expect(fromSource(dir, { environ, platform: 'darwin', loaded: {} })).rejects.toThrow(
-				'koi was started from source',
+				'previewlane was started from source',
 			);
 			await rm(join(dir, name));
 		}
 	});
 
 	test('a directory with only .env.example, or nothing, is fine', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-checkout-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-checkout-'));
 		await fromSource(dir);
-		await writeFile(join(dir, '.env.example'), 'KOI_CONFIG=./injected.yaml\n');
-		await writeFile(join(dir, '.koi'), '');
+		await writeFile(join(dir, '.env.example'), 'PREVIEWLANE_CONFIG=./injected.yaml\n');
+		await writeFile(join(dir, '.previewlane'), '');
 		await fromSource(dir);
 		// A directory that is not there has nothing to load.
 		await fromSource(join(dir, 'missing'));
 	});
 
 	test('the compiled binary does nothing: it loaded no such file', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-checkout-'));
-		await writeFile(join(dir, '.env'), 'KOI_TARGET=evil\n');
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-checkout-'));
+		await writeFile(join(dir, '.env'), 'PREVIEWLANE_TARGET=evil\n');
 		await writeFile(join(dir, 'bunfig.toml'), 'preload = ["./x.ts"]\n');
 		await fromSource(dir, { compiled: true });
 	});

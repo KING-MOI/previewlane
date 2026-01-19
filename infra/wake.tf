@@ -10,7 +10,7 @@ data "archive_file" "wake" {
 }
 
 resource "aws_cloudwatch_log_group" "wake" {
-  name              = "/aws/lambda/koi-wake"
+  name              = "/aws/lambda/previewlane-wake"
   retention_in_days = 14
 }
 
@@ -25,7 +25,7 @@ data "aws_iam_policy_document" "wake_assume" {
 }
 
 resource "aws_iam_role" "wake" {
-  name               = "koi-wake"
+  name               = "previewlane-wake"
   assume_role_policy = data.aws_iam_policy_document.wake_assume.json
 }
 
@@ -54,13 +54,13 @@ data "aws_iam_policy_document" "wake" {
 }
 
 resource "aws_iam_role_policy" "wake" {
-  name   = "koi-wake"
+  name   = "previewlane-wake"
   role   = aws_iam_role.wake.id
   policy = data.aws_iam_policy_document.wake.json
 }
 
 resource "aws_lambda_function" "wake" {
-  function_name    = "koi-wake"
+  function_name    = "previewlane-wake"
   role             = aws_iam_role.wake.arn
   runtime          = "nodejs22.x"
   architectures    = ["arm64"]
@@ -72,9 +72,9 @@ resource "aws_lambda_function" "wake" {
 
   environment {
     variables = {
-      KOI_INSTANCE_ID    = aws_instance.box.id
-      KOI_PREVIEWS_PARAM = aws_ssm_parameter.previews.name
-      KOI_DOMAIN         = var.domain
+      PREVIEWLANE_INSTANCE_ID    = aws_instance.box.id
+      PREVIEWLANE_PREVIEWS_PARAM = aws_ssm_parameter.previews.name
+      PREVIEWLANE_DOMAIN         = var.domain
     }
   }
 

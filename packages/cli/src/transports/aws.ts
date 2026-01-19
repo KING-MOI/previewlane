@@ -11,7 +11,7 @@ import {
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { fromIni } from '@aws-sdk/credential-providers';
 import { Upload } from '@aws-sdk/lib-storage';
-import { encodeCtlArgs, requestKey, sourceKey } from '@koi/shared';
+import { encodeCtlArgs, requestKey, sourceKey } from '@previewlane/shared';
 import {
 	BoxUnavailableError,
 	type CtlResult,
@@ -27,13 +27,13 @@ import {
 	buildLog,
 	describeViaCtl,
 	InterruptedError,
-	KOID_READY_MS,
+	PREVIEWLANED_READY_MS,
 	saysOk,
 	within,
 } from './common.ts';
 
 // The AWS transport: source goes to S3, the box is an EC2 instance that
-// sleeps when idle, and `koid ctl` runs on it through SSM Run Command. Each
+// sleeps when idle, and `previewlaned ctl` runs on it through SSM Run Command. Each
 // command is one bounded round trip; there is no channel and no live log.
 
 export interface Settings {
@@ -42,7 +42,7 @@ export interface Settings {
 	domain: string;
 	instanceId: string;
 	bucket: string;
-	// Whether koi may start the instance (ec2, the default) or must find it
+	// Whether previewlane may start the instance (ec2, the default) or must find it
 	// running (always-on). The legacy path and import-aws know only ec2.
 	power?: 'ec2' | 'always-on' | undefined;
 }
@@ -73,16 +73,16 @@ function unavailable(err: unknown): unknown {
 }
 
 // GetCommandInvocation returns only the first 24,000 characters of a
-// command's stdout. koid ctl keeps its replies far below that; output this
+// command's stdout. previewlaned ctl keeps its replies far below that; output this
 // long was cut and is not used.
 const SSM_STDOUT_LIMIT = 24_000;
 
-// The SSM command that runs koid ctl with these arguments. The command is a
+// The SSM command that runs previewlaned ctl with these arguments. The command is a
 // shell string, so the arguments go as data: the base64 of their JSON, which
-// koid ctl-b64 decodes and checks. Nothing else in the string comes from the
+// previewlaned ctl-b64 decodes and checks. Nothing else in the string comes from the
 // caller.
 export function ctlCommand(args: string[]): string {
-	return ['/usr/local/bin/koid', 'ctl-b64', encodeCtlArgs(args)].join(' ');
+	return ['/usr/local/bin/previewlaned', 'ctl-b64', encodeCtlArgs(args)].join(' ');
 }
 
 export interface Clients {
@@ -109,25 +109,25 @@ const DOMAIN_TAG = 'Domain';
 
 // Settings from the environment, discovering what is not set: the box by its
 // tags, the domain from the box's Domain tag, the bucket from the account id.
-// This is the legacy path from before config files, and what `koi config
+// This is the legacy path from before config files, and what `previewlane config
 // import-aws` writes down.
 export async function resolveSettings(
 	env: Record<string, string | undefined>,
 	make: (profile: string, region: string) => Clients = clients,
 ): Promise<{ settings: Settings; clients: Clients }> {
-	const profile = env.KOI_AWS_PROFILE ?? 'koi-cli';
-	const region = env.KOI_AWS_REGION ?? 'us-east-1';
+	const profile = env.PREVIEWLANE_AWS_PROFILE ?? 'previewlane-cli';
+	const region = env.PREVIEWLANE_AWS_REGION ?? 'us-east-1';
 	const c = make(profile, region);
-	let instanceId = env.KOI_INSTANCE_ID;
-	let domain = env.KOI_DOMAIN;
+	let instanceId = env.PREVIEWLANE_INSTANCE_ID;
+	let domain = env.PREVIEWLANE_DOMAIN;
 	if (instanceId === undefined || domain === undefined) {
 		const out = await c.ec2.send(
 			new DescribeInstancesCommand(
 				instanceId === undefined
 					? {
 							Filters: [
-								{ Name: 'tag:Project', Values: ['koi'] },
-								{ Name: 'tag:Name', Values: ['koi-box'] },
+								{ Name: 'tag:Project', Values: ['previewlane'] },
+								{ Name: 'tag:Name', Values: ['previewlane-box'] },
 								{
 									Name: 'instance-state-name',
 									Values: ['pending', 'running', 'stopping', 'stopped'],
@@ -141,7 +141,7 @@ export async function resolveSettings(
 		if (instanceId === undefined) {
 			const ids = instances.map((i) => i.InstanceId ?? '');
 			if (ids.length !== 1 || ids[0] === '') {
-				throw new Error(`expected one koi box, found ${ids.length}; set KOI_INSTANCE_ID`);
+				throw new Error(`expected one previewlane box, found ${ids.length}; set PREVIEWLANE_INSTANCE_ID`);
 			}
 			instanceId = ids[0] as string;
 		}
@@ -149,16 +149,16 @@ export async function resolveSettings(
 			const tag = instances[0]?.Tags?.find((t) => t.Key === DOMAIN_TAG)?.Value;
 			if (tag === undefined || tag === '') {
 				throw new Error(
-					`the koi box ${instanceId} has no ${DOMAIN_TAG} tag; apply the current infra/, which tags it with var.domain, or set KOI_DOMAIN`,
+					`the previewlane box ${instanceId} has no ${DOMAIN_TAG} tag; apply the current infra/, which tags it with var.domain, or set PREVIEWLANE_DOMAIN`,
 				);
 			}
 			domain = tag;
 		}
 	}
-	let bucket = env.KOI_BUCKET;
+	let bucket = env.PREVIEWLANE_BUCKET;
 	if (bucket === undefined) {
 		const who = await c.sts.send(new GetCallerIdentityCommand({}));
-		bucket = `koi-uploads-${who.Account}`;
+		bucket = `previewlane-uploads-${who.Account}`;
 	}
 	return { settings: { profile, region, domain, instanceId, bucket }, clients: c };
 }
@@ -172,7 +172,7 @@ export function awsTransport(
 	const ctl = async (args: string[], o?: OperationOptions): Promise<CtlResult> => {
 		o?.signal?.throwIfAborted();
 		const deadline = o?.timeoutMs === undefined ? undefined : now() + o.timeoutMs;
-		const what = `koid ctl ${args[0] ?? ''}`;
+		const what = `previewlaned ctl ${args[0] ?? ''}`;
 		// Every SSM call ends when the caller's signal fires or the time
 		// limit passes, so a call that hangs cannot outlast either.
 		const call = <T>(send: (abortSignal: AbortSignal | undefined) => Promise<T>) =>
@@ -184,17 +184,17 @@ export function awsTransport(
 					new SendCommandCommand({
 						InstanceIds: [settings.instanceId],
 						DocumentName: 'AWS-RunShellScript',
-						Comment: `koi ctl ${args[0] ?? ''}`,
+						Comment: `previewlane ctl ${args[0] ?? ''}`,
 						Parameters: { commands: [ctlCommand(args)], executionTimeout: ['300'] },
 					}),
 					sdkOptions(abortSignal),
 				),
 			);
 		} catch (err) {
-			// The request may have reached SSM before koi stopped waiting.
+			// The request may have reached SSM before previewlane stopped waiting.
 			if (err instanceof InterruptedError) {
 				throw new UnknownOutcomeError(
-					`${what} may have been sent to the box: koi stopped waiting for SSM to accept it, so its outcome is unknown`,
+					`${what} may have been sent to the box: previewlane stopped waiting for SSM to accept it, so its outcome is unknown`,
 				);
 			}
 			throw unavailable(err);
@@ -203,7 +203,7 @@ export function awsTransport(
 		if (commandId === undefined) throw new Error('SSM did not return a command id');
 		const unknownOutcome = () =>
 			new UnknownOutcomeError(
-				`${what} was sent to the box (SSM command ${commandId}) and koi stopped waiting for its result, so its outcome is unknown`,
+				`${what} was sent to the box (SSM command ${commandId}) and previewlane stopped waiting for its result, so its outcome is unknown`,
 			);
 		for (let i = 0; i < 600; i++) {
 			await sleep(i === 0 ? 400 : 1000);
@@ -235,37 +235,37 @@ export function awsTransport(
 				out.Status === 'Cancelling'
 			)
 				continue;
-			// Success or Failed carry koid ctl's exit status. Anything else
+			// Success or Failed carry previewlaned ctl's exit status. Anything else
 			// (TimedOut, Cancelled, or Failed with no status) means it did not
 			// run to the end.
 			const code = out.ResponseCode ?? (out.Status === 'Success' ? 0 : -1);
 			if ((out.Status !== 'Success' && out.Status !== 'Failed') || code < 0) {
 				throw new BoxUnavailableError(
-					`SSM reports koid ctl ${args[0] ?? ''} as ${out.StatusDetails ?? out.Status}`,
+					`SSM reports previewlaned ctl ${args[0] ?? ''} as ${out.StatusDetails ?? out.Status}`,
 				);
 			}
 			const stdout = out.StandardOutputContent ?? '';
 			if (stdout.length >= SSM_STDOUT_LIMIT) {
 				throw new Error(
-					`the output of koid ctl ${args[0] ?? ''} was cut off by SSM, which returns only the first ${SSM_STDOUT_LIMIT} characters, so koi cannot use it`,
+					`the output of previewlaned ctl ${args[0] ?? ''} was cut off by SSM, which returns only the first ${SSM_STDOUT_LIMIT} characters, so previewlane cannot use it`,
 				);
 			}
 			return { code, stdout, stderr: out.StandardErrorContent ?? '' };
 		}
-		throw new BoxUnavailableError(`koid ctl ${args[0] ?? ''} did not finish`);
+		throw new BoxUnavailableError(`previewlaned ctl ${args[0] ?? ''} did not finish`);
 	};
 
-	// SSM online means the agent runs, not that koid has finished starting.
-	// koid ctl ping answers once it takes commands; until then it fails, or
+	// SSM online means the agent runs, not that previewlaned has finished starting.
+	// previewlaned ctl ping answers once it takes commands; until then it fails, or
 	// SSM refuses the command while the instance settles. `deadline` is the
 	// caller's limit on the whole wake, when it gave one; each ping gets what
 	// is left of the earlier of the two.
-	const waitForKoid = async (
+	const waitForPreviewlaned = async (
 		progress: Progress,
 		o: OperationOptions | undefined,
 		deadline: number | undefined,
 	) => {
-		const until = Math.min(now() + KOID_READY_MS, deadline ?? Number.POSITIVE_INFINITY);
+		const until = Math.min(now() + PREVIEWLANED_READY_MS, deadline ?? Number.POSITIVE_INFINITY);
 		let last = '';
 		for (let attempt = 0; now() < until; attempt++) {
 			try {
@@ -273,7 +273,7 @@ export function awsTransport(
 				if (r.code === 0 && saysOk(r.stdout)) return;
 				last = (r.stderr || r.stdout).trim();
 			} catch (err) {
-				// A ping koi stopped waiting for has no outcome worth knowing; the
+				// A ping previewlane stopped waiting for has no outcome worth knowing; the
 				// limit it ran into is reported below.
 				if (!(err instanceof BoxUnavailableError) && !(err instanceof UnknownOutcomeError)) {
 					throw err;
@@ -282,13 +282,13 @@ export function awsTransport(
 			}
 			o?.signal?.throwIfAborted();
 			if (now() >= until) break;
-			if (attempt === 0) progress('waiting for koid on the box to start');
+			if (attempt === 0) progress('waiting for previewlaned on the box to start');
 			await sleep(3000);
 			o?.signal?.throwIfAborted();
 		}
 		if (deadline !== undefined && now() >= deadline) throw wakeTimeout(o);
 		throw new Error(
-			`koid on the box did not answer within ${KOID_READY_MS / 60_000} minutes${last === '' ? '' : `: ${last}`}`,
+			`previewlaned on the box did not answer within ${PREVIEWLANED_READY_MS / 60_000} minutes${last === '' ? '' : `: ${last}`}`,
 		);
 	};
 
@@ -381,11 +381,11 @@ export function awsTransport(
 			};
 			let state = await describeInstance();
 			if (power === 'always-on') {
-				// The target does not manage power: koi may wait for an instance
+				// The target does not manage power: previewlane may wait for an instance
 				// that is starting, but never starts one itself.
 				if (state !== 'running' && state !== 'pending') {
 					throw new Error(
-						`the instance ${settings.instanceId} is ${state ?? 'in an unknown state'}, and this target does not manage its power (power: always-on), so koi does not start it; its operator must`,
+						`the instance ${settings.instanceId} is ${state ?? 'in an unknown state'}, and this target does not manage its power (power: always-on), so previewlane does not start it; its operator must`,
 					);
 				}
 			} else {
@@ -410,11 +410,11 @@ export function awsTransport(
 						);
 					} catch (err) {
 						// The start is a mutation, like SendCommand: the request may
-						// have reached EC2 before koi stopped waiting, and the box may
+						// have reached EC2 before previewlane stopped waiting, and the box may
 						// be starting. That is not a plain timeout or cancellation.
 						if (err instanceof InterruptedError) {
 							throw new UnknownOutcomeError(
-								`the start of ${settings.instanceId} may have reached EC2: koi stopped waiting for it to be accepted, so whether the box is waking is unknown`,
+								`the start of ${settings.instanceId} may have reached EC2: previewlane stopped waiting for it to be accepted, so whether the box is waking is unknown`,
 							);
 						}
 						throw err;
@@ -431,7 +431,7 @@ export function awsTransport(
 					),
 				);
 				if (info.InstanceInformationList?.[0]?.PingStatus === 'Online') {
-					await waitForKoid(progress, o, deadline);
+					await waitForPreviewlaned(progress, o, deadline);
 					return;
 				}
 				await sleep(5000);
@@ -451,7 +451,7 @@ export function awsTransport(
 			if (q.kind === 'runtime') {
 				throw new UnsupportedCapabilityError(
 					'runtimeLogStream',
-					'the AWS transport cannot follow a container log over SSM; koi logs shows a bounded tail instead',
+					'the AWS transport cannot follow a container log over SSM; previewlane logs shows a bounded tail instead',
 				);
 			}
 			return buildLog(q, o, ctl, sleep, now);

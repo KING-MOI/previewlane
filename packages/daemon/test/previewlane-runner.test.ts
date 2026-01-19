@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { classifyLine, LineSplitter, PROTOCOL_LIMITS } from '../src/verifier.ts';
 
 // Both runner clients, run as a runner runs them, with what they print read the
-// way koid reads it. A line koid discards reads as an event the runner never
+// way previewlaned reads it. A line previewlaned discards reads as an event the runner never
 // sent, so the test is that each event arrives, whatever its text holds.
 
 const CLIENTS = join(import.meta.dir, '../../../host/verifier/clients');
@@ -33,22 +33,22 @@ type Client = (texts: string[]) => Promise<{ out: string; err: string; code: num
 // JSON file, so no shell or source quoting comes between the test and the client.
 const clients: Record<string, Client> = {
 	python: async (texts) => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-runner-py-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-runner-py-'));
 		dirs.push(dir);
 		const input = join(dir, 'texts.json');
 		await writeFile(input, JSON.stringify(texts));
 		const script = `
 import json, sys
 sys.path.insert(0, sys.argv[1])
-import koi_runner as koi
+import previewlane_runner as previewlane
 for text in json.load(open(sys.argv[2], encoding="utf-8")):
-    koi.assertion("declared", "fail", [], detail=text, point=${JSON.stringify(POINT)})
-    koi.note(text)
+    previewlane.assertion("declared", "fail", [], detail=text, point=${JSON.stringify(POINT)})
+    previewlane.note(text)
 `;
 		return runScript(['python3', '-I', '-c', script, CLIENTS, input]);
 	},
 	javascript: async (texts) => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-runner-js-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-runner-js-'));
 		dirs.push(dir);
 		const input = join(dir, 'texts.json');
 		const script = join(dir, 'runner.mjs');
@@ -56,10 +56,10 @@ for text in json.load(open(sys.argv[2], encoding="utf-8")):
 		await writeFile(
 			script,
 			`import { readFileSync } from 'node:fs';
-import * as koi from ${JSON.stringify(join(CLIENTS, 'koi-runner.mjs'))};
+import * as previewlane from ${JSON.stringify(join(CLIENTS, 'previewlane-runner.mjs'))};
 for (const text of JSON.parse(readFileSync(${JSON.stringify(input)}, 'utf8'))) {
-	koi.assertion('declared', 'fail', [], text, ${JSON.stringify(POINT)});
-	koi.note(text);
+	previewlane.assertion('declared', 'fail', [], text, ${JSON.stringify(POINT)});
+	previewlane.note(text);
 }
 `,
 		);
@@ -67,14 +67,14 @@ for (const text of JSON.parse(readFileSync(${JSON.stringify(input)}, 'utf8'))) {
 	},
 };
 
-// What koid makes of a client's stdout.
-function readAsKoid(out: string) {
+// What previewlaned makes of a client's stdout.
+function readAsPreviewlaned(out: string) {
 	const splitter = new LineSplitter(LINE);
 	const lines = [...splitter.push(new TextEncoder().encode(out)), ...splitter.end()];
 	return lines.map((line) => {
-		if ('discarded' in line) throw new Error('koid would have discarded a line');
+		if ('discarded' in line) throw new Error('previewlaned would have discarded a line');
 		const read = classifyLine(line.text, 'k'.repeat(64));
-		if (read.kind !== 'event') throw new Error(`koid read ${JSON.stringify(read)}`);
+		if (read.kind !== 'event') throw new Error(`previewlaned read ${JSON.stringify(read)}`);
 		return { event: read.event, bytes: Buffer.byteLength(line.text) };
 	});
 }
@@ -94,11 +94,11 @@ const TEXTS: Array<[string, string]> = [
 describe.each(Object.keys(clients))('the %s client', (language) => {
 	const client = clients[language] as Client;
 
-	test.each(TEXTS)('%s reach koid as events, cut only as far as they must', async (_name, text) => {
+	test.each(TEXTS)('%s reach previewlaned as events, cut only as far as they must', async (_name, text) => {
 		const { out, err, code } = await client([text]);
 		expect(err).toBe('');
 		expect(code).toBe(0);
-		const events = readAsKoid(out);
+		const events = readAsPreviewlaned(out);
 		expect(events.map((e) => e.event.type)).toEqual(['assertion', 'note']);
 		for (const { event, bytes } of events) {
 			expect(bytes).toBeLessThanOrEqual(LINE);
@@ -115,7 +115,7 @@ describe.each(Object.keys(clients))('the %s client', (language) => {
 
 	test('text that fits is kept whole', async () => {
 		const { out } = await client(['测试 under the bound']);
-		expect(readAsKoid(out).map((e) => e.event)).toEqual([
+		expect(readAsPreviewlaned(out).map((e) => e.event)).toEqual([
 			{
 				type: 'assertion',
 				point: POINT,
@@ -130,41 +130,41 @@ describe.each(Object.keys(clients))('the %s client', (language) => {
 });
 
 test('the JavaScript client fails a second call under a label in flight, and sends it nowhere', async () => {
-	const dir = await mkdtemp(join(tmpdir(), 'koi-runner-js-'));
+	const dir = await mkdtemp(join(tmpdir(), 'previewlane-runner-js-'));
 	dirs.push(dir);
 	const script = join(dir, 'runner.mjs');
 	await writeFile(
 		script,
-		`import * as koi from ${JSON.stringify(join(CLIENTS, 'koi-runner.mjs'))};
-const first = koi.capture('screenshot', 'shot');
-const second = await koi.read('/', 'shot').catch((err) => err.code);
+		`import * as previewlane from ${JSON.stringify(join(CLIENTS, 'previewlane-runner.mjs'))};
+const first = previewlane.capture('screenshot', 'shot');
+const second = await previewlane.read('/', 'shot').catch((err) => err.code);
 console.error(second);
 await first.catch((err) => console.error(err.code));
 `,
 	);
 	const { out, err, code } = await runScript([process.execPath, script]);
 	expect(code).toBe(0);
-	// The second never went out, so koid's answer to the first can only reach the first.
-	expect(readAsKoid(out).map((e) => e.event.type)).toEqual(['capture']);
+	// The second never went out, so previewlaned's answer to the first can only reach the first.
+	expect(readAsPreviewlaned(out).map((e) => e.event.type)).toEqual(['capture']);
 	expect(err.trim().split('\n')).toEqual(['duplicate_label', 'stdin_closed']);
 });
 
 test('the JavaScript client throws for an event too large without its text, and leaves no one waiting', async () => {
-	const dir = await mkdtemp(join(tmpdir(), 'koi-runner-js-'));
+	const dir = await mkdtemp(join(tmpdir(), 'previewlane-runner-js-'));
 	dirs.push(dir);
 	const script = join(dir, 'runner.mjs');
 	await writeFile(
 		script,
-		`import * as koi from ${JSON.stringify(join(CLIENTS, 'koi-runner.mjs'))};
+		`import * as previewlane from ${JSON.stringify(join(CLIENTS, 'previewlane-runner.mjs'))};
 const refs = Array.from({ length: 1000 }, (_, i) => 'recorder:screenshot:' + i);
 try {
-	koi.assertion('declared', 'pass', refs, 'why', ${JSON.stringify(POINT)});
+	previewlane.assertion('declared', 'pass', refs, 'why', ${JSON.stringify(POINT)});
 	console.error('it printed');
 } catch (err) {
 	console.error(err.message);
 }
 try {
-	koi.read('/' + '测'.repeat(4000), 'row');
+	previewlane.read('/' + '测'.repeat(4000), 'row');
 	console.error('it printed');
 } catch (err) {
 	console.error(err.message);
@@ -175,7 +175,7 @@ try {
 	expect(code).toBe(0);
 	expect(out).toBe('');
 	expect(err.trim().split('\n')).toEqual([
-		expect.stringContaining('koid discards a line over 8192'),
-		expect.stringContaining('koid discards a line over 8192'),
+		expect.stringContaining('previewlaned discards a line over 8192'),
+		expect.stringContaining('previewlaned discards a line over 8192'),
 	]);
 });

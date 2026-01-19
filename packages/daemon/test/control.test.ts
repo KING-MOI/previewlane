@@ -9,7 +9,7 @@ import {
 	PreviewListPageSchema,
 	type PreviewRecord,
 	StatusReplySchema,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { Activity } from '../src/activity.ts';
 import { BuildLogs, pageAt, tailAt } from '../src/buildlog.ts';
 import { type ControlDeps, control, groupId, startControlServer } from '../src/control.ts';
@@ -90,7 +90,7 @@ function deps(
 	};
 }
 
-// What this koid says of itself.
+// What this previewlaned says of itself.
 const HOST: HostInfo = {
 	protocol: 1,
 	hostId: 'k'.repeat(20),
@@ -106,7 +106,7 @@ const HOST: HostInfo = {
 
 const call = (d: ControlDeps, method: string, path: string, body?: unknown) =>
 	control(
-		new Request(`http://koid${path}`, {
+		new Request(`http://previewlaned${path}`, {
 			method,
 			...(body === undefined
 				? {}
@@ -149,7 +149,7 @@ describe('control API', () => {
 		const d = deps();
 		expect((await call(d, 'POST', '/up', { requestId: '../x' })).status).toBe(400);
 		expect((await call(d, 'POST', '/up', 'not json')).status).toBe(400);
-		const raw = await control(new Request('http://koid/up', { method: 'POST', body: '{' }), d);
+		const raw = await control(new Request('http://previewlaned/up', { method: 'POST', body: '{' }), d);
 		expect(raw.status).toBe(400);
 		expect(d.calls).toEqual([]);
 	});
@@ -164,7 +164,7 @@ describe('control API', () => {
 			},
 		});
 		const res = await control(
-			new Request('http://koid/up', {
+			new Request('http://previewlaned/up', {
 				method: 'POST',
 				body: endless,
 				duplex: 'half',
@@ -192,7 +192,7 @@ describe('control API', () => {
 		});
 		const started = Date.now();
 		const res = await control(
-			new Request('http://koid/up', {
+			new Request('http://previewlaned/up', {
 				method: 'POST',
 				body: stalled,
 				duplex: 'half',
@@ -218,10 +218,10 @@ describe('control API', () => {
 		expect(((await res.json()) as { error: string }).error).toContain('belongs to');
 	});
 
-	test('answers 507 with the reason when koid has no room for another preview', async () => {
+	test('answers 507 with the reason when previewlaned has no room for another preview', async () => {
 		const d = deps({
 			up: async () => {
-				throw new CapacityError('koi has 63 live previews, and the list ... cannot take another');
+				throw new CapacityError('previewlane has 63 live previews, and the list ... cannot take another');
 			},
 		});
 		const res = await call(d, 'POST', '/up', { requestId: 'abcdefghij0123456' });
@@ -293,7 +293,7 @@ describe('control API', () => {
 		expect('deployment' in status.record).toBe(false);
 		const page = PreviewListPageSchema.parse(await (await call(d, 'GET', '/previews')).json());
 		expect(page.previews[0]?.deployment).toEqual(identity);
-		// A deployment from before koid kept ids has no identity to give.
+		// A deployment from before previewlaned kept ids has no identity to give.
 		const old = deps({}, '', storeOf(fullRecord()));
 		const reply = StatusReplySchema.parse(
 			await (await call(old, 'GET', '/previews/hello-pr-7')).json(),
@@ -364,7 +364,7 @@ describe('control API', () => {
 			},
 			down: async () => {
 				throw new LeaseError(
-					'hello-pr-7 is leased by dev@laptop until later; run koi down hello-pr-7 --force to remove it anyway',
+					'hello-pr-7 is leased by dev@laptop until later; run previewlane down hello-pr-7 --force to remove it anyway',
 				);
 			},
 		});
@@ -386,7 +386,7 @@ describe('control API', () => {
 	});
 
 	test('lists previews in label order, a page of at most 16,000 characters at a time', async () => {
-		// Many small previews, and many as large as koi makes them: a 255
+		// Many small previews, and many as large as previewlane makes them: a 255
 		// character branch of characters JSON escapes to six each.
 		for (const branch of ['main', '\u0001'.repeat(255)]) {
 			const records = Array.from({ length: 500 }, (_, i) =>
@@ -413,7 +413,7 @@ describe('control API', () => {
 		for (const { text } of pages) expect(Buffer.byteLength(text)).toBeLessThanOrEqual(16_000);
 		const listed = pages.flatMap(({ page }) => page.previews);
 		expect(listed.map((p) => p.label)).toEqual(['a-1', 'a-2', 'a-3']);
-		expect(listed[0]?.branch).toEndWith(' [cut by koid]');
+		expect(listed[0]?.branch).toEndWith(' [cut by previewlaned]');
 		expect(listed[2]?.branch).toBe('feature/x');
 	});
 
@@ -474,7 +474,7 @@ describe('control API', () => {
 		}
 		expect(since).toBe(Buffer.byteLength(log));
 		expect(shown).toHaveLength(32);
-		expect(shown[30]).toEndWith('[cut by koid]');
+		expect(shown[30]).toEndWith('[cut by previewlaned]');
 		expect(shown[31]).toBe('last');
 	});
 
@@ -519,7 +519,7 @@ describe('control API', () => {
 	});
 
 	test('status shows the build log of the attempt asked about, not the latest', async () => {
-		// B replaced A; A's koi up still asks about A.
+		// B replaced A; A's previewlane up still asks about A.
 		const d = deps(
 			{},
 			{ [A]: 'a 1\na 2\n', [B]: 'b 1\nb 2\nb 3\n' },
@@ -536,9 +536,9 @@ describe('control API', () => {
 	});
 
 	test("a status reply holds none of a newer attempt's lines when it finishes mid-reply", async () => {
-		// koid loads A's record, then B is accepted, builds and finishes, all
-		// before koid reads the log for the reply.
-		const logs = new BuildLogs(await mkdtemp(join(tmpdir(), 'koi-control-')));
+		// previewlaned loads A's record, then B is accepted, builds and finishes, all
+		// before previewlaned reads the log for the reply.
+		const logs = new BuildLogs(await mkdtemp(join(tmpdir(), 'previewlane-control-')));
 		const a = await logs.open('hello-pr-7', A);
 		a.line('A 1');
 		a.line('A 2');
@@ -594,7 +594,7 @@ describe('control API', () => {
 	test('rejects labels that are not labels', async () => {
 		expect((await call(deps(), 'GET', '/previews/Bad_Label')).status).toBe(400);
 		expect((await call(deps(), 'DELETE', '/previews/-bad')).status).toBe(400);
-		// URL parsing resolves ".." (and %2e%2e) before koid sees it, so these
+		// URL parsing resolves ".." (and %2e%2e) before previewlaned sees it, so these
 		// reach no preview route at all; either way nothing is removed.
 		const d = deps();
 		expect((await call(d, 'DELETE', '/previews/..')).status).toBe(404);
@@ -602,8 +602,8 @@ describe('control API', () => {
 		expect(d.calls).toEqual([]);
 	});
 
-	test('every command keeps the box awake, whatever koid answers', async () => {
-		const stamp = join(await mkdtemp(join(tmpdir(), 'koid-activity-')), 'last-activity');
+	test('every command keeps the box awake, whatever previewlaned answers', async () => {
+		const stamp = join(await mkdtemp(join(tmpdir(), 'previewlaned-activity-')), 'last-activity');
 		await writeFile(stamp, '');
 		await utimes(stamp, new Date(0), new Date(0));
 		let now = 1_000_000;
@@ -658,7 +658,7 @@ async function allPages(d: ControlDeps): Promise<Array<{ text: string; page: Pre
 	}
 }
 
-// A build log line without the timestamp koid writes before it.
+// A build log line without the timestamp previewlaned writes before it.
 function untimed(line: string): string {
 	return line.replace(/^\S+ /, '');
 }
@@ -685,8 +685,8 @@ function fullRecord(over: Partial<PreviewRecord> = {}): PreviewRecord {
 		deployment: {
 			requestId: 'b'.repeat(16),
 			commit: 'd'.repeat(40),
-			image: 'koi-preview/hello-pr-7:b',
-			container: 'koi-hello-pr-7-b',
+			image: 'previewlane-preview/hello-pr-7:b',
+			container: 'previewlane-hello-pr-7-b',
 			port: 8080,
 			healthPath: '/',
 			healthTimeoutSeconds: 60,
@@ -734,21 +734,21 @@ describe('/v1/uploads', () => {
 
 describe('the control socket and its group', () => {
 	test('groupId reads the group file, and is undefined for no file or no group', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koid-group-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlaned-group-'));
 		const file = join(dir, 'group');
 		await writeFile(
 			file,
-			'root:x:0:\nkoi-control:x:987:koi-connect,koi\nkoi:x:988:\nbad:x:notanumber:\n',
+			'root:x:0:\npreviewlane-control:x:987:previewlane-connect,previewlane\npreviewlane:x:988:\nbad:x:notanumber:\n',
 		);
-		expect(await groupId('koi-control', file)).toBe(987);
-		expect(await groupId('koi', file)).toBe(988);
+		expect(await groupId('previewlane-control', file)).toBe(987);
+		expect(await groupId('previewlane', file)).toBe(988);
 		expect(await groupId('docker', file)).toBeUndefined();
 		expect(await groupId('bad', file)).toBeUndefined();
-		expect(await groupId('koi-control', join(dir, 'missing'))).toBeUndefined();
+		expect(await groupId('previewlane-control', join(dir, 'missing'))).toBeUndefined();
 	});
 
 	test('the socket takes the group it is given, and mode 0660, with every start', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koid-sock-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlaned-sock-'));
 		const socket = join(dir, 'control.sock');
 		// A group this user may give a file: its own.
 		const gid = process.getgid?.() ?? 0;
@@ -768,11 +768,11 @@ describe('the control socket and its group', () => {
 		}
 	});
 
-	test('a group koid may not give is logged, and the socket keeps serving with its own group and mode 0660', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koid-sock-'));
+	test('a group previewlaned may not give is logged, and the socket keeps serving with its own group and mode 0660', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'previewlaned-sock-'));
 		const socket = join(dir, 'control.sock');
 		// The kernel refuses a group this user is not in, as on a box provisioned
-		// before koi joined koi-control. Root may give any group, so root gets a
+		// before previewlane joined previewlane-control. Root may give any group, so root gets a
 		// gid no chown takes.
 		const groups = process.getgroups?.() ?? [];
 		let gid = 1;
@@ -794,7 +794,7 @@ describe('the control socket and its group', () => {
 			expect(info.gid).not.toBe(gid);
 			expect(info.gid).toBe(process.getgid?.() ?? info.gid);
 			expect(info.mode & 0o777).toBe(0o660);
-			const health = await fetch('http://koid/health', { unix: socket } as RequestInit);
+			const health = await fetch('http://previewlaned/health', { unix: socket } as RequestInit);
 			expect(health.status).toBe(200);
 			expect(await health.json()).toEqual({ ok: true });
 		} finally {

@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# koi-cli: what `koi up` needs and nothing else. Its access key is created by
+# previewlane-cli: what `previewlane up` needs and nothing else. Its access key is created by
 # infra/bootstrap.sh, outside the state file.
 #
 # There is deliberately no deploy user. Any policy broad enough to run
@@ -9,7 +9,7 @@
 # ---------------------------------------------------------------------------
 
 resource "aws_iam_user" "cli" {
-  name = "koi-cli"
+  name = "previewlane-cli"
 }
 
 data "aws_iam_policy_document" "cli" {
@@ -51,7 +51,7 @@ data "aws_iam_policy_document" "cli" {
 }
 
 resource "aws_iam_user_policy" "cli" {
-  name   = "koi-cli"
+  name   = "previewlane-cli"
   user   = aws_iam_user.cli.name
   policy = data.aws_iam_policy_document.cli.json
 }

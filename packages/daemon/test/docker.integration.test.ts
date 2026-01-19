@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { DockerHostConfigSchema } from '@koi/shared';
+import { DockerHostConfigSchema } from '@previewlane/shared';
 import { z } from 'zod';
 import { BuildLogs } from '../src/buildlog.ts';
 import type { Route } from '../src/caddy.ts';
@@ -25,29 +25,29 @@ import {
 } from '../src/verification-network.ts';
 import { request } from './fakes.ts';
 
-// Real Docker, opt in with KOI_DOCKER_TESTS=1. Builds examples/hello in a
+// Real Docker, opt in with PREVIEWLANE_DOCKER_TESTS=1. Builds examples/hello in a
 // BuildKit builder of its own, runs it with the production confinement flags
 // on an internal network, and checks the result answers on its routed address
 // and cannot reach the internet.
 //
 // Every name is unique to this run, and cleanup removes only what this run
 // created, so it can run next to real previews or another run.
-const enabled = process.env.KOI_DOCKER_TESTS === '1';
+const enabled = process.env.PREVIEWLANE_DOCKER_TESTS === '1';
 const run = randomUUID().replace(/-/g, '').slice(0, 10);
 const label = `it-${run}`;
-const network = `koi-it-${run}`;
-const buildNetwork = `koi-it-build-${run}`;
-const builder = `koi-it-${run}`;
+const network = `previewlane-it-${run}`;
+const buildNetwork = `previewlane-it-build-${run}`;
+const builder = `previewlane-it-${run}`;
 // Interface names are at most 15 characters.
 const bridge = `kp${run.slice(0, 8)}0`;
 const buildBridge = `kb${run.slice(0, 8)}0`;
-const volumeImage = `koi-it-volume:${run}`;
-const scratchImage = `koi-it-scratch:${run}`;
-// A slice of this run's own. Not koi-...: a dash in a slice name nests it in
-// the slice its first word names, here the box's koi.slice.
-const slice = `koiit${run}.slice`;
+const volumeImage = `previewlane-it-volume:${run}`;
+const scratchImage = `previewlane-it-scratch:${run}`;
+// A slice of this run's own. Not previewlane-...: a dash in a slice name nests it in
+// the slice its first word names, here the box's previewlane.slice.
+const slice = `previewlaneit${run}.slice`;
 // A verification run of this test's own: its network and helpers carry
-// koi.run=<this>, and its subnet is in TEST-NET-1, which nothing routes.
+// previewlane.run=<this>, and its subnet is in TEST-NET-1, which nothing routes.
 const verifyRun = `it${run}${run}`;
 const verifySubnet = '192.0.2.0/28';
 const repo = resolve(import.meta.dir, '../../..');
@@ -75,7 +75,7 @@ async function sliceOf(name: string): Promise<string> {
 let volumeImageBuilt: Promise<void> | undefined;
 function buildVolumeImage(): Promise<void> {
 	volumeImageBuilt ??= (async () => {
-		const context = await mkdtemp(join(tmpdir(), 'koid-it-volume-'));
+		const context = await mkdtemp(join(tmpdir(), 'previewlaned-it-volume-'));
 		await writeFile(
 			join(context, 'Dockerfile'),
 			'FROM busybox:1.37\nRUN mkdir /data && chown 65534:65534 /data\nVOLUME /data\nCMD ["sleep", "300"]\n',
@@ -84,7 +84,7 @@ function buildVolumeImage(): Promise<void> {
 			dockerfile: join(context, 'Dockerfile'),
 			context,
 			tag: volumeImage,
-			labels: { 'koi.preview': label },
+			labels: { 'previewlane.preview': label },
 			timeoutMs: 180_000,
 			onLine: () => {},
 		});
@@ -122,7 +122,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	if (!enabled) return;
-	const containers = await exec(['docker', 'ps', '-aq', '--filter', `label=koi.preview=${label}`]);
+	const containers = await exec(['docker', 'ps', '-aq', '--filter', `label=previewlane.preview=${label}`]);
 	for (const id of containers.stdout.split('\n').filter(Boolean)) {
 		await exec(['docker', 'rm', '--force', '--volumes', id]);
 	}
@@ -131,7 +131,7 @@ afterAll(async () => {
 		'image',
 		'ls',
 		'--filter',
-		`reference=koi-preview/${label}`,
+		`reference=previewlane-preview/${label}`,
 		'--format',
 		'{{.Repository}}:{{.Tag}}',
 	]);
@@ -140,7 +140,7 @@ afterAll(async () => {
 	}
 	for (const volume of volumes) await exec(['docker', 'volume', 'rm', volume]);
 	await exec(['docker', 'buildx', 'rm', '--force', builder]);
-	const helpers = await exec(['docker', 'ps', '-aq', '--filter', `label=koi.run=${verifyRun}`]);
+	const helpers = await exec(['docker', 'ps', '-aq', '--filter', `label=previewlane.run=${verifyRun}`]);
 	for (const id of helpers.stdout.split('\n').filter(Boolean)) {
 		await exec(['docker', 'rm', '--force', '--volumes', id]);
 	}
@@ -148,7 +148,7 @@ afterAll(async () => {
 }, 120_000);
 
 test.skipIf(!enabled)(
-	'koid accepts networks and a builder made the way provisioning makes them',
+	'previewlaned accepts networks and a builder made the way provisioning makes them',
 	async () => {
 		expect(
 			await verifyHost({
@@ -161,12 +161,12 @@ test.skipIf(!enabled)(
 		).toEqual([]);
 		expect(
 			await verifyHost({
-				networks: [{ name: network, bridge: 'koi-previews0', internal: false }],
+				networks: [{ name: network, bridge: 'previewlane-previews0', internal: false }],
 				builder: { name: `${builder}-missing`, network: buildNetwork },
 			}),
 		).toEqual([
 			`network ${network} is internal`,
-			`network ${network} has bridge ${bridge}, not koi-previews0`,
+			`network ${network} has bridge ${bridge}, not previewlane-previews0`,
 			`buildx builder ${builder}-missing does not exist`,
 		]);
 	},
@@ -175,7 +175,7 @@ test.skipIf(!enabled)(
 test.skipIf(!enabled)(
 	'builds in its own builder and serves examples/hello, confined',
 	async () => {
-		const state = await mkdtemp(join(tmpdir(), 'koid-it-'));
+		const state = await mkdtemp(join(tmpdir(), 'previewlaned-it-'));
 		const tarball = join(state, 'hello.tar.gz');
 		await must(['tar', '-czf', tarball, '-C', join(repo, 'examples/hello'), '.']);
 		const store = new PreviewStore(state);
@@ -230,7 +230,7 @@ test.skipIf(!enabled)(
 		const upstream = routes.at(-1)?.[0]?.upstream;
 		expect(upstream).toMatch(/^\d+\.\d+\.\d+\.\d+:8080$/);
 		const page = await (await fetch(`http://${upstream}/`)).text();
-		expect(page).toContain('hello from koi');
+		expect(page).toContain('hello from previewlane');
 		// The build ran in this run's builder: its cache holds the layers.
 		expect(await must(['docker', 'buildx', 'du', '--builder', builder])).toMatch(/Total:\s+[1-9]/);
 
@@ -265,7 +265,7 @@ test.skipIf(!enabled)(
 			'ls',
 			'--quiet',
 			'--filter',
-			`reference=koi-preview/${label}`,
+			`reference=previewlane-preview/${label}`,
 		]);
 		expect(left.trim()).toBe('');
 	},
@@ -276,14 +276,14 @@ test.skipIf(!enabled)(
 	'the watchdog counts what a container writes to its volumes, running or stopped, and removing it removes them',
 	async () => {
 		await buildVolumeImage();
-		const name = `koi-${label}-volume`;
+		const name = `previewlane-${label}-volume`;
 		await docker.run({
 			name,
 			image: volumeImage,
 			network,
 			user: '65534:65534',
 			env: {},
-			labels: { 'koi.preview': label },
+			labels: { 'previewlane.preview': label },
 		});
 		const mounts = MountsSchema.parse(
 			JSON.parse(
@@ -328,9 +328,9 @@ test.skipIf(!enabled)(
 		// About 100 KB of environment each, so the three together inspect to
 		// more than 256 KiB of JSON.
 		const env = Object.fromEntries(
-			Array.from({ length: 25 }, (_, i) => [`KOI_BIG_${i}`, 'x'.repeat(4000)]),
+			Array.from({ length: 25 }, (_, i) => [`PREVIEWLANE_BIG_${i}`, 'x'.repeat(4000)]),
 		);
-		const names = [1, 2, 3].map((i) => `koi-${label}-big${i}`);
+		const names = [1, 2, 3].map((i) => `previewlane-${label}-big${i}`);
 		for (const name of names) {
 			await docker.run({
 				name,
@@ -338,7 +338,7 @@ test.skipIf(!enabled)(
 				network,
 				user: '65534:65534',
 				env,
-				labels: { 'koi.preview': label },
+				labels: { 'previewlane.preview': label },
 			});
 		}
 		const full = await exec(
@@ -362,24 +362,24 @@ test.skipIf(!enabled)(
 
 // Assumes Docker's systemd cgroup driver, as on the box.
 test.skipIf(!enabled)(
-	'runs a preview in the slice it is given, and koid sees a slice without a ceiling and a builder outside it',
+	'runs a preview in the slice it is given, and previewlaned sees a slice without a ceiling and a builder outside it',
 	async () => {
 		await buildVolumeImage();
-		const name = `koi-${label}-sliced`;
+		const name = `previewlane-${label}-sliced`;
 		await cliDocker({ builder, slice }).run({
 			name,
 			image: volumeImage,
 			network,
 			user: '65534:65534',
 			env: {},
-			labels: { 'koi.preview': label },
+			labels: { 'previewlane.preview': label },
 		});
 		expect(await sliceOf(name)).toBe(slice);
 		expect(await cliDocker({ builder, slice }).slice(name)).toBe(slice);
 		// systemd made the slice up for the container, with no ceiling, and
 		// this run's builder runs where Docker puts containers by default:
-		// system.slice on a workstation, koi.slice on a box provisioned for
-		// koi. Either way, not in this run's slice.
+		// system.slice on a workstation, previewlane.slice on a box provisioned for
+		// previewlane. Either way, not in this run's slice.
 		const builderSlice = await sliceOf(`buildx_buildkit_${builder}0`);
 		expect(builderSlice).not.toBe(slice);
 		const problems = await verifyHost({
@@ -400,14 +400,14 @@ test.skipIf(!enabled)(
 	'a preview whose files did not all go in never has its name, and the next run replaces what an interrupted one left',
 	async () => {
 		await buildVolumeImage();
-		const name = `koi-${label}-files`;
+		const name = `previewlane-${label}-files`;
 		const base = {
 			name,
 			image: volumeImage,
 			network,
 			user: '65534:65534',
 			env: {},
-			labels: { 'koi.preview': label },
+			labels: { 'previewlane.preview': label },
 		};
 		const gone = { exists: false, running: false };
 		// The second copy fails: the image has no such directory.
@@ -415,28 +415,28 @@ test.skipIf(!enabled)(
 			docker.run({
 				...base,
 				files: [
-					{ path: '/etc/koi-ca.pem', content: 'CA\n' },
+					{ path: '/etc/previewlane-ca.pem', content: 'CA\n' },
 					{ path: '/no/such/dir/file', content: 'x' },
 				],
 			}),
 		).rejects.toThrow();
 		expect(await docker.inspect(name, network)).toEqual(gone);
 		expect(await docker.inspect(creatingName(name), network)).toEqual(gone);
-		// koid stopped after creating the container and before its copies.
+		// previewlaned stopped after creating the container and before its copies.
 		await must([
 			'docker',
 			'create',
 			'--name',
 			creatingName(name),
 			'--label',
-			`koi.preview=${label}`,
+			`previewlane.preview=${label}`,
 			volumeImage,
 		]);
 		// A visit finds no container by the preview's name, so it runs one.
 		expect(await docker.inspect(name, network)).toEqual(gone);
-		await docker.run({ ...base, files: [{ path: '/etc/koi-ca.pem', content: 'CA\n' }] });
+		await docker.run({ ...base, files: [{ path: '/etc/previewlane-ca.pem', content: 'CA\n' }] });
 		expect((await docker.inspect(name, network)).running).toBe(true);
-		expect(await must(['docker', 'exec', name, 'cat', '/etc/koi-ca.pem'])).toBe('CA\n');
+		expect(await must(['docker', 'exec', name, 'cat', '/etc/previewlane-ca.pem'])).toBe('CA\n');
 		expect(await docker.inspect(creatingName(name), network)).toEqual(gone);
 		await docker.remove(name);
 	},
@@ -447,7 +447,7 @@ test.skipIf(!enabled)(
 	'a preview from an image with no /etc gets the CA files, created and created again',
 	async () => {
 		// A static busybox on its own: no /etc or any other directory.
-		const context = await mkdtemp(join(tmpdir(), 'koid-it-scratch-'));
+		const context = await mkdtemp(join(tmpdir(), 'previewlaned-it-scratch-'));
 		await writeFile(
 			join(context, 'Dockerfile'),
 			'FROM busybox:1.37-musl AS busybox\nFROM scratch\nCOPY --from=busybox /bin/busybox /busybox\nCMD ["/busybox", "sleep", "300"]\n',
@@ -456,7 +456,7 @@ test.skipIf(!enabled)(
 			dockerfile: join(context, 'Dockerfile'),
 			context,
 			tag: scratchImage,
-			labels: { 'koi.preview': label },
+			labels: { 'previewlane.preview': label },
 			timeoutMs: 180_000,
 			onLine: () => {},
 		});
@@ -465,14 +465,14 @@ test.skipIf(!enabled)(
 			caBundle: 'BUNDLE\n',
 			caCert: 'CA\n',
 		});
-		const name = `koi-${label}-scratch`;
+		const name = `previewlane-${label}-scratch`;
 		const options = {
 			name,
 			image: scratchImage,
 			network,
 			user: '65534:65534',
 			env: {},
-			labels: { 'koi.preview': label },
+			labels: { 'previewlane.preview': label },
 			files,
 		};
 		// As a deploy creates it, then as a visit recreates it after it went.
@@ -508,18 +508,18 @@ test.skipIf(!enabled)(
 			// The watch has started, and docker events has had time to subscribe.
 			expect(await until(() => events.includes(undefined))).toBe(true);
 			await Bun.sleep(1000);
-			const dying = `koi-${label}-dying`;
-			const next = `koi-${label}-next`;
+			const dying = `previewlane-${label}-dying`;
+			const next = `previewlane-${label}-next`;
 			const options = {
 				image: volumeImage,
 				network,
 				user: '65534:65534',
 				env: {},
-				labels: { 'koi.preview': label },
+				labels: { 'previewlane.preview': label },
 			};
 			await docker.run({ name: dying, ...options });
 			const ip = (await docker.inspect(dying, network)).ip;
-			// Dies on its own: koid did not stop it.
+			// Dies on its own: previewlaned did not stop it.
 			await must(['docker', 'kill', dying]);
 			expect(await until(() => events.includes(dying))).toBe(true);
 			// Why the map must change before the next start: Docker hands the
@@ -536,17 +536,17 @@ test.skipIf(!enabled)(
 );
 
 test.skipIf(!enabled)(
-	'makes a run network around a running app and creates the helpers stopped, as koid would',
+	'makes a run network around a running app and creates the helpers stopped, as previewlaned would',
 	async () => {
 		await buildVolumeImage();
-		const app = `koi-${label}-app`;
+		const app = `previewlane-${label}-app`;
 		await docker.run({
 			name: app,
 			image: volumeImage,
 			network,
 			user: '65534:65534',
 			env: {},
-			labels: { 'koi.preview': label },
+			labels: { 'previewlane.preview': label },
 		});
 		const before = await docker.inspect(app, network);
 		expect(before.running).toBe(true);
@@ -559,7 +559,7 @@ test.skipIf(!enabled)(
 			bridge,
 			subnet: verifySubnet,
 			gateway: addresses.gateway,
-			labels: { 'koi.run': verifyRun },
+			labels: { 'previewlane.run': verifyRun },
 		});
 		// Internal, IPv4 only, no inter-container traffic, the bridge as named.
 		const made = (await docker.networks()).find((n) => n.name === runNetwork);
@@ -578,13 +578,13 @@ test.skipIf(!enabled)(
 		expect((await docker.inspect(app, network)).ip).toBe(before.ip);
 		// The helpers: created, not started, at their fixed addresses, with
 		// no mounts but the tmpfs asked for. busybox declares no volume;
-		// the volume image does, and koid would refuse it.
+		// the volume image does, and previewlaned would refuse it.
 		const common = {
 			network: runNetwork,
 			runId: verifyRun,
 			appHost: { name: privateHost(verifyRun), ip: addresses.app },
 			dns: addresses.gateway,
-			env: { KOI_RUN_ID: verifyRun },
+			env: { PREVIEWLANE_RUN_ID: verifyRun },
 		};
 		const recorder = helperName(verifyRun, 'recorder');
 		await docker.createRecorder({
@@ -631,8 +631,8 @@ test.skipIf(!enabled)(
 		});
 		expect(inspected.RestartPolicy).toEqual({ Name: 'no', MaximumRetryCount: 0 });
 		expect(inspected.NetworkMode).toBe(runNetwork);
-		// listRun gives every container labelled koi.run with all its labels.
-		// The verifier's image carries koi.preview=<label>; koid sets it to
+		// listRun gives every container labelled previewlane.run with all its labels.
+		// The verifier's image carries previewlane.preview=<label>; previewlaned sets it to
 		// nothing over that, and the helpers' names keep them out of list()
 		// and the disk watchdog, while the app is in both.
 		expect(await docker.listRun()).toEqual(
@@ -640,17 +640,17 @@ test.skipIf(!enabled)(
 				{
 					name: recorder,
 					labels: expect.objectContaining({
-						'koi.preview': '',
-						'koi.run': verifyRun,
-						'koi.role': 'recorder',
+						'previewlane.preview': '',
+						'previewlane.run': verifyRun,
+						'previewlane.role': 'recorder',
 					}),
 				},
 				{
 					name: verifier,
 					labels: expect.objectContaining({
-						'koi.preview': '',
-						'koi.run': verifyRun,
-						'koi.role': 'verifier',
+						'previewlane.preview': '',
+						'previewlane.run': verifyRun,
+						'previewlane.role': 'verifier',
 					}),
 				},
 			]),
@@ -663,7 +663,7 @@ test.skipIf(!enabled)(
 		expect(measured).toContain(app);
 		expect(measured).not.toContain(recorder);
 		expect(measured).not.toContain(verifier);
-		// Teardown in koid's order: the app off the run network and nothing
+		// Teardown in previewlaned's order: the app off the run network and nothing
 		// else of it, the helpers, the network.
 		await docker.disconnect(runNetwork, app);
 		expect(await docker.endpoint(app, runNetwork)).toBeUndefined();

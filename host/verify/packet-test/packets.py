@@ -2,14 +2,14 @@
 """Packet tests for the verification run network (docs/verify.md, "Run network").
 
 Run as root on a box provisioned like the real one (host/cloud-init.sh, then
-host/verify/install.sh), with koid stopped. run.sh is the driver; this file
+host/verify/install.sh), with previewlaned stopped. run.sh is the driver; this file
 does the work. Standard library only.
 
-The test builds two run networks the way koid does: the same `docker network
+The test builds two run networks the way previewlaned does: the same `docker network
 create`, `docker create` and `docker network connect` arguments as
 packages/daemon/src/docker.ts (networkArgs, recorderArgs, verifierArgs,
 runArgs), the same addresses and MACs, and the same order of `apply` calls
-through `sudo -n` as the koi user (VerificationNetwork.create, then reapply
+through `sudo -n` as the previewlane user (VerificationNetwork.create, then reapply
 after each container starts). The containers run a small stand-in image
 instead of the recorder and the verifier, since what is tested is the network.
 
@@ -46,19 +46,19 @@ import sys
 import tempfile
 import time
 
-HELPER = "/usr/local/libexec/koi-verify-net"
-ENV_FILE = "/etc/koi/verify/env"
-STATE_DIR = "/run/koi-verify"
-PREVIEW_NETWORK = "koi-previews"
-SLICE = "koi.slice"
+HELPER = "/usr/local/libexec/previewlane-verify-net"
+ENV_FILE = "/etc/previewlane/verify/env"
+STATE_DIR = "/run/previewlane-verify"
+PREVIEW_NETWORK = "previewlane-previews"
+SLICE = "previewlane.slice"
 APP_PORT = 8080
 # runArgs gives a preview 3 CPUs, and Docker refuses more than the box has.
 PREVIEW_CPUS = str(min(3, os.cpu_count() or 1))
 # The base of the default verifier image (host/verifier/Dockerfile), so the
 # stand-ins need nothing the box does not pull anyway.
 BASE_IMAGE = "python:3.13.13-slim-bookworm@sha256:355bfa66770995d7e9a0da4b3473b44d0cb451f6b56f5615ad9c39e3c4eca03f"
-STANDIN_IMAGE = "koi-packet-test:1"
-TEST_LABEL = "koi.packet-test"
+STANDIN_IMAGE = "previewlane-packet-test:1"
+TEST_LABEL = "previewlane.packet-test"
 SELF = os.path.abspath(__file__)
 PROBE_TIMEOUT = 2.0
 
@@ -232,7 +232,7 @@ def probe_ping(args):
     s.settimeout(args.timeout)
     if args.iface_ip:
         s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(args.iface_ip))
-    body = struct.pack("!BBHHH", 8, 0, 0, 0, 1) + b"koi-packet-test"
+    body = struct.pack("!BBHHH", 8, 0, 0, 0, 1) + b"previewlane-packet-test"
     try:
         s.sendto(body, (args.ip, 0))
         s.recvfrom(1024)
@@ -423,7 +423,7 @@ def probe_intercept(args):
     if args.poison:
         poison = mac_bytes(args.poison)
         # A frame of a local experimental ethertype, broadcast, from the poisoned MAC.
-        lures.append(b"\xff" * 6 + poison + struct.pack("!H", 0x88B5) + b"koi-packet-test".ljust(46, b"\0"))
+        lures.append(b"\xff" * 6 + poison + struct.pack("!H", 0x88B5) + b"previewlane-packet-test".ljust(46, b"\0"))
         # And a gratuitous ARP from it, which iptables never sees.
         lures.append(b"\xff" * 6 + poison + struct.pack("!H", 0x0806) + struct.pack("!HHBBH", 1, 0x0800, 6, 4, 1)
                      + poison + socket.inet_aton(args.poison_ip) + b"\0" * 6 + socket.inet_aton(args.poison_ip))
@@ -501,7 +501,7 @@ def probe_main(argv):
     a.add_argument("--dev", default="eth0")
     a.add_argument("--udp", action="store_true")
     a.add_argument("--encap", choices=["", "pppoe", *ENCAPS], default="")
-    a.add_argument("--token", default="koi-forged")
+    a.add_argument("--token", default="previewlane-forged")
     a.add_argument("--timeout", type=float, default=PROBE_TIMEOUT)
     a = sub.add_parser("_intercept")
     a.add_argument("--poison", default="")
@@ -539,21 +539,21 @@ def docker(*args, check=True, stdin=None):
 
 
 def helper(*args, stdin=None):
-    """The helper as koid runs it: as koi, through sudo -n."""
-    return run(["runuser", "-u", "koi", "--", "sudo", "-n", HELPER, *args], stdin=stdin, check=False)
+    """The helper as previewlaned runs it: as previewlane, through sudo -n."""
+    return run(["runuser", "-u", "previewlane", "--", "sudo", "-n", HELPER, *args], stdin=stdin, check=False)
 
 
 def read_pool():
     with open(ENV_FILE, encoding="utf-8") as f:
         for line in f:
             key, _, value = line.strip().partition("=")
-            if key == "KOI_VERIFY_POOL":
+            if key == "PREVIEWLANE_VERIFY_POOL":
                 return ipaddress.ip_network(value.strip().strip("'\""))
-    raise Abort(f"no KOI_VERIFY_POOL in {ENV_FILE}")
+    raise Abort(f"no PREVIEWLANE_VERIFY_POOL in {ENV_FILE}")
 
 
 def bridge_name(run_id):
-    """kv and 12 hex digits, as koid names a run's bridge (verification-network.ts, bridgeName)."""
+    """kv and 12 hex digits, as previewlaned names a run's bridge (verification-network.ts, bridgeName)."""
     return "kv" + hashlib.sha256(f"{run_id}:0".encode()).hexdigest()[:12]
 
 
@@ -605,8 +605,8 @@ def ip_in(name, *args):
 
 # Counters ---------------------------------------------------------------------------
 
-COUNTED_CHAINS = re.compile(r"^(KOI-VERIFY\S*|DOCKER-USER|INPUT|OUTPUT|FORWARD)$")
-L2_CHAIN = "KOI-VERIFY-L2"
+COUNTED_CHAINS = re.compile(r"^(PREVIEWLANE-VERIFY\S*|DOCKER-USER|INPUT|OUTPUT|FORWARD)$")
+L2_CHAIN = "PREVIEWLANE-VERIFY-L2"
 
 
 def counters():
@@ -640,7 +640,7 @@ def rose(before, after, deny_only=True):
         if delta <= 0:
             continue
         family, chain, rule, _ = key
-        if family == "v4" and chain in ("INPUT", "OUTPUT", "FORWARD", "DOCKER-USER") and "KOI-VERIFY" in rule:
+        if family == "v4" and chain in ("INPUT", "OUTPUT", "FORWARD", "DOCKER-USER") and "PREVIEWLANE-VERIFY" in rule:
             continue
         if deny_only and not rule.endswith("-j DROP"):
             continue
@@ -652,7 +652,7 @@ def permits_rose(before, after, run_id):
     return [
         f"{chain} +{after[key] - before.get(key, 0)}"
         for key in after
-        if (chain := key[1]) and f"koi-run={run_id}" in key[2] and after[key] > before.get(key, 0)
+        if (chain := key[1]) and f"previewlane-run={run_id}" in key[2] and after[key] > before.get(key, 0)
     ]
 
 
@@ -716,18 +716,18 @@ class Report:
 
 
 class Run:
-    """One run network as koid builds it, with stand-ins for the recorder and the verifier."""
+    """One run network as previewlaned builds it, with stand-ins for the recorder and the verifier."""
 
     def __init__(self, run_id, subnet, app):
         self.id = run_id
         self.subnet = subnet
-        self.network = f"koi-v-{run_id}"
+        self.network = f"previewlane-v-{run_id}"
         self.bridge = bridge_name(run_id)
         hosts = list(subnet.hosts())
         self.gateway, self.app_ip, self.recorder_ip, self.verifier_ip = (str(h) for h in hosts[:4])
         self.app = app
-        self.recorder = f"koi-verify-{run_id}-recorder"
-        self.verifier = f"koi-verify-{run_id}-verifier"
+        self.recorder = f"previewlane-verify-{run_id}-recorder"
+        self.verifier = f"previewlane-verify-{run_id}-verifier"
         self.app_mac = None
 
     def descriptor(self, **override):
@@ -744,7 +744,7 @@ class Run:
     def helper_args(self, role, ip):
         """docker create for a helper: helperArgs and the role's own flags in docker.ts, with the stand-in image."""
         common = [
-            "--name", f"koi-verify-{self.id}-{role}", "--network", self.network, "--ip", ip,
+            "--name", f"previewlane-verify-{self.id}-{role}", "--network", self.network, "--ip", ip,
             "--mac-address", helper_mac(ip),
         ]
         if role == "recorder":
@@ -757,11 +757,11 @@ class Run:
                       "--cpus", "1", "--pids-limit", "256", "--ulimit", "nofile=4096:4096", "--ulimit", "core=0:0"]
         args = ["create", *common, *limits, "--restart", "no", "--stop-timeout", "10", "--log-driver", "none",
                 "--dns", self.gateway, "--add-host", f"app.{self.id}.invalid:{self.app_ip}",
-                "--label", "koi.preview=", "--label", f"koi.role={role}", "--label", f"koi.run={self.id}",
+                "--label", "previewlane.preview=", "--label", f"previewlane.role={role}", "--label", f"previewlane.run={self.id}",
                 "--label", f"{TEST_LABEL}=1"]
         if slice_exists():
             args += ["--cgroup-parent", SLICE]
-        args += ["--env", f"KOI_RUN_ID={self.id}", "--env", f"KOI_PREVIEW_URL=http://app.{self.id}.invalid:{APP_PORT}"]
+        args += ["--env", f"PREVIEWLANE_RUN_ID={self.id}", "--env", f"PREVIEWLANE_PREVIEW_URL=http://app.{self.id}.invalid:{APP_PORT}"]
         if role == "recorder":
             args += ["--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=512m,uid=10001,gid=10001", "--shm-size", "256m"]
         else:
@@ -794,15 +794,15 @@ def preview_args(name, label):
     args = ["run", "--detach", "--name", name, "--network", PREVIEW_NETWORK, "--user", "65534:65534",
             "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "2048", "--memory", "6g",
             "--memory-swap", "6g", "--cpus", PREVIEW_CPUS, "--restart", "no", "--log-opt", "max-size=10m", "--log-opt",
-            "max-file=3", "--label", "koi.role="]
+            "max-file=3", "--label", "previewlane.role="]
     if slice_exists():
         args += ["--cgroup-parent", SLICE]
-    args += ["--label", f"koi.preview={label}", "--label", f"{TEST_LABEL}=1", STANDIN_IMAGE]
+    args += ["--label", f"previewlane.preview={label}", "--label", f"{TEST_LABEL}=1", STANDIN_IMAGE]
     return args
 
 
 def build_standin():
-    work = tempfile.mkdtemp(prefix="koi-packet-test-image-")
+    work = tempfile.mkdtemp(prefix="previewlane-packet-test-image-")
     try:
         with open(os.path.join(work, "Dockerfile"), "w", encoding="utf-8") as f:
             f.write(
@@ -831,7 +831,7 @@ def cleanup(runs_known=()):
 
 
 def free_subnets(pool, count):
-    """The highest /28s of the pool no Docker network and no helper state holds; koid allocates lowest first."""
+    """The highest /28s of the pool no Docker network and no helper state holds; previewlaned allocates lowest first."""
     used = []
     for net_id in docker("network", "ls", "-q").stdout.split():
         info = json.loads(docker("network", "inspect", "--format", "{{json .IPAM.Config}}", net_id).stdout or "null") or []
@@ -857,8 +857,8 @@ class PacketTest:
         self.keep = keep
         self.verbose = verbose
         self.report = Report()
-        self.work = tempfile.mkdtemp(prefix="koi-packet-test-")
-        # Probes that run as koi or nobody on the host need a copy they can read.
+        self.work = tempfile.mkdtemp(prefix="previewlane-packet-test-")
+        # Probes that run as previewlane or nobody on the host need a copy they can read.
         os.chmod(self.work, 0o755)
         self.probe = os.path.join(self.work, "probe.py")
         shutil.copyfile(SELF, self.probe)
@@ -891,12 +891,12 @@ class PacketTest:
                 raise Abort(f"{tool} is not installed")
         if not os.path.exists(HELPER):
             raise Abort(f"{HELPER} is not installed; run host/verify/install.sh")
-        if run(["systemctl", "is-active", "--quiet", "koid"], check=False).returncode == 0:
-            raise Abort("koid is running; stop it first (systemctl stop koid), since koid cleans up run networks it did not make")
+        if run(["systemctl", "is-active", "--quiet", "previewlaned"], check=False).returncode == 0:
+            raise Abort("previewlaned is running; stop it first (systemctl stop previewlaned), since previewlaned cleans up run networks it did not make")
         self.pool = read_pool()
         attest = helper("attest")
-        self.check("helper attest through sudo as koi", "ok", "ok" if attest.returncode == 0 else f"exit{attest.returncode}",
-                   (attest.stderr or "").strip()[-200:] or "sudo -n koi-verify-net attest")
+        self.check("helper attest through sudo as previewlane", "ok", "ok" if attest.returncode == 0 else f"exit{attest.returncode}",
+                   (attest.stderr or "").strip()[-200:] or "sudo -n previewlane-verify-net attest")
         if attest.returncode != 0:
             raise Abort("the helper does not attest")
 
@@ -933,7 +933,7 @@ class PacketTest:
         docker("network", "create", "--driver", "bridge", "--internal", "--ipv6=false", "--subnet", str(subnet),
                "--gateway", r.gateway, "--opt", "com.docker.network.bridge.enable_icc=false",
                "--opt", "com.docker.network.bridge.enable_ip_masquerade=false",
-               "--opt", f"com.docker.network.bridge.name={r.bridge}", "--label", f"koi.run={run_id}",
+               "--opt", f"com.docker.network.bridge.name={r.bridge}", "--label", f"previewlane.run={run_id}",
                "--label", f"{TEST_LABEL}=1", r.network)
         docker("network", "connect", "--ip", r.app_ip, r.network, app)
         ip, mac = endpoint_of(app, r.network)
@@ -948,7 +948,7 @@ class PacketTest:
     def apply(self, r, label, bound=()):
         done = helper("apply", stdin=r.descriptor())
         if done.returncode != 0:
-            self.check(f"{label}: apply through sudo as koi", "ok", f"exit{done.returncode}", done.stderr.strip()[-300:])
+            self.check(f"{label}: apply through sudo as previewlane", "ok", f"exit{done.returncode}", done.stderr.strip()[-300:])
             raise Abort(f"apply of {r.id} failed")
         attest = json.loads(helper("attest").stdout)
         ports = (attest.get("ports") or {}).get(r.id) or {}
@@ -967,21 +967,21 @@ class PacketTest:
         build_standin()
         a_net, b_net = free_subnets(self.pool, 2)
         token = secrets.token_hex(6)
-        self.app_a = self.make_preview(f"koi-pkt{token}a-app", f"pkt-{token}-a")
-        self.app_b = self.make_preview(f"koi-pkt{token}b-app", f"pkt-{token}-b")
-        self.other = self.make_preview(f"koi-pkt{token}c-app", f"pkt-{token}-c")
+        self.app_a = self.make_preview(f"previewlane-pkt{token}a-app", f"pkt-{token}-a")
+        self.app_b = self.make_preview(f"previewlane-pkt{token}b-app", f"pkt-{token}-b")
+        self.other = self.make_preview(f"previewlane-pkt{token}c-app", f"pkt-{token}-c")
         self.a = self.make_run(f"pkt{token}a{secrets.token_hex(4)}", a_net, self.app_a)
         self.b = self.make_run(f"pkt{token}b{secrets.token_hex(4)}", b_net, self.app_b)
         a, b = self.a, self.b
         # The attacker: privileged on purpose, on run A's bridge, at .10.
         self.attacker_ip = str(list(a.subnet.hosts())[9])
         self.attacker_mac = "02:66:" + ":".join(f"{int(o):02x}" for o in self.attacker_ip.split("."))
-        docker("run", "--detach", "--name", f"koi-pkt{token}-attacker", "--network", a.network, "--ip",
+        docker("run", "--detach", "--name", f"previewlane-pkt{token}-attacker", "--network", a.network, "--ip",
                self.attacker_ip, "--mac-address", self.attacker_mac, "--cap-add", "NET_RAW", "--cap-add", "NET_ADMIN",
                "--label", f"{TEST_LABEL}=1", STANDIN_IMAGE)
-        self.attacker = f"koi-pkt{token}-attacker"
+        self.attacker = f"previewlane-pkt{token}-attacker"
         self.report.note(f"run A {a.id} {a.subnet} bridge {a.bridge}; run B {b.id} {b.subnet} bridge {b.bridge}")
-        # koid's order: apply with nothing running, then the recorder starts and
+        # previewlaned's order: apply with nothing running, then the recorder starts and
         # the permits bind to its port, then each verifier.
         self.apply(a, "run A, nothing started")
         self.apply(b, "run B, nothing started")
@@ -1127,7 +1127,7 @@ class PacketTest:
         self.tcp("recorder -> app port" + suffix, a.recorder, a.app_ip, APP_PORT, "open", self.l_app, a.id)
         self.tcp("verifier -> app port" + suffix, a.verifier, a.app_ip, APP_PORT, "open", self.l_app, a.id)
         self.tcp("verifier -> recorder tcp/4317" + suffix, a.verifier, a.recorder_ip, 4317, "open", self.l_rec, a.id)
-        self.tcp("host as koi -> recorder tcp/4318" + suffix, ("user", "koi"), a.recorder_ip, 4318, "open", self.l_rec,
+        self.tcp("host as previewlane -> recorder tcp/4318" + suffix, ("user", "previewlane"), a.recorder_ip, 4318, "open", self.l_rec,
                  a.id)
         if not suffix:
             self.tcp("run B: verifier -> app port", self.b.verifier, self.b.app_ip, APP_PORT, "open", self.l_app_b,
@@ -1180,7 +1180,7 @@ class PacketTest:
         # Off the /28: as created there is no route, so the probe adds one via
         # the gateway, to reach the firewall itself.
         res = in_ns(a.verifier, "_connect", host_ip, "22", "x")
-        self.check("verifier has no route off its /28 (as koid creates it)", "unreachable", res.get("result", "?"),
+        self.check("verifier has no route off its /28 (as previewlaned creates it)", "unreachable", res.get("result", "?"),
                    f"connect {host_ip}:22 -> {res.get('result')}")
         self.with_route(a.verifier, a.gateway)
         self.tcp(f"verifier -> host private IP {host_ip} tcp/22 (test route)", a.verifier, host_ip, 22, "dropped", None)
@@ -1198,7 +1198,7 @@ class PacketTest:
 
     def denied_dns(self):
         a = self.a
-        name = f"koi-pkt-{secrets.token_hex(5)}.example.com"
+        name = f"previewlane-pkt-{secrets.token_hex(5)}.example.com"
         stop = self.capture("port 53")
         for proto in ("udp", "tcp"):
             before = counters()
@@ -1273,9 +1273,9 @@ class PacketTest:
         a = self.a
         self.tcp("host as root -> recorder tcp/4318", None, a.recorder_ip, 4318, "dropped", self.l_rec)
         self.tcp("host as nobody -> recorder tcp/4318", ("user", "nobody"), a.recorder_ip, 4318, "dropped", self.l_rec)
-        self.tcp("host as koi -> recorder tcp/4317", ("user", "koi"), a.recorder_ip, 4317, "dropped", self.l_rec)
-        self.tcp("host as koi -> app port on the run network", ("user", "koi"), a.app_ip, APP_PORT, "dropped", self.l_app)
-        self.tcp("host as koi -> verifier tcp/9000", ("user", "koi"), a.verifier_ip, 9000, "dropped", self.l_ver)
+        self.tcp("host as previewlane -> recorder tcp/4317", ("user", "previewlane"), a.recorder_ip, 4317, "dropped", self.l_rec)
+        self.tcp("host as previewlane -> app port on the run network", ("user", "previewlane"), a.app_ip, APP_PORT, "dropped", self.l_app)
+        self.tcp("host as previewlane -> verifier tcp/9000", ("user", "previewlane"), a.verifier_ip, 9000, "dropped", self.l_ver)
 
     def cross(self):
         a, b = self.a, self.b
@@ -1295,9 +1295,9 @@ class PacketTest:
         # The app is on two networks; its preview address is not a way round.
         other_ip = self.preview_ip(self.other)
         app_preview_ip = self.preview_ip(a.app)
-        self.tcp("verifier -> other preview's koi-previews address (test route)", a.verifier, other_ip, APP_PORT,
+        self.tcp("verifier -> other preview's previewlane-previews address (test route)", a.verifier, other_ip, APP_PORT,
                  "dropped", self.l_other)
-        self.tcp("verifier -> the run's app on its koi-previews address (test route)", a.verifier, app_preview_ip,
+        self.tcp("verifier -> the run's app on its previewlane-previews address (test route)", a.verifier, app_preview_ip,
                  APP_PORT, "dropped", self.l_app)
         self.without_route(a.verifier)
         self.without_route(a.recorder)
@@ -1318,7 +1318,7 @@ class PacketTest:
             seen = self.l_proxy.events(since)
             peers = sorted({e["peer"] for e in seen})
             ok = res.get("result") == "open" and peers == [app_preview_ip]
-            self.check("app -> egress proxy port on koi-previews, from its preview address", "open",
+            self.check("app -> egress proxy port on previewlane-previews, from its preview address", "open",
                        "open" if ok else res.get("result", "?"),
                        f"listener saw peers {peers}, app preview address {app_preview_ip}")
 
@@ -1485,22 +1485,22 @@ class PacketTest:
         with open(f"/sys/class/net/{a.bridge}/address", encoding="ascii") as f:
             bridge_mac = f.read().strip()
         verifier_hold = [*ns_argv(a.verifier), sys.executable, "-I", SELF, "_hold", a.recorder_ip, "4317"]
-        host_hold = ["runuser", "-u", "koi", "--", sys.executable, "-I", self.probe, "_hold", a.recorder_ip, "4318"]
+        host_hold = ["runuser", "-u", "previewlane", "--", sys.executable, "-I", self.probe, "_hold", a.recorder_ip, "4318"]
         poison = ["--poison", rec_mac, "--poison-ip", a.recorder_ip]
         self.intercept("attacker poisoning the bridge with the recorder's MAC reads verifier -> recorder:4317 data",
                        verifier_hold, poison)
-        self.intercept("attacker poisoning the bridge with the recorder's MAC reads host as koi -> recorder:4318 data",
+        self.intercept("attacker poisoning the bridge with the recorder's MAC reads host as previewlane -> recorder:4318 data",
                        host_hold, poison)
         self.intercept("attacker ARP-claiming the recorder's address to the verifier reads verifier -> recorder:4317",
                        verifier_hold, ["--victim-mac", ver_mac, "--victim-ip", a.verifier_ip, "--claim", a.recorder_ip])
         self.intercept("attacker ARP-claiming the verifier's address to the recorder reads the recorder's replies",
                        verifier_hold, ["--victim-mac", rec_mac, "--victim-ip", a.recorder_ip, "--claim", a.verifier_ip])
-        self.intercept("attacker ARP-claiming the recorder's address to the host reads host as koi -> recorder:4318",
+        self.intercept("attacker ARP-claiming the recorder's address to the host reads host as previewlane -> recorder:4318",
                        host_hold, ["--victim-mac", bridge_mac, "--victim-ip", a.gateway, "--claim", a.recorder_ip])
 
     def intercept(self, name, hold_argv, attack):
         """A held connection sends eight markers while the attacker runs `attack`; whether the attacker saw one."""
-        marker = f"koi-secret-{secrets.token_hex(4)}"
+        marker = f"previewlane-secret-{secrets.token_hex(4)}"
         hold = subprocess.Popen(hold_argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         first = json.loads(hold.stdout.readline())
         if first.get("result") != "open":
@@ -1574,14 +1574,14 @@ class PacketTest:
     def layer2(self):
         """The helper's provision left the allowlist in front of ebtables FORWARD and the VLAN sysctl at 1."""
         listing = run(["ebtables", "-t", "filter", "-L"]).stdout
-        rules = re.findall(r"^(--logical-in kv\+ -j KOI-VERIFY-L2|-p \S+ -j RETURN|-j DROP)$", listing, re.M)
+        rules = re.findall(r"^(--logical-in kv\+ -j PREVIEWLANE-VERIFY-L2|-p \S+ -j RETURN|-j DROP)$", listing, re.M)
         vlan = read_sysctl("net.bridge.bridge-nf-filter-vlan-tagged")
-        ok = rules[:1] == ["--logical-in kv+ -j KOI-VERIFY-L2"] and len(rules) >= 4 and vlan == "1"
+        ok = rules[:1] == ["--logical-in kv+ -j PREVIEWLANE-VERIFY-L2"] and len(rules) >= 4 and vlan == "1"
         self.check("layer 2 allowlist in ebtables FORWARD, bridge-nf-filter-vlan-tagged=1", "ok", "ok" if ok else "missing",
                    f"ebtables {rules}; vlan-tagged={vlan}")
 
     def teardown(self):
-        """koid's order: revoke, then take the app off the network, remove the helpers and the network."""
+        """previewlaned's order: revoke, then take the app off the network, remove the helpers and the network."""
         a = self.a
         hold = subprocess.Popen([*ns_argv(a.verifier), sys.executable, "-I", SELF, "_hold", a.app_ip, str(APP_PORT),
                                  "--timeout", "3"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
@@ -1593,7 +1593,7 @@ class PacketTest:
                    f"open {first.get('result')}")
         entries = run(["conntrack", "-L", "-s", str(a.subnet)], check=False).stdout.count("\n")
         done = helper("revoke", a.id)
-        self.check("teardown: revoke through sudo as koi", "ok", "ok" if done.returncode == 0 else f"exit{done.returncode}",
+        self.check("teardown: revoke through sudo as previewlane", "ok", "ok" if done.returncode == 0 else f"exit{done.returncode}",
                    (done.stdout or done.stderr).strip()[-200:])
         after_entries = run(["conntrack", "-L", "-s", str(a.subnet)], check=False).stdout.count("\n")
         self.check("teardown: conntrack entries of the subnet flushed", "flushed",
@@ -1612,9 +1612,9 @@ class PacketTest:
                    f"client {after_revoke.get('result')}; app saw {len(seen)}; {'; '.join(drops[:2])}")
         self.tcp("teardown: verifier -> app port after revoke", a.verifier, a.app_ip, APP_PORT, "dropped", self.l_app)
         self.tcp("teardown: recorder -> app port after revoke", a.recorder, a.app_ip, APP_PORT, "dropped", self.l_app)
-        self.tcp("teardown: host as koi -> recorder tcp/4318 after revoke", ("user", "koi"), a.recorder_ip, 4318,
+        self.tcp("teardown: host as previewlane -> recorder tcp/4318 after revoke", ("user", "previewlane"), a.recorder_ip, 4318,
                  "dropped", self.l_rec)
-        left = [line for line in run(["iptables-save"]).stdout.splitlines() if f"koi-run={a.id}" in line]
+        left = [line for line in run(["iptables-save"]).stdout.splitlines() if f"previewlane-run={a.id}" in line]
         self.check("teardown: no rule of the run is left", "none", "none" if not left else f"{len(left)}-left", "iptables-save")
         static = [e for e in json.loads(run(["bridge", "-j", "fdb", "show", "br", a.bridge]).stdout or "[]")
                   if e.get("state") == "static"]
@@ -1684,7 +1684,7 @@ class PacketTest:
 
     def host_cidr(self):
         for link in json.loads(run(["ip", "-j", "-4", "addr", "show", "scope", "global"]).stdout):
-            if link["ifname"].startswith(("kv", "koi-", "docker", "br-", "veth")):
+            if link["ifname"].startswith(("kv", "previewlane-", "docker", "br-", "veth")):
                 continue
             for info in link.get("addr_info", []):
                 return f"{info['local']}/{info['prefixlen']}"
@@ -1692,7 +1692,7 @@ class PacketTest:
 
     def show_rules(self):
         for line in run(["iptables", "-S"]).stdout.splitlines():
-            if "KOI-VERIFY" in line or "kv" in line:
+            if "PREVIEWLANE-VERIFY" in line or "kv" in line:
                 print("      " + line)
 
     def main(self):
@@ -1739,7 +1739,7 @@ def main(argv):
     if argv and argv[0].startswith("_"):
         probe_main(argv)
         return 0
-    p = argparse.ArgumentParser(description="Packet tests for koi's verification run network. Run as root.")
+    p = argparse.ArgumentParser(description="Packet tests for previewlane's verification run network. Run as root.")
     p.add_argument("--keep", action="store_true", help="leave the networks and containers for inspection")
     p.add_argument("--verbose", action="store_true", help="print the run's rules after apply")
     p.add_argument("--cleanup", action="store_true", help="only remove what an earlier test left")

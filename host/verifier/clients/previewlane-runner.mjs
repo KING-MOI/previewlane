@@ -3,17 +3,17 @@
 // allowed image does copies this file from host/verifier/clients/ and
 // imports it by path.
 //
-//   import * as koi from '/opt/koi/clients/koi-runner.mjs';
-//   const shot = await koi.capture('screenshot', 'after-save');
-//   const state = await koi.read('/api/pipelines/7', 'saved-row');
-//   koi.assertion('name-persists', 'pass', [shot, state], 'the row holds the name');
+//   import * as previewlane from '/opt/previewlane/clients/previewlane-runner.mjs';
+//   const shot = await previewlane.capture('screenshot', 'after-save');
+//   const state = await previewlane.read('/api/pipelines/7', 'saved-row');
+//   previewlane.assertion('name-persists', 'pass', [shot, state], 'the row holds the name');
 //
-// Events go to stdout as JSON lines; koid's acknowledgments come on stdin.
+// Events go to stdout as JSON lines; previewlaned's acknowledgments come on stdin.
 // A capture or a read resolves with its artifact id, or rejects with
-// CaptureFailed carrying koid's error code. Lines on stdin that are not the
+// CaptureFailed carrying previewlaned's error code. Lines on stdin that are not the
 // acknowledgment awaited are ignored.
 //
-// koid discards a line over 8 KiB, so an assertion's detail and a note's text
+// previewlaned discards a line over 8 KiB, so an assertion's detail and a note's text
 // are cut until the whole line fits. An event that cannot fit without its free
 // text throws: printing it would lose it without a word.
 
@@ -23,11 +23,11 @@ export const PROTOCOL_VERSION = 1;
 const OUTCOMES = ['pass', 'fail', 'blocked', 'not-run', 'needs-review', 'pass-with-recovery'];
 const CAPTURE_KINDS = ['screenshot', 'trace', 'har', 'aria', 'file'];
 const PHASES = ['setup', 'journey', 'recovery', 'cleanup'];
-// The longest line koid reads, without its newline (PROTOCOL_LIMITS.lineBytes
+// The longest line previewlaned reads, without its newline (PROTOCOL_LIMITS.lineBytes
 // in packages/daemon/src/verifier.ts). It discards a longer one whole, so an
 // event past this would look as if the runner never sent it.
 const MAX_LINE_BYTES = 8 * 1024;
-// The longest free text koid's schema takes (RunnerEventSchema).
+// The longest free text previewlaned's schema takes (RunnerEventSchema).
 const MAX_TEXT_UNITS = 4000;
 
 export class CaptureFailed extends Error {
@@ -38,24 +38,24 @@ export class CaptureFailed extends Error {
 	}
 }
 
-// What koid put in the environment.
+// What previewlaned put in the environment.
 export function env(environ = process.env) {
 	let fixtures = {};
 	try {
-		const parsed = JSON.parse(environ.KOI_FIXTURES || '{}');
+		const parsed = JSON.parse(environ.PREVIEWLANE_FIXTURES || '{}');
 		if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) fixtures = parsed;
 	} catch {
 		fixtures = {};
 	}
 	return {
-		runId: environ.KOI_RUN_ID || '',
-		pointId: environ.KOI_POINT_ID || '',
-		attempt: Number(environ.KOI_ATTEMPT || 1),
-		previewUrl: environ.KOI_PREVIEW_URL || '',
-		recorderWs: environ.KOI_RECORDER_WS || '',
-		timeoutSeconds: Number(environ.KOI_TIMEOUT_SECONDS || 0),
-		maxRequests: Number(environ.KOI_MAX_REQUESTS || 0),
-		loginKey: environ.KOI_LOGIN_KEY,
+		runId: environ.PREVIEWLANE_RUN_ID || '',
+		pointId: environ.PREVIEWLANE_POINT_ID || '',
+		attempt: Number(environ.PREVIEWLANE_ATTEMPT || 1),
+		previewUrl: environ.PREVIEWLANE_PREVIEW_URL || '',
+		recorderWs: environ.PREVIEWLANE_RECORDER_WS || '',
+		timeoutSeconds: Number(environ.PREVIEWLANE_TIMEOUT_SECONDS || 0),
+		maxRequests: Number(environ.PREVIEWLANE_MAX_REQUESTS || 0),
+		loginKey: environ.PREVIEWLANE_LOGIN_KEY,
 		fixtures,
 	};
 }
@@ -91,12 +91,12 @@ function listen() {
 
 const lineBytes = (record) => Buffer.byteLength(JSON.stringify(record));
 
-// The event as koid reads it, or an error when koid would discard it.
+// The event as previewlaned reads it, or an error when previewlaned would discard it.
 function encode(record) {
 	const bytes = lineBytes(record);
 	if (bytes > MAX_LINE_BYTES) {
 		throw new Error(
-			`a ${record.type} event is ${bytes} bytes, and koid discards a line over ${MAX_LINE_BYTES}`,
+			`a ${record.type} event is ${bytes} bytes, and previewlaned discards a line over ${MAX_LINE_BYTES}`,
 		);
 	}
 	return `${JSON.stringify(record)}\n`;
@@ -113,7 +113,7 @@ function cut(text, count) {
 	return text.slice(0, last >= 0xd800 && last <= 0xdbff ? count - 1 : count);
 }
 
-// Sets record[field] to as much of `value` as koid's schema takes and the line
+// Sets record[field] to as much of `value` as previewlaned's schema takes and the line
 // bound leaves room for. The encoded size depends on what the text holds: 3
 // bytes for a Chinese character, 4 for an emoji, 2 for a quote. So the cut is
 // tried against the whole encoded line, not worked out from the text's length.
@@ -137,7 +137,7 @@ function fit(record, field, value) {
 
 // Called before the request goes out. One waiter per label, as an answer names only its
 // label: a second request under a label still in flight would take the first's answer,
-// and leave the first waiting forever. koid answers a used label with this same code.
+// and leave the first waiting forever. previewlaned answers a used label with this same code.
 function awaitResult(label) {
 	listen();
 	if (waiting.has(label)) return Promise.reject(new CaptureFailed(label, 'duplicate_label'));
@@ -154,13 +154,13 @@ function ask(line, label) {
 }
 
 // Reports one of the point's declared assertions. `point` defaults to
-// KOI_POINT_ID.
+// PREVIEWLANE_POINT_ID.
 export function assertion(name, outcome, evidence = [], detail, point) {
 	if (!OUTCOMES.includes(outcome))
 		throw new Error(`outcome ${outcome} is not one of ${OUTCOMES.join(', ')}`);
 	const record = {
 		type: 'assertion',
-		point: point ?? process.env.KOI_POINT_ID ?? '',
+		point: point ?? process.env.PREVIEWLANE_POINT_ID ?? '',
 		name,
 		outcome,
 		evidence: [...evidence],

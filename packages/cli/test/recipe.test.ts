@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { MAX_PROJECT_NAME, previewHostLabel, RecipeSchema, repoIdFromRemote } from '@koi/shared';
+import { MAX_PROJECT_NAME, previewHostLabel, RecipeSchema, repoIdFromRemote } from '@previewlane/shared';
 import { BUILTIN_RECIPES } from '../src/builtins.ts';
 import { projectForBuiltin, projectFromRepo, resolveRecipe } from '../src/recipe.ts';
 import { RECIPES_DIR, readRecipeFiles } from '../src/recipe-files.ts';
@@ -21,7 +21,7 @@ describe('resolveRecipe', () => {
 		const r = await resolveRecipe(
 			'github.com/storefront-org/storefront-server',
 			[builtin],
-			files({ 'koi.yaml': 'port: 1' }),
+			files({ 'previewlane.yaml': 'port: 1' }),
 		);
 		expect(r).toEqual({
 			project: 'storefront',
@@ -42,55 +42,55 @@ describe('resolveRecipe', () => {
 		const fork = await resolveRecipe(
 			'github.com/someone/storefront-server',
 			[withForks],
-			files({ 'koi.yaml': 'port: 1' }),
+			files({ 'previewlane.yaml': 'port: 1' }),
 		);
 		// The shared recipe, under the fork's own project name.
 		expect(fork.project).toBe('storefront-someone');
 		expect(fork.recipe).toEqual({ kind: 'builtin', name: 'storefront' });
-		// The same name on another host is not a fork, so koi.yaml decides.
+		// The same name on another host is not a fork, so previewlane.yaml decides.
 		const elsewhere = await resolveRecipe(
 			'gitlab.com/someone/storefront-server',
 			[withForks],
-			files({ 'koi.yaml': 'port: 1\nbuild:\n  kind: dockerfile\n' }),
+			files({ 'previewlane.yaml': 'port: 1\nbuild:\n  kind: dockerfile\n' }),
 		);
 		expect(elsewhere.project).toBe('storefront-server');
 		expect(elsewhere.recipe.kind).toBe('repo');
 	});
 
-	test('falls back to koi.yaml, naming the project after the repo', async () => {
+	test('falls back to previewlane.yaml, naming the project after the repo', async () => {
 		const r = await resolveRecipe(
 			'github.com/acme/My_App',
 			[builtin],
-			files({ 'koi.yaml': 'name: storefront\nport: 8080\nbuild:\n  kind: dockerfile\n' }),
+			files({ 'previewlane.yaml': 'name: storefront\nport: 8080\nbuild:\n  kind: dockerfile\n' }),
 		);
 		expect(r.project).toBe('my-app');
 		expect(r.recipe.kind).toBe('repo');
 		expect(r.recipe.kind === 'repo' && 'name' in r.recipe.recipe).toBe(false);
 	});
 
-	test('reads .koi/koi.yaml when the root has none, and the root wins when both exist', async () => {
+	test('reads .previewlane/previewlane.yaml when the root has none, and the root wins when both exist', async () => {
 		const under = await resolveRecipe(
 			'github.com/acme/app',
 			[],
-			files({ '.koi/koi.yaml': 'port: 7000\nbuild:\n  kind: dockerfile\n' }),
+			files({ '.previewlane/previewlane.yaml': 'port: 7000\nbuild:\n  kind: dockerfile\n' }),
 		);
 		expect(under.recipe.kind === 'repo' && under.recipe.recipe.port).toBe(7000);
 		const both = await resolveRecipe(
 			'github.com/acme/app',
 			[],
 			files({
-				'koi.yaml': 'port: 8080\nbuild:\n  kind: dockerfile\n',
-				'.koi/koi.yaml': 'port: 7000\nbuild:\n  kind: dockerfile\n',
+				'previewlane.yaml': 'port: 8080\nbuild:\n  kind: dockerfile\n',
+				'.previewlane/previewlane.yaml': 'port: 7000\nbuild:\n  kind: dockerfile\n',
 			}),
 		);
 		expect(both.recipe.kind === 'repo' && both.recipe.recipe.port).toBe(8080);
 	});
 
-	test('reads koi.json too', async () => {
+	test('reads previewlane.json too', async () => {
 		const r = await resolveRecipe(
 			'github.com/acme/app',
 			[],
-			files({ 'koi.json': '{"port":3000,"build":{"kind":"dockerfile"}}' }),
+			files({ 'previewlane.json': '{"port":3000,"build":{"kind":"dockerfile"}}' }),
 		);
 		expect(r.recipe.kind === 'repo' && r.recipe.recipe.port).toBe(3000);
 	});
@@ -100,26 +100,26 @@ describe('resolveRecipe', () => {
 			'github.com/acme/app',
 			[],
 			files({
-				'koi.yaml':
+				'previewlane.yaml':
 					'port: 8080\nbuildTimeoutMinutes: 180\nhealthTimeoutSeconds: 600\nbuild:\n  kind: dockerfile\n',
 			}),
 		);
 		expect(r.limits).toEqual({ buildTimeoutMinutes: 180, healthTimeoutSeconds: 600 });
 	});
 
-	test('explains an invalid koi.yaml', async () => {
+	test('explains an invalid previewlane.yaml', async () => {
 		await expect(
 			resolveRecipe(
 				'github.com/acme/app',
 				[],
-				files({ 'koi.yaml': 'port: 8080\nbuild:\n  kind: script\n' }),
+				files({ 'previewlane.yaml': 'port: 8080\nbuild:\n  kind: script\n' }),
 			),
-		).rejects.toThrow(/koi.yaml is not a valid koi recipe: build/);
+		).rejects.toThrow(/previewlane.yaml is not a valid previewlane recipe: build/);
 	});
 
 	test('says how to add a recipe when there is none', async () => {
 		await expect(resolveRecipe('github.com/acme/app', [], files({}))).rejects.toThrow(
-			/Add a koi.yaml/,
+			/Add a previewlane.yaml/,
 		);
 	});
 });
@@ -235,7 +235,7 @@ describe('BUILTIN_RECIPES', () => {
 
 describe('readRecipeFiles', () => {
 	const recipesDir = async (layout: Record<string, string>) => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-recipes-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-recipes-'));
 		for (const [path, text] of Object.entries(layout)) {
 			await mkdir(join(dir, dirname(path)), { recursive: true });
 			await writeFile(join(dir, path), text);

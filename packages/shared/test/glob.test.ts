@@ -134,7 +134,7 @@ describe('what a glob matches', () => {
 	});
 
 	// Braces expand first and each expansion is read alone. Bun.Glob 1.4.0 reads a `**` by
-	// the text around it, so it disagrees on each line here. koi answers what the expansion
+	// the text around it, so it disagrees on each line here. previewlane answers what the expansion
 	// written out would answer.
 	test.each<[string, string, boolean]>([
 		['{src/**,test/**}', 'src/a/b', true],
@@ -150,7 +150,7 @@ describe('what a glob matches', () => {
 		expect(await matches(glob, path)).toBe(expected);
 	});
 
-	// Two more where Bun.Glob 1.4.0 answers what no reading of the glob gives, so koi does not.
+	// Two more where Bun.Glob 1.4.0 answers what no reading of the glob gives, so previewlane does not.
 	test.each<[string, string, boolean]>([
 		// The `/` in the glob has nothing to match in the path.
 		['x**/**', 'x', false],
@@ -309,7 +309,7 @@ describe('the same results as Bun.Glob on the supported grammar', () => {
 				const theirs = expected(name);
 				checked += 1;
 				if (theirs) matched += 1;
-				if (ours !== theirs) differences.push(`${glob} on ${name}: koi ${ours}, Bun ${theirs}`);
+				if (ours !== theirs) differences.push(`${glob} on ${name}: previewlane ${ours}, Bun ${theirs}`);
 			}
 		}
 		expect(differences.slice(0, 20)).toEqual([]);
@@ -335,7 +335,7 @@ describe('the same results as Bun.Glob on the supported grammar', () => {
 	});
 
 	// Any `**` here, touching a brace or not. Bun.Glob reads each expansion by itself, so
-	// this says koi's braces are what they should be, even where Bun's text reading differs.
+	// this says previewlane's braces are what they should be, even where Bun's text reading differs.
 	test('globs with braces, against each expansion alone', async () => {
 		await compare(3, true, (glob) => {
 			const each = expansions(glob);

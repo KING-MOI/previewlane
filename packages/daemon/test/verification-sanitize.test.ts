@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EvidenceEventSchema, loadVerifyConfig, type ProofRecord } from '@koi/shared';
+import { EvidenceEventSchema, loadVerifyConfig, type ProofRecord } from '@previewlane/shared';
 import { SecretRegistry } from '../src/redact.ts';
 import { declaredCredential, sanitizeRunData, scrubFields } from '../src/verification-sanitize.ts';
 
@@ -24,7 +24,7 @@ describe('sanitizeRunData', () => {
 			uncovered: [`docs/${SECRET}.md`],
 			profile: SECRET,
 			policy: {
-				path: `.koi/${SECRET}.yaml`,
+				path: `.previewlane/${SECRET}.yaml`,
 				advisory: { error: SECRET, required: [{ id: 'app.search', revision: 1 }] },
 			},
 		};
@@ -38,7 +38,7 @@ describe('sanitizeRunData', () => {
 			uncovered: [`docs/${SECRET}.md`],
 			profile: SECRET,
 			policy: {
-				path: `.koi/${SECRET}.yaml`,
+				path: `.previewlane/${SECRET}.yaml`,
 				advisory: { error: '[redacted]', required: [{ id: 'app.search', revision: 1 }] },
 			},
 		});
@@ -85,7 +85,7 @@ describe('sanitizeRunData', () => {
 		mediaType: 'text/plain; charset=utf-8',
 		origin: 'recorder',
 		outcome: 'blocked',
-		path: '.koi/required.yaml',
+		path: '.previewlane/required.yaml',
 		planDigest: `sha256:${'a'.repeat(64)}`,
 		planId: 'p'.repeat(20),
 		pointId: 'app.search',
@@ -104,7 +104,7 @@ describe('sanitizeRunData', () => {
 		updatedAt: '2026-10-06T12:00:09.000Z',
 	};
 
-	test('leaves a field of project text or koid values alone, or a registered value could break the record', () => {
+	test('leaves a field of project text or previewlaned values alone, or a registered value could break the record', () => {
 		const secrets = new SecretRegistry();
 		for (const value of Object.values(FIXED).flat()) secrets.add(value);
 		const given = { redact: (text: string) => secrets.redact(text) };
@@ -131,7 +131,7 @@ describe('sanitizeRunData', () => {
 		});
 	});
 
-	test('leaves what koid fills and a declared name, and scrubs what a runner chose', () => {
+	test('leaves what previewlaned fills and a declared name, and scrubs what a runner chose', () => {
 		const secrets = new SecretRegistry();
 		for (const word of ['protocol-limit', 'recorder', 'screenshot', 'shows-hello', SECRET]) {
 			secrets.add(word);
@@ -277,7 +277,7 @@ describe('sanitizeRunData', () => {
 		const given = rules(
 			'chromium',
 			'hello.home',
-			'.koi/runners',
+			'.previewlane/runners',
 			'redacted',
 			'[redacted]',
 			'acted]tail',
@@ -297,7 +297,7 @@ describe('sanitizeRunData', () => {
 			['a status', { problems: [{ code: 'x', detail: `token=${SECRET}`, at: 'now' }] }],
 			['an observations file', { assertions: ['chromium'], reports: [{ name: SECRET }] }],
 			['a mask in text', { reason: 'it said [redacted] and redacted' }],
-			['a path in text', { reason: 'docs/redacted.md and .koi/runners/home.sh' }],
+			['a path in text', { reason: 'docs/redacted.md and .previewlane/runners/home.sh' }],
 			['a mask run into a known value', { reason: `${SECRET}tail [redacted]tail` }],
 		])('on %s', (_what, record) => {
 			twice(record);
@@ -336,20 +336,20 @@ claim: It works.
 select:
   paths: [src/**]
 run:
-  command: [sh, .koi/runners/home.sh]
+  command: [sh, .previewlane/runners/home.sh]
 ${more}assertions:
   - name: works
     description: It answers.
     evidence: [screenshot]
 `;
 	const config = async (manifest: string, points: Record<string, string>) => {
-		const root = await mkdtemp(join(tmpdir(), 'koid-declared-'));
-		await mkdir(join(root, '.koi/points'), { recursive: true });
-		await mkdir(join(root, '.koi/runners'), { recursive: true });
-		await writeFile(join(root, '.koi/runners/home.sh'), 'exit 0\n');
-		await writeFile(join(root, '.koi/verify.yaml'), manifest);
+		const root = await mkdtemp(join(tmpdir(), 'previewlaned-declared-'));
+		await mkdir(join(root, '.previewlane/points'), { recursive: true });
+		await mkdir(join(root, '.previewlane/runners'), { recursive: true });
+		await writeFile(join(root, '.previewlane/runners/home.sh'), 'exit 0\n');
+		await writeFile(join(root, '.previewlane/verify.yaml'), manifest);
 		for (const [name, text] of Object.entries(points)) {
-			await writeFile(join(root, '.koi/points', name), text);
+			await writeFile(join(root, '.previewlane/points', name), text);
 		}
 		return loadVerifyConfig(root);
 	};
@@ -385,7 +385,7 @@ runner:
 			await declared(MANIFEST.replace('busybox:1.37', `acme/${KEY}:1`), {
 				'a.yaml': POINT('a.point'),
 			}),
-		).toBe('.koi/verify.yaml, field runner.image');
+		).toBe('.previewlane/verify.yaml, field runner.image');
 		expect(
 			await declared(MANIFEST, {
 				'a.yaml': POINT('a.point'),
@@ -408,9 +408,9 @@ runner:
 		for (const reference of [
 			'ghcr.io/acme/token:AKIAIOSFODNN7EXAMPLE',
 			`ghcr.io/acme/${KEY}:1`,
-			`koi-${'a1b2c3d4'.repeat(3)}/runner:1`,
+			`previewlane-${'a1b2c3d4'.repeat(3)}/runner:1`,
 		]) {
-			expect(await declared(image(reference), points)).toBe('.koi/verify.yaml, field runner.image');
+			expect(await declared(image(reference), points)).toBe('.previewlane/verify.yaml, field runner.image');
 		}
 		// The same text in any other field still reads as an assignment.
 		expect(
@@ -421,11 +421,11 @@ runner:
 				),
 				points,
 			),
-		).toBe('.koi/verify.yaml, field runner.command[1]');
+		).toBe('.previewlane/verify.yaml, field runner.command[1]');
 	});
 
 	test('quotes no file name, even one whose prefix hides a key from the patterns', async () => {
-		const login = `koi-${'a1b2c3d4'.repeat(3)}`;
+		const login = `previewlane-${'a1b2c3d4'.repeat(3)}`;
 		const found = await declared(MANIFEST, {
 			'a.yaml': POINT('a.point'),
 			[`prefix${login}.yaml`]: POINT('b.point').replace('It works.', `Uses ${login}.`),
@@ -436,12 +436,12 @@ runner:
 	});
 
 	test('names no value by way of a key the project chose', async () => {
-		const login = `koi-${'a1b2c3d4'.repeat(3)}`;
+		const login = `previewlane-${'a1b2c3d4'.repeat(3)}`;
 		const found = await declared(
 			MANIFEST.replace('profiles:\n', `profiles:\n  ${login}:\n    always: []\n`),
 			{ 'a.yaml': POINT('a.point') },
 		);
-		expect(found).toBe('.koi/verify.yaml, field profiles[0].name');
+		expect(found).toBe('.previewlane/verify.yaml, field profiles[0].name');
 		const named = await declared(MANIFEST, { [`${KEY}.yaml`]: POINT('a.point') });
 		expect(named).toBe(
 			'point 1 of 1, counting the point files in the sorted order of their paths, field path',
@@ -450,12 +450,12 @@ runner:
 
 	test('looks at the policy and the proof records too, whose errors can quote a file', async () => {
 		const points = { 'a.yaml': POINT('a.point') };
-		const path = '.koi/required.yaml';
+		const path = '.previewlane/required.yaml';
 		expect(
 			await declared(MANIFEST, points, { policy: { path, required: [], error: `bad key ${KEY}` } }),
 		).toBe('the required policy, field error');
 		expect(
-			await declared(MANIFEST, points, { errors: [`.koi/proofs/x.yaml: bad key ${KEY}`] }),
+			await declared(MANIFEST, points, { errors: [`.previewlane/proofs/x.yaml: bad key ${KEY}`] }),
 		).toBe('the proof records, field errors[0]');
 	});
 });

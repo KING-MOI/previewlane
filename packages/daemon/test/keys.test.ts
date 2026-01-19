@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
-import { PREVIEW_LABEL, PROVIDERS, TOKEN_PREFIXES } from '@koi/shared';
+import { PREVIEW_LABEL, PROVIDERS, TOKEN_PREFIXES } from '@previewlane/shared';
 import type { EgressControl } from '../src/egress.ts';
 import {
 	FORGET_LIMITS,
@@ -13,11 +13,11 @@ import {
 } from '../src/keys.ts';
 import { RateLimit } from '../src/ratelimit.ts';
 
-const TOKEN = `koi_${'a'.repeat(32)}`;
+const TOKEN = `previewlane_${'a'.repeat(32)}`;
 const LABEL = 'storefront-pr-7';
 const ORIGIN = 'https://keys.previews.example.net';
 
-// The proxy's side: a fresh token per key, as koi_egress.py makes them.
+// The proxy's side: a fresh token per key, as previewlane_egress.py makes them.
 function fakeEgress(fail = false) {
 	const calls: Array<{
 		op: string;
@@ -34,7 +34,7 @@ function fakeEgress(fail = false) {
 			const tokens: Record<string, string> = {};
 			for (const p of Object.keys(keys)) {
 				made += 1;
-				tokens[p] = `koi_${String(made).padStart(32, '0')}`;
+				tokens[p] = `previewlane_${String(made).padStart(32, '0')}`;
 			}
 			return tokens;
 		},
@@ -57,12 +57,12 @@ const post = (
 		headers: {
 			'content-type': 'application/json',
 			...(origin ? { origin } : {}),
-			...(forwardedFor !== null ? { 'x-koi-forwarded-for': forwardedFor } : {}),
+			...(forwardedFor !== null ? { 'x-previewlane-forwarded-for': forwardedFor } : {}),
 		},
 		body: typeof body === 'string' ? body : JSON.stringify(body),
 	});
 
-// The keys page as koid serves it, with the registration limits it uses.
+// The keys page as previewlaned serves it, with the registration limits it uses.
 const page = (
 	request: Request,
 	egress: EgressControl,
@@ -101,7 +101,7 @@ describe('register and forget', () => {
 		);
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({
-			tokens: { openai: `koi_${'0'.repeat(31)}1`, anthropic: `koi_${'0'.repeat(31)}2` },
+			tokens: { openai: `previewlane_${'0'.repeat(31)}1`, anthropic: `previewlane_${'0'.repeat(31)}2` },
 		});
 		expect(calls).toEqual([
 			{
@@ -127,7 +127,7 @@ describe('register and forget', () => {
 		expect(res.status).toBe(200);
 		// The keys as sent and the tokens the proxy made, so the evidence
 		// sanitizers know both.
-		expect(seen).toEqual([['sk-1', 'sk-2', `koi_${'0'.repeat(31)}1`, `koi_${'0'.repeat(31)}2`]]);
+		expect(seen).toEqual([['sk-1', 'sk-2', `previewlane_${'0'.repeat(31)}1`, `previewlane_${'0'.repeat(31)}2`]]);
 		// A proxy failure registers nothing.
 		const failing = fakeEgress(true);
 		const refused = await handleKeys(
@@ -192,7 +192,7 @@ describe('register and forget', () => {
 		for (const body of bad)
 			expect((await page(post('/api/register', body), egress)).status).toBe(400);
 		expect((await page(post('/api/register', '{not json'), egress)).status).toBe(400);
-		expect((await page(post('/api/forget', { token: 'koi_short' }), egress)).status).toBe(400);
+		expect((await page(post('/api/forget', { token: 'previewlane_short' }), egress)).status).toBe(400);
 		expect(calls).toEqual([]);
 	});
 
@@ -235,7 +235,7 @@ describe('registration limits', () => {
 		['203.0.113.9, not-an-address', 'unknown'],
 		['', 'unknown'],
 		[null, 'unknown'],
-	])('the source of X-Koi-Forwarded-For %p is %p', (forwardedFor, source) => {
+	])('the source of X-Previewlane-Forwarded-For %p is %p', (forwardedFor, source) => {
 		expect(viewerSource(post('/api/register', {}, ORIGIN, forwardedFor))).toBe(source);
 	});
 
@@ -360,7 +360,7 @@ describe('the page', () => {
 
 describe('provider lists', () => {
 	test('the egress proxy intercepts exactly the providers the keys page offers', async () => {
-		const py = await Bun.file(join(import.meta.dir, '../../../host/egress/koi_egress.py')).text();
+		const py = await Bun.file(join(import.meta.dir, '../../../host/egress/previewlane_egress.py')).text();
 		const block = py.slice(
 			py.indexOf('PROVIDERS = {'),
 			py.indexOf('}', py.indexOf('PROVIDERS = {')),
@@ -370,7 +370,7 @@ describe('provider lists', () => {
 	});
 
 	test('the egress proxy takes tokens after the same provider prefixes the keys page shows', async () => {
-		const py = await Bun.file(join(import.meta.dir, '../../../host/egress/koi_egress.py')).text();
+		const py = await Bun.file(join(import.meta.dir, '../../../host/egress/previewlane_egress.py')).text();
 		const line = /^TOKEN_PREFIXES = (\{.*\})$/m.exec(py)?.[1] ?? '';
 		expect(JSON.parse(line)).toEqual(TOKEN_PREFIXES);
 	});
@@ -383,7 +383,7 @@ describe('provider lists', () => {
 	});
 
 	test('the egress proxy checks preview labels with the same pattern', async () => {
-		const py = await Bun.file(join(import.meta.dir, '../../../host/egress/koi_egress.py')).text();
+		const py = await Bun.file(join(import.meta.dir, '../../../host/egress/previewlane_egress.py')).text();
 		const pattern = /^LABEL_RE = re\.compile\(r"([^"]+)"\)$/m.exec(py)?.[1];
 		expect(`^${pattern}$`).toBe(PREVIEW_LABEL.source);
 	});

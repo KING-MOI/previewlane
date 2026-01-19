@@ -9,20 +9,20 @@ import { PreviewLabelSchema, type PreviewRecord } from './preview.ts';
 import { ProviderIdSchema } from './providers.ts';
 import { CommitSchema } from './request.ts';
 
-// The files a project puts under .koi/ to say what koi should check on a
-// preview, and the records koi writes when it checks them. The project's
+// The files a project puts under .previewlane/ to say what previewlane should check on a
+// preview, and the records previewlane writes when it checks them. The project's
 // files come from the pull request, so every schema here is strict: an
 // unknown key is an error, a command is an argument array, and a path stays
-// inside .koi/. The loader at the end reads a tree's files and applies the
+// inside .previewlane/. The loader at the end reads a tree's files and applies the
 // checks a schema cannot make on its own. See docs/verify.md.
 //
 // The runner protocol at the end (events, acknowledgments, the supervisor's
-// own lines) is what the verifier container speaks with koid
+// own lines) is what the verifier container speaks with previewlaned
 // (packages/daemon/src/verifier.ts, host/verifier/).
 
-// Where a project keeps its koi files, relative to the source root, and the
+// Where a project keeps its previewlane files, relative to the source root, and the
 // manifest inside it.
-export const KOI_DIR = '.koi';
+export const PREVIEWLANE_DIR = '.previewlane';
 export const VERIFY_MANIFEST = 'verify.yaml';
 
 // The most a file the loader reads may hold. Points and manifests are a few
@@ -48,7 +48,7 @@ export const SlugSchema = z
 	.max(64)
 	.regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'lowercase letters and digits in dash-separated words');
 
-// A name the project and koi agree on outside these files: a service, a
+// A name the project and previewlane agree on outside these files: a service, a
 // network policy, a kind of evidence. Some projects name services with
 // underscores.
 const NameSchema = z
@@ -56,11 +56,11 @@ const NameSchema = z
 	.max(64)
 	.regex(/^[a-z0-9][a-z0-9_.-]*$/, 'lowercase letters, digits, dots, dashes and underscores');
 
-// The most free text koi keeps may hold, in the units a JavaScript string's
+// The most free text previewlane keeps may hold, in the units a JavaScript string's
 // length counts (UTF-16), since that is what the schema below checks.
 export const TEXT_MAX = 2000;
 
-// Free text koi keeps: a reason, a selection note, an uncovered path.
+// Free text previewlane keeps: a reason, a selection note, an uncovered path.
 export const TextSchema = z.string().min(1).max(TEXT_MAX);
 
 // `text` with each control character written out as an escape a reader can see: ESC as
@@ -76,17 +76,17 @@ export function escapeControls(text: string): string {
 	});
 }
 
-// A path inside .koi/, written relative to it: points/save.yaml,
+// A path inside .previewlane/, written relative to it: points/save.yaml,
 // fixtures/probe.txt, or a glob such as points/*.yaml. Parsing drops "."
-// segments and repeated slashes. The loader joins it to .koi/ and checks
-// that what is there is a real file inside .koi/.
-export const KoiPathSchema = z
+// segments and repeated slashes. The loader joins it to .previewlane/ and checks
+// that what is there is a real file inside .previewlane/.
+export const PreviewlanePathSchema = z
 	.string()
 	.min(1)
 	.max(255)
 	.refine((p) => !/\p{Cc}/u.test(p), 'must not contain control characters')
 	.refine((p) => !p.includes('\\'), 'must use forward slashes')
-	.refine((p) => !p.startsWith('/'), 'must be relative to .koi/, not absolute')
+	.refine((p) => !p.startsWith('/'), 'must be relative to .previewlane/, not absolute')
 	.refine((p) => !p.split('/').includes('..'), 'must not contain a .. segment')
 	.transform((p) =>
 		p
@@ -94,9 +94,9 @@ export const KoiPathSchema = z
 			.filter((segment) => segment !== '' && segment !== '.')
 			.join('/'),
 	)
-	.refine((p) => p !== '', 'must name a file inside .koi/');
+	.refine((p) => p !== '', 'must name a file inside .previewlane/');
 
-// A program and its arguments, as koi will pass them to exec: never a line a
+// A program and its arguments, as previewlane will pass them to exec: never a line a
 // shell reads. A control character in an argument is a mistake or a trick.
 export const CommandSchema = z
 	.array(
@@ -134,7 +134,7 @@ function globSchema<T extends z.ZodType<string, string>>(path: T) {
 const SelectGlobSchema = globSchema(RelativePathSchema);
 
 // The most point globs a manifest lists. A project has a few. Each runs over every file
-// under .koi/, and the snapshot lets .koi/ hold 2,000.
+// under .previewlane/, and the snapshot lets .previewlane/ hold 2,000.
 export const MANIFEST_GLOBS_MAX = 200;
 
 // What one plan may match, checked before any glob runs (docs/verify.md, "Planning
@@ -145,18 +145,18 @@ export const PLAN_LIMITS = {
 	changedFiles: 20_000,
 	// PATH_MAX on Linux. A longer path cannot be checked out.
 	changedNameChars: 4096,
-	// Across all points: 2,000 point files, the most .koi/ holds, at 2.5 each.
+	// Across all points: 2,000 point files, the most .previewlane/ holds, at 2.5 each.
 	globs: 5000,
 } as const;
 
-// sha256 of some bytes, as koi writes digests everywhere.
+// sha256 of some bytes, as previewlane writes digests everywhere.
 export const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/);
 
 // Plan, run and deployment ids: the alphabet of request ids, safe in a file
 // name and on a command line.
 export const VerifyIdSchema = z.string().regex(/^[a-z0-9]{16,40}$/);
 
-// A reference to evidence koi holds: a capture, an artifact, a read of the
+// A reference to evidence previewlane holds: a capture, an artifact, a read of the
 // app's state. The exact forms come with the recorder.
 const EvidenceRefSchema = z
 	.string()
@@ -173,12 +173,12 @@ export const BudgetsSchema = z.strictObject({
 	maxRequests: z.number().int().positive().optional(),
 });
 
-// -- .koi/verify.yaml ---------------------------------------------------------
+// -- .previewlane/verify.yaml ---------------------------------------------------------
 
 export const SkillRefSchema = z.strictObject({
 	id: SlugSchema,
-	// The skill's SKILL.md, inside .koi/.
-	path: KoiPathSchema,
+	// The skill's SKILL.md, inside .previewlane/.
+	path: PreviewlanePathSchema,
 });
 
 // Which points a run takes. `always` lists points every run of the profile
@@ -194,9 +194,9 @@ export const ProfileSchema = z.strictObject({
 
 // The reference a manifest's runner.image uses for the box's default
 // verifier image (host/verifier), which the operator builds and names in
-// KOI_VERIFIER_IMAGE. koid never pulls an image a pull request names; any
+// PREVIEWLANE_VERIFIER_IMAGE. previewlaned never pulls an image a pull request names; any
 // other reference must be on the box and on the operator's allowlist.
-export const DEFAULT_VERIFIER_IMAGE = 'koi-verifier';
+export const DEFAULT_VERIFIER_IMAGE = 'previewlane-verifier';
 
 export const RunnerSchema = z.strictObject({
 	image: ImageRefSchema,
@@ -205,7 +205,7 @@ export const RunnerSchema = z.strictObject({
 	command: CommandSchema.optional(),
 });
 
-// What koi does with changed files no point selects: suggest a point from
+// What previewlane does with changed files no point selects: suggest a point from
 // the diff, or nothing; and what the gap counts as.
 export const FallbackSchema = z.strictObject({
 	mode: z.enum(['suggest', 'off']),
@@ -216,8 +216,8 @@ export const VerifyManifestSchema = z
 	.strictObject({
 		version: z.literal(1),
 		skills: z.array(SkillRefSchema).default([]),
-		// Globs, relative to .koi/, for the point files.
-		points: z.array(globSchema(KoiPathSchema)).min(1).max(MANIFEST_GLOBS_MAX),
+		// Globs, relative to .previewlane/, for the point files.
+		points: z.array(globSchema(PreviewlanePathSchema)).min(1).max(MANIFEST_GLOBS_MAX),
 		profiles: z.record(SlugSchema, ProfileSchema),
 		runner: RunnerSchema,
 		budgets: BudgetsSchema.optional(),
@@ -230,7 +230,7 @@ export const VerifyManifestSchema = z
 
 export type VerifyManifest = z.infer<typeof VerifyManifestSchema>;
 
-// -- .koi/points/*.yaml -------------------------------------------------------
+// -- .previewlane/points/*.yaml -------------------------------------------------------
 
 // When a point is taken: for every run of a profile that selects by change
 // when `always`, or when a changed file matches one of `paths` (globs
@@ -251,8 +251,8 @@ export const SelectSchema = z
 // host does not give is blocked, with the reason.
 export const RequiresSchema = z.strictObject({
 	services: z.array(NameSchema).optional(),
-	// Files inside .koi/ the runner is given.
-	fixtures: z.array(KoiPathSchema).optional(),
+	// Files inside .previewlane/ the runner is given.
+	fixtures: z.array(PreviewlanePathSchema).optional(),
 	browser: z.boolean().optional(),
 	// A real LLM provider, through a reviewer's registered key.
 	provider: ProviderIdSchema.optional(),
@@ -260,18 +260,18 @@ export const RequiresSchema = z.strictObject({
 	network: NameSchema.optional(),
 });
 
-// A step of a point: the program to run, and the files under .koi/ it
+// A step of a point: the program to run, and the files under .previewlane/ it
 // depends on. The loader finds the files a command names on its own; `files`
 // is for what a command reaches another way, a module it imports or a
 // fixture it opens, so that a change to one shows in the point's runner
 // digests (see LoadedPoint).
 export const StepSchema = z.strictObject({
 	command: CommandSchema,
-	files: z.array(KoiPathSchema).optional(),
+	files: z.array(PreviewlanePathSchema).optional(),
 });
 
 // One thing the runner must show, by name, and the kinds of evidence it
-// must show it with. koi computes the point's outcome from these; a runner
+// must show it with. previewlane computes the point's outcome from these; a runner
 // cannot report a point verdict.
 export const AssertionSchema = z.strictObject({
 	name: SlugSchema,
@@ -282,7 +282,7 @@ export const AssertionSchema = z.strictObject({
 export const PointSchema = z
 	.strictObject({
 		id: PointIdSchema,
-		// Raised when the claim or the assertions change. koi also hashes the
+		// Raised when the claim or the assertions change. previewlane also hashes the
 		// file, so a forgotten bump still shows as a change.
 		revision: RevisionSchema,
 		// The user outcome, in one sentence a reviewer can disagree with.
@@ -306,7 +306,7 @@ export type Point = z.infer<typeof PointSchema>;
 
 // -- What a run produces ------------------------------------------------------
 
-// A point's outcome, as koi decides it from the assertions that reported.
+// A point's outcome, as previewlane decides it from the assertions that reported.
 // An assertion that never reported makes the point not-run.
 export const OutcomeSchema = z.enum([
 	'pass',
@@ -320,8 +320,8 @@ export const OutcomeSchema = z.enum([
 export type Outcome = z.infer<typeof OutcomeSchema>;
 
 // What a runner prints, one JSON object per line. Anything else on stdout is
-// kept as the runner's log and means nothing to koi. A capture and a read
-// ask the recorder, through koid, for evidence; koid answers on the
+// kept as the runner's log and means nothing to previewlane. A capture and a read
+// ask the recorder, through previewlaned, for evidence; previewlaned answers on the
 // runner's stdin with a RunnerAck naming the artifact, and the runner cites
 // that artifact in an assertion's evidence (docs/verify.md, "Writing a
 // runner"). A read is the one event the design's four did not have: it is
@@ -372,12 +372,12 @@ const AckErrorSchema = z
 	.max(64)
 	.regex(/^[a-z][a-z0-9_]*$/);
 
-// What koid writes to the verifier's stdin, one JSON object per line. `start`
+// What previewlaned writes to the verifier's stdin, one JSON object per line. `start`
 // is the first line, once the firewall has bound the run's permits to the
 // container's bridge port; the supervisor runs nothing before it, keeps it to
 // itself, and signs its own lines with its key. It says how many seconds the
 // point has left: opening its context and staging its inputs came out of the
-// budget, and only here does koid know what they took. The supervisor forwards
+// budget, and only here does previewlaned know what they took. The supervisor forwards
 // every later line to the running step's stdin. A capture-result answers a
 // capture or a read by its label: only `ready` carries an artifact reference.
 export const RunnerAckSchema = z.discriminatedUnion('type', [
@@ -424,7 +424,7 @@ export const StepResultSchema = z.strictObject({
 	seconds: z.number().nonnegative().optional(),
 	reason: z.string().max(500).optional(),
 	// The supervisor stopped reading the step's stdout before its end, so bytes
-	// the step wrote may be gone. koid fails the point on this
+	// the step wrote may be gone. previewlaned fails the point on this
 	// (runner_output_incomplete).
 	output_incomplete: z.literal(true).optional(),
 });
@@ -435,7 +435,7 @@ export type StepResult = z.infer<typeof StepResultSchema>;
 // verifier's stdout among the runner's own lines: that it started, each
 // step as it ends, and last an exit line naming the step the sequence ended
 // on and how. A runner shares that stdout and could print such a line, so
-// each also carries `seq` and `mac`, which koid checks and strips before this
+// each also carries `seq` and `mac`, which previewlaned checks and strips before this
 // shape applies (verifier.ts, classifyLine). The lines say how the steps ended;
 // they are never evidence about the app.
 export const SupervisorLineSchema = z.discriminatedUnion('event', [
@@ -465,7 +465,7 @@ export const SupervisorLineSchema = z.discriminatedUnion('event', [
 export type SupervisorLine = z.infer<typeof SupervisorLineSchema>;
 
 // A supervisor line as it is printed: the fields above, with the place in the sequence
-// and the signature koid checks and strips first (verifier.ts, classifyLine).
+// and the signature previewlaned checks and strips first (verifier.ts, classifyLine).
 export const SignedSupervisorLineSchema = z.looseObject({
 	seq: z.number().int(),
 	mac: z.string(),
@@ -492,8 +492,8 @@ export const DeploymentIdentitySchema = z.strictObject({
 export type DeploymentIdentity = z.infer<typeof DeploymentIdentitySchema>;
 
 // The identity of what serves under a record, or undefined while nothing
-// does: no deployment, one koid stopped for disk use, or one recorded before
-// koid kept ids and digests (the next koi up replaces it with one that has
+// does: no deployment, one previewlaned stopped for disk use, or one recorded before
+// previewlaned kept ids and digests (the next previewlane up replaces it with one that has
 // them). The merge goes in only with its base branch, which the identity
 // requires: it is where the required policy comes from.
 export function deploymentIdentity(record: PreviewRecord): DeploymentIdentity | undefined {
@@ -515,22 +515,22 @@ export function deploymentIdentity(record: PreviewRecord): DeploymentIdentity | 
 const uniqueIds = (items: Array<{ id: string }>) =>
 	new Set(items.map((i) => i.id)).size === items.length;
 
-// A file under .koi/ that a point's commands depend on, by path relative to
-// the source root (.koi/runners/home.sh), and its digest in the build. The
-// path is .koi/ and then a path KoiPathSchema accepts, in the form it gives
+// A file under .previewlane/ that a point's commands depend on, by path relative to
+// the source root (.previewlane/runners/home.sh), and its digest in the build. The
+// path is .previewlane/ and then a path PreviewlanePathSchema accepts, in the form it gives
 // (no "." or empty segment). The loader builds its runner paths with the
 // same schema, so every runner it returns is one a plan can hold. A second
 // rule here would drift from the loader's: RelativePathSchema refuses a
-// colon that KoiPathSchema allows in a `files` entry.
+// colon that PreviewlanePathSchema allows in a `files` entry.
 export const RunnerFileSchema = z.strictObject({
 	path: z
 		.string()
-		.refine((p) => p.startsWith(`${KOI_DIR}/`), `must be inside ${KOI_DIR}/`)
+		.refine((p) => p.startsWith(`${PREVIEWLANE_DIR}/`), `must be inside ${PREVIEWLANE_DIR}/`)
 		.refine((p) => {
-			const inside = p.slice(KOI_DIR.length + 1);
-			const parsed = KoiPathSchema.safeParse(inside);
+			const inside = p.slice(PREVIEWLANE_DIR.length + 1);
+			const parsed = PreviewlanePathSchema.safeParse(inside);
 			return parsed.success && parsed.data === inside;
-		}, `must be ${KOI_DIR}/ and a path inside it, as the loader writes it`),
+		}, `must be ${PREVIEWLANE_DIR}/ and a path inside it, as the loader writes it`),
 	digest: DigestSchema,
 });
 
@@ -657,7 +657,7 @@ export const ProofRecordSchema = z
 	.strictObject({
 		pointId: PointIdSchema,
 		revision: RevisionSchema,
-		// What was broken: a commit, or a patch koi applied, by digest.
+		// What was broken: a commit, or a patch previewlane applied, by digest.
 		mutation: z.strictObject({
 			kind: z.enum(['ref', 'patch']),
 			digest: DigestSchema,
@@ -690,12 +690,12 @@ export type RequiredPolicy = z.infer<typeof RequiredPolicySchema>;
 // -- Loading a tree's files ---------------------------------------------------
 
 export interface LoadedPoint {
-	// The point's file, relative to the source root: .koi/points/save.yaml.
+	// The point's file, relative to the source root: .previewlane/points/save.yaml.
 	path: string;
 	point: Point;
-	// The files under .koi/ the point's commands depend on, with their
+	// The files under .previewlane/ the point's commands depend on, with their
 	// digests, sorted by path: what setup, run and cleanup list in `files`,
-	// any argument of theirs that names a file under .koi/, and what the
+	// any argument of theirs that names a file under .previewlane/, and what the
 	// manifest's runner.command names, since it goes before every step. A pull
 	// request can change a check by changing only its runner, which leaves
 	// the point's own digest as it was, so these are hashed too.
@@ -725,9 +725,9 @@ export class VerifyConfigError extends Error {
 	}
 }
 
-// Reads .koi/verify.yaml under `root`, the point files its globs name and
+// Reads .previewlane/verify.yaml under `root`, the point files its globs name and
 // the runner files the points depend on, and checks what the schemas
-// cannot: that nothing under .koi/ is a symlink, that no file is over
+// cannot: that nothing under .previewlane/ is a symlink, that no file is over
 // MAX_VERIFY_FILE_BYTES, that point ids are unique, and that skills,
 // fixtures, runner files and profiles name files and points that exist. A plan passes its
 // own `work`, so loading counts toward the plan's one budget. Only a test sets `budget`.
@@ -735,26 +735,26 @@ export async function loadVerifyConfig(
 	root: string,
 	options: { work?: GlobWork | undefined; budget?: number } = {},
 ): Promise<VerifyConfig> {
-	const manifestPath = `${KOI_DIR}/${VERIFY_MANIFEST}`;
-	const koi = join(root, KOI_DIR);
-	const koiStat = await lstat(koi).catch(() => undefined);
-	if (koiStat === undefined) throw new VerifyConfigError(manifestPath, undefined, 'not found');
-	if (koiStat.isSymbolicLink()) {
-		throw new VerifyConfigError(KOI_DIR, undefined, 'is a symlink; .koi/ must be a real directory');
+	const manifestPath = `${PREVIEWLANE_DIR}/${VERIFY_MANIFEST}`;
+	const previewlane = join(root, PREVIEWLANE_DIR);
+	const previewlaneStat = await lstat(previewlane).catch(() => undefined);
+	if (previewlaneStat === undefined) throw new VerifyConfigError(manifestPath, undefined, 'not found');
+	if (previewlaneStat.isSymbolicLink()) {
+		throw new VerifyConfigError(PREVIEWLANE_DIR, undefined, 'is a symlink; .previewlane/ must be a real directory');
 	}
-	if (!koiStat.isDirectory()) throw new VerifyConfigError(KOI_DIR, undefined, 'is not a directory');
-	const files = await listFiles(koi);
+	if (!previewlaneStat.isDirectory()) throw new VerifyConfigError(PREVIEWLANE_DIR, undefined, 'is not a directory');
+	const files = await listFiles(previewlane);
 	const digests: Record<string, string> = {};
 	const read = async (relative: string): Promise<Uint8Array> => {
-		const file = `${KOI_DIR}/${relative}`;
+		const file = `${PREVIEWLANE_DIR}/${relative}`;
 		if (!files.has(relative)) throw new VerifyConfigError(file, undefined, 'not found');
-		const bytes = await readVerifyFile(join(koi, relative), file);
+		const bytes = await readVerifyFile(join(previewlane, relative), file);
 		digests[file] = digest(bytes);
 		return bytes;
 	};
 	// A runner file shared by several points is read once.
 	const digestOf = async (relative: string): Promise<string> =>
-		digests[`${KOI_DIR}/${relative}`] ?? digest(await read(relative));
+		digests[`${PREVIEWLANE_DIR}/${relative}`] ?? digest(await read(relative));
 
 	if (!files.has(VERIFY_MANIFEST))
 		throw new VerifyConfigError(manifestPath, undefined, 'not found');
@@ -786,7 +786,7 @@ export async function loadVerifyConfig(
 			throw new VerifyConfigError(
 				manifestPath,
 				`points[${i}]`,
-				`matches no file under ${KOI_DIR}/`,
+				`matches no file under ${PREVIEWLANE_DIR}/`,
 			);
 		}
 	}
@@ -794,7 +794,7 @@ export async function loadVerifyConfig(
 	const points: LoadedPoint[] = [];
 	const byId = new Map<string, string>();
 	for (const file of [...matched].sort()) {
-		const path = `${KOI_DIR}/${file}`;
+		const path = `${PREVIEWLANE_DIR}/${file}`;
 		const point = parseYaml(path, PointSchema, await read(file));
 		const first = byId.get(point.id);
 		if (first !== undefined) {
@@ -806,13 +806,13 @@ export async function loadVerifyConfig(
 				throw new VerifyConfigError(
 					path,
 					`requires.fixtures[${i}]`,
-					`no file ${fixture} under ${KOI_DIR}/`,
+					`no file ${fixture} under ${PREVIEWLANE_DIR}/`,
 				);
 			}
 		}
 		const runners: RunnerFile[] = [];
 		for (const runner of runnerFiles(path, point, files, prefix)) {
-			runners.push({ path: `${KOI_DIR}/${runner}`, digest: await digestOf(runner) });
+			runners.push({ path: `${PREVIEWLANE_DIR}/${runner}`, digest: await digestOf(runner) });
 		}
 		points.push({ path, point, runners });
 	}
@@ -822,7 +822,7 @@ export async function loadVerifyConfig(
 			throw new VerifyConfigError(
 				manifestPath,
 				`skills[${i}].path`,
-				`no file ${skill.path} under ${KOI_DIR}/`,
+				`no file ${skill.path} under ${PREVIEWLANE_DIR}/`,
 			);
 		}
 	}
@@ -849,13 +849,13 @@ export function digest(bytes: Uint8Array): string {
 
 const STEPS = ['setup', 'run', 'cleanup'] as const;
 
-// The files under .koi/ a manifest's runner.command names, by path relative to
-// .koi/. The prefix goes before every step of every point, so each one is a
+// The files under .previewlane/ a manifest's runner.command names, by path relative to
+// .previewlane/. The prefix goes before every step of every point, so each one is a
 // runner file of every point, and without it in the snapshot every step fails.
 // A step can list what its command misses in `files`. A manifest has no such
 // list, so an argument here that reads as a path in the project answers for
 // itself, as a `files` entry does: one that leaves the project or names no file
-// under .koi/ is an error. Anything else stays an argument: a program on the
+// under .previewlane/ is an error. Anything else stays an argument: a program on the
 // image's PATH, a flag, an absolute path in the image.
 function prefixFiles(manifestPath: string, command: string[], files: Set<string>): string[] {
 	const found: string[] = [];
@@ -866,25 +866,25 @@ function prefixFiles(manifestPath: string, command: string[], files: Set<string>
 			throw new VerifyConfigError(manifestPath, field, 'must not contain a .. segment');
 		}
 		const normal = posix.normalize(arg);
-		if (!normal.startsWith(`${KOI_DIR}/`)) continue;
-		const inside = KoiPathSchema.safeParse(normal.slice(KOI_DIR.length + 1));
+		if (!normal.startsWith(`${PREVIEWLANE_DIR}/`)) continue;
+		const inside = PreviewlanePathSchema.safeParse(normal.slice(PREVIEWLANE_DIR.length + 1));
 		if (!inside.success) {
 			throw new VerifyConfigError(
 				manifestPath,
 				field,
-				inside.error.issues[0]?.message ?? `must name a file inside ${KOI_DIR}/`,
+				inside.error.issues[0]?.message ?? `must name a file inside ${PREVIEWLANE_DIR}/`,
 			);
 		}
 		if (!files.has(inside.data)) {
-			throw new VerifyConfigError(manifestPath, field, `no file ${inside.data} under ${KOI_DIR}/`);
+			throw new VerifyConfigError(manifestPath, field, `no file ${inside.data} under ${PREVIEWLANE_DIR}/`);
 		}
 		found.push(inside.data);
 	}
 	return found;
 }
 
-// The files under .koi/ a point's commands depend on, by path relative to
-// .koi/, sorted: what the manifest's runner.command names (`prefix`), what
+// The files under .previewlane/ a point's commands depend on, by path relative to
+// .previewlane/, sorted: what the manifest's runner.command names (`prefix`), what
 // each step lists in `files`, which must name a file the loader listed, and
 // any argument of a command that names one when read as a path from the source
 // root, where the commands run. The loader cannot tell a path from any other
@@ -900,30 +900,30 @@ function runnerFiles(path: string, point: Point, files: Set<string>, prefix: str
 				throw new VerifyConfigError(
 					path,
 					`${step}.files[${i}]`,
-					`no file ${file} under ${KOI_DIR}/`,
+					`no file ${file} under ${PREVIEWLANE_DIR}/`,
 				);
 			}
 			found.add(file);
 		}
 		for (const arg of s.command) {
-			const inside = insideKoi(arg);
+			const inside = insidePreviewlane(arg);
 			if (inside !== undefined && files.has(inside)) found.add(inside);
 		}
 	}
 	return [...found].sort();
 }
 
-// `arg` as a path relative to .koi/ when, read as a path from the source
-// root, it is inside .koi/: ".koi/runners/x.sh" and "./.koi/runners/x.sh"
+// `arg` as a path relative to .previewlane/ when, read as a path from the source
+// root, it is inside .previewlane/: ".previewlane/runners/x.sh" and "./.previewlane/runners/x.sh"
 // both give "runners/x.sh". Anything else gives undefined. The result goes
-// through KoiPathSchema, the rule a `files` entry follows and the one
+// through PreviewlanePathSchema, the rule a `files` entry follows and the one
 // RunnerFileSchema checks, so a runner found here is one a plan can hold.
-// An absolute path never starts with .koi/, and the schema refuses a
+// An absolute path never starts with .previewlane/, and the schema refuses a
 // backslash, so neither needs a check of its own.
-function insideKoi(arg: string): string | undefined {
+function insidePreviewlane(arg: string): string | undefined {
 	const normal = posix.normalize(arg);
-	if (!normal.startsWith(`${KOI_DIR}/`)) return undefined;
-	const inside = KoiPathSchema.safeParse(normal.slice(KOI_DIR.length + 1));
+	if (!normal.startsWith(`${PREVIEWLANE_DIR}/`)) return undefined;
+	const inside = PreviewlanePathSchema.safeParse(normal.slice(PREVIEWLANE_DIR.length + 1));
 	return inside.success ? inside.data : undefined;
 }
 
@@ -942,9 +942,9 @@ async function listFiles(dir: string): Promise<Set<string>> {
 			const path = relative === '' ? entry.name : `${relative}/${entry.name}`;
 			if (entry.isSymbolicLink()) {
 				throw new VerifyConfigError(
-					`${KOI_DIR}/${path}`,
+					`${PREVIEWLANE_DIR}/${path}`,
 					undefined,
-					`is a symlink; nothing under ${KOI_DIR}/ may be one`,
+					`is a symlink; nothing under ${PREVIEWLANE_DIR}/ may be one`,
 				);
 			}
 			if (entry.isDirectory()) await walk(path);
@@ -961,7 +961,7 @@ async function listFiles(dir: string): Promise<Set<string>> {
 // descriptor, so what was checked is what is read: a file swapped for a
 // symlink after listFiles saw it is refused, not followed, and the read
 // stops one byte past the limit, so a file that grows after the size check
-// is refused, not read whole. The loader expects a static tree (koid reads
+// is refused, not read whole. The loader expects a static tree (previewlaned reads
 // an extracted tarball); a parent directory swapped for a symlink is out of
 // scope, since O_NOFOLLOW covers the last segment only.
 export async function readVerifyFile(path: string, file: string): Promise<Uint8Array> {
@@ -981,7 +981,7 @@ export async function readVerifyFile(path: string, file: string): Promise<Uint8A
 			throw new VerifyConfigError(
 				file,
 				undefined,
-				`is ${info.size} bytes; the most koi reads is ${MAX_VERIFY_FILE_BYTES}`,
+				`is ${info.size} bytes; the most previewlane reads is ${MAX_VERIFY_FILE_BYTES}`,
 			);
 		}
 		const buffer = new Uint8Array(MAX_VERIFY_FILE_BYTES + 1);
@@ -995,7 +995,7 @@ export async function readVerifyFile(path: string, file: string): Promise<Uint8A
 			throw new VerifyConfigError(
 				file,
 				undefined,
-				`is over ${MAX_VERIFY_FILE_BYTES} bytes; it grew while koi read it`,
+				`is over ${MAX_VERIFY_FILE_BYTES} bytes; it grew while previewlane read it`,
 			);
 		}
 		return buffer.slice(0, length);

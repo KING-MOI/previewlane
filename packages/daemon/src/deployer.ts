@@ -17,7 +17,7 @@ import {
 	type RepoRecipe,
 	randomId,
 	type UpRequest,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import type { BuildLog, BuildLogs } from './buildlog.ts';
 import type { CaddyApplier, Route } from './caddy.ts';
 import {
@@ -40,7 +40,7 @@ import { hashRecipeDir } from './verification-snapshot.ts';
 export interface DeployerDeps {
 	domain: string;
 	network: string;
-	// The systemd slice previews run in, when koid uses one.
+	// The systemd slice previews run in, when previewlaned uses one.
 	slice?: string | undefined;
 	stateDir: string;
 	store: PreviewStore;
@@ -82,7 +82,7 @@ export interface DeployerDeps {
 	// The egress proxy previews use; undefined leaves them with no way out.
 	egress?: Egress;
 	// Tells the egress proxy which preview each container address runs, the
-	// whole map each time, for its koi tokens (see previewAddresses).
+	// whole map each time, for its previewlane tokens (see previewAddresses).
 	// Resolves once the proxy holds this map, or holds none at all; rejects
 	// when that is not certain. Undefined without a proxy.
 	previews?: (addresses: Record<string, string>) => Promise<void>;
@@ -109,7 +109,7 @@ export type PreviewView =
 
 export class OwnershipError extends Error {}
 
-// koid cannot take another preview: the list of live previews, which wakes
+// previewlaned cannot take another preview: the list of live previews, which wakes
 // the box, has no room for its label (LiveList.room).
 export class CapacityError extends Error {}
 
@@ -195,7 +195,7 @@ function planFrom(
 	};
 }
 
-// Statuses of a request that koid has accepted and not yet finished.
+// Statuses of a request that previewlaned has accepted and not yet finished.
 const IN_FLIGHT = IN_FLIGHT_STATUSES;
 
 // A preview container may write this much to its own filesystem and the
@@ -272,10 +272,10 @@ function withVisit(r: PreviewRecord, end: number | undefined): PreviewRecord {
 }
 
 const INTERRUPTED =
-	'interrupted: the daemon restarted before this build finished; run koi up again';
+	'interrupted: the daemon restarted before this build finished; run previewlane up again';
 
-// A build whose attempt is no longer the label's latest: a newer koi up
-// replaced it, koi down removed the preview, or the same request was
+// A build whose attempt is no longer the label's latest: a newer previewlane up
+// replaced it, previewlane down removed the preview, or the same request was
 // accepted again after that.
 class Superseded extends Error {}
 
@@ -292,7 +292,7 @@ class Superseded extends Error {}
 // - routing (global) is held while routes are computed and applied, so two
 //   route changes never interleave and an older snapshot never lands after a
 //   newer one. Routes go to the egress proxy as a map of container address
-//   to preview (its koi tokens work only from their own preview's address)
+//   to preview (its previewlane tokens work only from their own preview's address)
 //   and to Caddy, in that order, each time. It is also held across every
 //   start of a preview container (startFresh), from the sync before it to
 //   the check after it, because Docker gives a stopped container's address
@@ -305,8 +305,8 @@ class Superseded extends Error {}
 // The store also serialises writes per label on its own.
 //
 // Only containers in `ready` are routed: those whose health check passed
-// since this koid started or since they last started. A container being
-// started, or one koid found running after a restart and has not checked,
+// since this previewlaned started or since they last started. A container being
+// started, or one previewlaned found running after a restart and has not checked,
 // is not routed, however a sync interleaves with its check. The set changes
 // only under `routing` (setReady), which a code path holding a lifecycle
 // lock takes briefly, and a sync checks it after inspecting a container,
@@ -333,12 +333,12 @@ export class Deployer {
 	// them, whatever their record says, and the watchdog's run at startup
 	// finds them again by their size.
 	private readonly halted = new Set<string>();
-	// Whether a disk watchdog run has measured every container since koid
+	// Whether a disk watchdog run has measured every container since previewlaned
 	// started. Until one has, a visit does not start a stopped container:
-	// it may be one koid stopped for disk use before a restart, whose record
+	// it may be one previewlaned stopped for disk use before a restart, whose record
 	// could not say so.
 	private diskChecked = false;
-	// Running containers koid found outside the slice and has not managed to
+	// Running containers previewlaned found outside the slice and has not managed to
 	// stop yet. Nothing routes or wakes them, and the watchdog's timer tries
 	// the stop again (stopMisplaced).
 	private readonly misplaced = new Set<string>();
@@ -359,10 +359,10 @@ export class Deployer {
 	// a label the live list has no room for. The upload is claimed from the
 	// acceptance until the build has copied its source, so the store cannot
 	// drop it in between. Accepting the same request again while it builds,
-	// or once it has deployed, changes nothing, so a retried koi up is safe.
+	// or once it has deployed, changes nothing, so a retried previewlane up is safe.
 	// Every other acceptance is a new attempt, with an id of its own on the
 	// record: a request that failed builds again, and a build accepted
-	// earlier for the same request id (before a koi down, say) cannot take
+	// earlier for the same request id (before a previewlane down, say) cannot take
 	// the record for its own.
 	async up(id: string): Promise<{ label: string; queued: boolean }> {
 		const request = await this.deps.uploads.request(id);
@@ -385,7 +385,7 @@ export class Deployer {
 			const lease = existing?.lease;
 			if (leaseHolds(lease, this.deps.now().getTime())) {
 				throw new LeaseError(
-					`${label} is leased by ${lease.holder} until ${lease.expiresAt}, and a build would replace the deployment the lease holds; run koi up again after it expires, or ask the holder to release it`,
+					`${label} is leased by ${lease.holder} until ${lease.expiresAt}, and a build would replace the deployment the lease holds; run previewlane up again after it expires, or ask the holder to release it`,
 				);
 			}
 			const attempt = randomId();
@@ -437,7 +437,7 @@ export class Deployer {
 		const room = this.deps.live.room([...live, label]);
 		if (room.ok) return;
 		throw new CapacityError(
-			`koi has ${live.length} live previews, and the list that lets a visit wake the box cannot take ${label} as well: ${room.reason}; remove a preview with koi down NAME and run koi up again`,
+			`previewlane has ${live.length} live previews, and the list that lets a visit wake the box cannot take ${label} as well: ${room.reason}; remove a preview with previewlane down NAME and run previewlane up again`,
 		);
 	}
 
@@ -500,8 +500,8 @@ export class Deployer {
 		// Both names carry the whole request id, so only attempts of this
 		// request use them, one at a time (buildQueue); removeEarlierAttempt
 		// clears what an earlier one left.
-		const image = `koi-preview/${label}:${id}`;
-		const container = `koi-${label}-${id}`;
+		const image = `previewlane-preview/${label}:${id}`;
+		const container = `previewlane-${label}-${id}`;
 		const awake = setInterval(() => void deps.keepAwake(), 30_000);
 		// Opened inside the try: if it cannot be, the request fails rather than
 		// staying queued, where a retry of the same id would start nothing.
@@ -531,7 +531,7 @@ export class Deployer {
 			await deps.extract(tarball, src);
 			// A built-in recipe is built from a copy in this directory, never
 			// from the installed one: scripts/deploy-host.sh replaces the
-			// installed recipes before it restarts the old koid, so a build
+			// installed recipes before it restarts the old previewlaned, so a build
 			// that read them as they were replaced could mix two versions, and
 			// a hash taken of them could be of a version the build did not
 			// read. The copy comes first, and the plan the build follows is
@@ -555,7 +555,7 @@ export class Deployer {
 				context,
 				contexts: recipeRoot === undefined ? {} : { recipe: recipeRoot },
 				tag: image,
-				labels: { 'koi.preview': label, 'koi.request': id },
+				labels: { 'previewlane.preview': label, 'previewlane.request': id },
 				timeoutMs: plan.buildTimeoutMinutes * 60_000,
 				onLine: (line) => log.line(line),
 			});
@@ -565,8 +565,8 @@ export class Deployer {
 			const loginKey = await this.loginKey(label, attempt, plan.loginKeyEnv);
 			const env: Record<string, string> = {
 				...plan.env,
-				KOI_PREVIEW_LABEL: label,
-				KOI_PREVIEW_URL: `https://${label}.${deps.domain}`,
+				PREVIEWLANE_PREVIEW_LABEL: label,
+				PREVIEWLANE_PREVIEW_URL: `https://${label}.${deps.domain}`,
 				...(plan.loginKeyEnv !== undefined && loginKey !== undefined
 					? { [plan.loginKeyEnv]: loginKey }
 					: {}),
@@ -587,7 +587,7 @@ export class Deployer {
 					network: deps.network,
 					user,
 					...this.withEgress(env),
-					labels: { 'koi.preview': label, 'koi.request': id },
+					labels: { 'previewlane.preview': label, 'previewlane.request': id },
 				}),
 			);
 			await this.setStatus(label, attempt, 'starting');
@@ -640,7 +640,7 @@ export class Deployer {
 				deps.log(`build ${id} for ${label}: ${outcome}`);
 			} else {
 				opened.line(outcome);
-				// In the file before the record says the build failed: koi up stops
+				// In the file before the record says the build failed: previewlane up stops
 				// reading the log once it has read to the end after that.
 				await opened
 					.flush()
@@ -744,7 +744,7 @@ export class Deployer {
 			await this.unroute({ containers: [container], images: [] });
 		} catch (err) {
 			throw new Error(
-				`${container}, left by an earlier attempt of this request, stays until Caddy takes routes without it; run koi up again: ${message(err)}`,
+				`${container}, left by an earlier attempt of this request, stays until Caddy takes routes without it; run previewlane up again: ${message(err)}`,
 			);
 		}
 	}
@@ -768,7 +768,7 @@ export class Deployer {
 		const need = minFreeBytes(after.size);
 		if (after.free < need) {
 			throw new Error(
-				`the box is short of disk: ${gib(after.free)} GiB of ${gib(after.size)} GiB free after trimming the build cache, and a build needs ${gib(need)} GiB; remove previews with koi down and run koi up again`,
+				`the box is short of disk: ${gib(after.free)} GiB of ${gib(after.size)} GiB free after trimming the build cache, and a build needs ${gib(need)} GiB; remove previews with previewlane down and run previewlane up again`,
 			);
 		}
 	}
@@ -822,7 +822,7 @@ export class Deployer {
 				throw new Error(`${deployment.container} stopped before it could be routed`);
 			}
 			await this.applyRoutes(routes);
-			// In the file before the record says running: koi up stops reading the
+			// In the file before the record says running: previewlane up stops reading the
 			// log once it has read to the end after that.
 			log.line('ready');
 			await log
@@ -893,7 +893,7 @@ export class Deployer {
 	// routes without it have been applied: Docker can give a removed
 	// container's address to another preview, and a route left behind would
 	// send this label's visitors there. When the sync fails nothing is
-	// removed and its error is thrown; reconcile, or a retried koi down,
+	// removed and its error is thrown; reconcile, or a retried previewlane down,
 	// removes them later.
 	private async unroute(leftovers: Leftovers): Promise<void> {
 		await this.syncWithout(leftovers.containers);
@@ -1000,7 +1000,7 @@ export class Deployer {
 							network: deps.network,
 							user: d.user,
 							...this.withEgress(d.env),
-							labels: { 'koi.preview': label, 'koi.request': d.requestId },
+							labels: { 'previewlane.preview': label, 'previewlane.request': d.requestId },
 						}),
 					);
 				}
@@ -1147,7 +1147,7 @@ export class Deployer {
 	// which gives it an address. Docker hands out an address as soon as a
 	// container stops, and a container can die on its own: while the egress
 	// proxy still maps that address to the dead container's preview, the new
-	// container could use that preview's koi tokens. So, under `routing`, a
+	// container could use that preview's previewlane tokens. So, under `routing`, a
 	// sync first takes dead containers out of the routes and the proxy's map,
 	// and the proxy confirms, before the start. If the new container's
 	// address is one the confirmed map still names, its holder died between
@@ -1258,7 +1258,7 @@ export class Deployer {
 			const lease = record?.lease;
 			if (options.force !== true && leaseHolds(lease, this.deps.now().getTime())) {
 				throw new LeaseError(
-					`${label} is leased by ${lease.holder} until ${lease.expiresAt}; run koi down ${label} --force to remove it anyway`,
+					`${label} is leased by ${lease.holder} until ${lease.expiresAt}; run previewlane down ${label} --force to remove it anyway`,
 				);
 			}
 			if (record !== undefined) await store.remove(label);
@@ -1267,7 +1267,7 @@ export class Deployer {
 				if (c.label === label) leftovers.containers.push(c.name);
 			}
 			for (const image of await docker.listImages()) {
-				if (image.startsWith(`koi-preview/${label}:`)) leftovers.images.push(image);
+				if (image.startsWith(`previewlane-preview/${label}:`)) leftovers.images.push(image);
 			}
 			leftovers.containers = [...new Set(leftovers.containers)];
 			leftovers.images = [...new Set(leftovers.images)];
@@ -1280,7 +1280,7 @@ export class Deployer {
 				throw new Error(
 					kept === ''
 						? `${label} is removed, but Caddy did not take the new routes: ${message(err)}`
-						: `${label} is removed, but ${kept} stays until Caddy takes routes without it; run koi down again: ${message(err)}`,
+						: `${label} is removed, but ${kept} stays until Caddy takes routes without it; run previewlane down again: ${message(err)}`,
 				);
 			}
 			return true;
@@ -1318,25 +1318,25 @@ export class Deployer {
 			}
 			if (IN_FLIGHT.has(record.status)) {
 				throw new LeaseError(
-					`${label} is building request ${record.requestId}, which will replace what serves; run koi lease again once it has finished`,
+					`${label} is building request ${record.requestId}, which will replace what serves; run previewlane lease again once it has finished`,
 				);
 			}
 			const deployment = deploymentIdentity(record);
 			if (deployment === undefined) {
 				throw new LeaseError(
 					record.deployment !== undefined && record.deployment.halted === undefined
-						? `${label} serves a deployment made before koid recorded deployment ids; run koi up to replace it, then lease it`
+						? `${label} serves a deployment made before previewlaned recorded deployment ids; run previewlane up to replace it, then lease it`
 						: `${label} has no serving deployment to lease`,
 				);
 			}
-			// Routes settled: Caddy runs the routes koid computed from the
+			// Routes settled: Caddy runs the routes previewlaned computed from the
 			// records, and `upstreams` holds them. Only a sync that succeeds
 			// says so; one that fails leaves what visitors reach uncertain.
 			try {
 				await this.sync();
 			} catch (err) {
 				throw new LeaseError(
-					`the routes of ${label} are not settled: ${message(err)}; what visitors reach may not be the recorded deployment, so run koi lease again once Caddy takes routes`,
+					`the routes of ${label} are not settled: ${message(err)}; what visitors reach may not be the recorded deployment, so run previewlane lease again once Caddy takes routes`,
 				);
 			}
 			// The record says what was deployed, not what a visitor gets. After
@@ -1349,12 +1349,12 @@ export class Deployer {
 			const view = await this.view(label);
 			if (view.kind === 'overdue') {
 				throw new LeaseError(
-					`${label} is past its ttl and expires on its next visit; run koi up to deploy it again, then lease it`,
+					`${label} is past its ttl and expires on its next visit; run previewlane up to deploy it again, then lease it`,
 				);
 			}
 			if (view.kind !== 'running') {
 				throw new LeaseError(
-					`${label} is not running; open https://${label}.${this.deps.domain}/ to start it, then run koi lease again`,
+					`${label} is not running; open https://${label}.${this.deps.domain}/ to start it, then run previewlane lease again`,
 				);
 			}
 			// The sync and the view above can take a while; the lease starts
@@ -1505,10 +1505,10 @@ export class Deployer {
 	// Every one is blocked in memory as soon as the measurement is back, so
 	// visits no longer start it, even if a step below fails for it. When a
 	// record's deployment uses it, the deployment is then marked halted with
-	// the reason in the record's error; the next koi up replaces it. The
+	// the reason in the record's error; the next previewlane up replaces it. The
 	// block holds when the marker cannot be saved (the preview may have
 	// filled the disk), and later runs try to save it again. Stopped
-	// containers are measured too, so the run koid makes at startup blocks
+	// containers are measured too, so the run previewlaned makes at startup blocks
 	// one again after a restart; until a run has measured them, visits start
 	// no stopped container. A container no record uses yet belongs to a
 	// build in its health check, which fails when it stops. Returns the
@@ -1641,7 +1641,7 @@ export class Deployer {
 		const deployments = (await this.records()).flatMap((r) =>
 			r.deployment === undefined ? [] : [r.deployment],
 		);
-		// Containers still running from before koid started serve again once
+		// Containers still running from before previewlaned started serve again once
 		// they answer; the rest wait for a visit to start and check them. One
 		// that runs outside the slice kept running through a Docker restart
 		// (live-restore) where it was before; it is stopped below, and its
@@ -1673,7 +1673,7 @@ export class Deployer {
 		await this.evict(outside);
 	}
 
-	// Whether a running container runs in the slice, or koid uses none.
+	// Whether a running container runs in the slice, or previewlaned uses none.
 	private async inSlice(container: string): Promise<boolean> {
 		const { slice, docker } = this.deps;
 		return slice === undefined || (await docker.slice(container)) === slice;
@@ -1684,7 +1684,7 @@ export class Deployer {
 	// stopped only once Caddy has taken routes without it, as in unroute.
 	// One whose stop fails stays blocked, out of the routes, for
 	// stopMisplaced to try again. Throws, stopping none, when Caddy refuses
-	// the routes. Caller holds the containers' lifecycle locks, or koid does
+	// the routes. Caller holds the containers' lifecycle locks, or previewlaned does
 	// not serve yet.
 	private async evict(containers: string[]): Promise<void> {
 		const { deps } = this;
@@ -1724,7 +1724,7 @@ export class Deployer {
 }
 
 // Container address -> preview label, for every routed container: the map
-// the egress proxy checks koi tokens against.
+// the egress proxy checks previewlane tokens against.
 export function previewAddresses(routes: Route[]): Record<string, string> {
 	return Object.fromEntries(
 		routes.map((r) => [r.upstream.slice(0, r.upstream.lastIndexOf(':')), r.label]),
@@ -1744,7 +1744,7 @@ function leftoversOf(d: Deployment | undefined): Leftovers {
 		: { containers: [d.container], images: [d.image] };
 }
 
-// The record for a request koid has just accepted. A record that expired
+// The record for a request previewlaned has just accepted. A record that expired
 // belonged to whoever had the label before, so nothing of it is kept.
 // For the build log: what a merge commit holds, when the request's commit is
 // GitHub's merge of a pull request into its base.
@@ -1755,10 +1755,10 @@ function mergeNote(request: UpRequest): string {
 	return ` (${what} at ${m.head} merged into ${m.baseBranch ?? 'its base'} at ${m.base})`;
 }
 
-// A random login key: "koi-" and 24 lowercase letters and digits.
+// A random login key: "previewlane-" and 24 lowercase letters and digits.
 export function newLoginKey(): string {
 	const abc = 'abcdefghijklmnopqrstuvwxyz0123456789';
-	return `koi-${Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => abc[b % 36]).join('')}`;
+	return `previewlane-${Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => abc[b % 36]).join('')}`;
 }
 
 function queuedRecord(

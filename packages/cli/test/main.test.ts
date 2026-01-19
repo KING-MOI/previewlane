@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { DeploymentIdentity, LeaseReply, UpRequest } from '@koi/shared';
+import type { DeploymentIdentity, LeaseReply, UpRequest } from '@previewlane/shared';
 import { BuildLogs } from '../../daemon/src/buildlog.ts';
 import { CapacityError } from '../../daemon/src/deployer.ts';
 import { USAGE } from '../src/args.ts';
@@ -14,10 +14,10 @@ import { cliGit } from '../src/git.ts';
 import type { GitHub } from '../src/github.ts';
 import { type HostContext, type Runtime, run, table, VERSION } from '../src/main.ts';
 import { type HealthAnswer, WAKE_POLL_MS, WAKE_WAIT_MS } from '../src/up.ts';
-import { koidClients, koidDeps, previewRecord, settings } from './koid.ts';
+import { previewlanedClients, previewlanedDeps, previewRecord, settings } from './previewlaned.ts';
 import { asGitHub, pullRequestOrigin } from './pulls.ts';
 
-// A box whose koid ctl answers from `replies` by command. `health` is what
+// A box whose previewlaned ctl answers from `replies` by command. `health` is what
 // each request to a preview's health URL gets, in order, the last one
 // repeating; by default the preview is running. `events` has every probe
 // and every ctl command in the order they were made.
@@ -133,7 +133,7 @@ describe('run', () => {
 	});
 
 	test('prints the version', async () => {
-		expect(await capture(['version'])).toEqual({ code: 0, stdout: `koi ${VERSION}\n`, stderr: '' });
+		expect(await capture(['version'])).toEqual({ code: 0, stdout: `previewlane ${VERSION}\n`, stderr: '' });
 	});
 
 	test('prints the version as JSON with --json', async () => {
@@ -147,7 +147,7 @@ describe('run', () => {
 		const { code, stdout, stderr } = await capture(['bogus']);
 		expect(code).toBe(2);
 		expect(stdout).toBe('');
-		expect(stderr).toStartWith('koi: unknown command "bogus"');
+		expect(stderr).toStartWith('previewlane: unknown command "bogus"');
 		expect(stderr).toEndWith(USAGE);
 	});
 
@@ -198,7 +198,7 @@ describe('run', () => {
 		expect(plain.stdout).not.toContain('sha256');
 	});
 
-	test('lease asks koid to hold the preview and prints the lease, or JSON with --json', async () => {
+	test('lease asks previewlaned to hold the preview and prints the lease, or JSON with --json', async () => {
 		const runtime = fakeRuntime({
 			lease: { code: 0, stdout: JSON.stringify(leaseReply), stderr: '' },
 		});
@@ -243,8 +243,8 @@ describe('run', () => {
 		expect(runtime.calls.at(-1)?.[5]).toBe('300');
 	});
 
-	test('lease visits the preview first, as a browser would, and asks koid once it answers 200', async () => {
-		const health = 'https://hello-pr-7.previews.example.net/__koi/health';
+	test('lease visits the preview first, as a browser would, and asks previewlaned once it answers 200', async () => {
+		const health = 'https://hello-pr-7.previews.example.net/__previewlane/health';
 		const runtime = fakeRuntime(
 			{ lease: { code: 0, stdout: JSON.stringify(leaseReply), stderr: '' } },
 			{ health: [{ status: 503 }, { error: 'connection reset' }, { status: 200 }] },
@@ -252,7 +252,7 @@ describe('run', () => {
 		const r = await capture(['lease', 'hello-pr-7', '--minutes', '30', '--json'], runtime);
 		expect(r.code).toBe(0);
 		expect(JSON.parse(r.stdout)).toEqual(leaseReply);
-		// The visit goes to koid's health check for the preview, which starts
+		// The visit goes to previewlaned's health check for the preview, which starts
 		// a stopped one, until it answers 200; only then is the lease asked
 		// for. The wait is said on stderr.
 		expect(runtime.events).toEqual([
@@ -261,10 +261,10 @@ describe('run', () => {
 			`probe ${health}`,
 			'ctl lease',
 		]);
-		expect(r.stderr).toBe('koi  waking hello-pr-7\n');
+		expect(r.stderr).toBe('previewlane  waking hello-pr-7\n');
 	});
 
-	test('lease gives up when the preview does not answer within 90 seconds, and asks koid for nothing', async () => {
+	test('lease gives up when the preview does not answer within 90 seconds, and asks previewlaned for nothing', async () => {
 		const runtime = fakeRuntime(
 			{ lease: { code: 0, stdout: JSON.stringify(leaseReply), stderr: '' } },
 			{ health: [{ status: 503 }] },
@@ -272,10 +272,10 @@ describe('run', () => {
 		const r = await capture(['lease', 'hello-pr-7', '--minutes', '30'], runtime);
 		expect(r.code).toBe(1);
 		expect(r.stdout).toBe('');
-		expect(r.stderr).toStartWith('koi  waking hello-pr-7\n');
-		expect(r.stderr).toContain('koi  still waiting for hello-pr-7 to start (HTTP 503 after 15s)\n');
+		expect(r.stderr).toStartWith('previewlane  waking hello-pr-7\n');
+		expect(r.stderr).toContain('previewlane  still waiting for hello-pr-7 to start (HTTP 503 after 15s)\n');
 		expect(r.stderr).toEndWith(
-			'koi: hello-pr-7 did not start within 90 seconds; the last check of https://hello-pr-7.previews.example.net/__koi/health got HTTP 503. See koi list, or koi logs hello-pr-7\n',
+			'previewlane: hello-pr-7 did not start within 90 seconds; the last check of https://hello-pr-7.previews.example.net/__previewlane/health got HTTP 503. See previewlane list, or previewlane logs hello-pr-7\n',
 		);
 		// One check every WAKE_POLL_MS until WAKE_WAIT_MS has passed.
 		expect(runtime.probed).toHaveLength(WAKE_WAIT_MS / WAKE_POLL_MS + 1);
@@ -285,23 +285,23 @@ describe('run', () => {
 		const s = await capture(['lease', 'hello-pr-7', '--minutes', '30'], silent);
 		expect(s.code).toBe(1);
 		expect(s.stderr).toEndWith(
-			'got no answer (connect ECONNREFUSED). See koi list, or koi logs hello-pr-7\n',
+			'got no answer (connect ECONNREFUSED). See previewlane list, or previewlane logs hello-pr-7\n',
 		);
 	});
 
-	test('lease stops at once when koid has no such preview', async () => {
+	test('lease stops at once when previewlaned has no such preview', async () => {
 		const runtime = fakeRuntime({}, { health: [{ status: 404 }] });
 		const r = await capture(['lease', 'nobody-pr-1', '--minutes', '5'], runtime);
 		expect(r).toEqual({
 			code: 1,
 			stdout: '',
-			stderr: 'koi: koid has no preview named nobody-pr-1; see koi list\n',
+			stderr: 'previewlane: previewlaned has no preview named nobody-pr-1; see previewlane list\n',
 		});
 		expect(runtime.probed).toHaveLength(1);
 		expect(runtime.calls).toEqual([]);
 	});
 
-	test('lease reports the refusal koid gives and exits 1', async () => {
+	test('lease reports the refusal previewlaned gives and exits 1', async () => {
 		const runtime = fakeRuntime({
 			lease: {
 				code: 1,
@@ -313,7 +313,7 @@ describe('run', () => {
 		expect(r.code).toBe(1);
 		expect(r.stdout).toBe('');
 		expect(r.stderr).toBe(
-			'koi: hello-pr-7 is leased by ci run 42 until 2026-10-06T11:00:00.000Z\n',
+			'previewlane: hello-pr-7 is leased by ci run 42 until 2026-10-06T11:00:00.000Z\n',
 		);
 	});
 
@@ -330,10 +330,10 @@ describe('run', () => {
 		});
 		const r = await capture(['release', 'hello-pr-7', id], gone);
 		expect(r.code).toBe(1);
-		expect(r.stderr).toBe('koi: no such lease\n');
+		expect(r.stderr).toBe('previewlane: no such lease\n');
 	});
 
-	test('down --force asks koid to remove the preview whatever lease holds it', async () => {
+	test('down --force asks previewlaned to remove the preview whatever lease holds it', async () => {
 		const runtime = fakeRuntime({ down: { code: 0, stdout: '{"removed":true}', stderr: '' } });
 		expect((await capture(['down', 'hello-pr-7'], runtime)).stdout).toBe('removed hello-pr-7\n');
 		expect(runtime.calls.at(-1)).toEqual(['down', 'hello-pr-7']);
@@ -345,7 +345,7 @@ describe('run', () => {
 				code: 1,
 				stdout: '',
 				stderr:
-					'{"error":"hello-pr-7 is leased by dev@laptop until later; run koi down hello-pr-7 --force to remove it anyway"}',
+					'{"error":"hello-pr-7 is leased by dev@laptop until later; run previewlane down hello-pr-7 --force to remove it anyway"}',
 			},
 		});
 		const r = await capture(['down', 'hello-pr-7'], leased);
@@ -374,7 +374,7 @@ describe('run', () => {
 		};
 		const r = await capture(['list'], thrown);
 		expect(r.code).toBe(1);
-		expect(r.stderr).toBe('koi: the host is gone\n');
+		expect(r.stderr).toBe('previewlane: the host is gone\n');
 		expect(failing.closed()).toBe(2);
 		// The host opened is reported to the runtime, for a signal to close.
 		const seen: Box[] = [];
@@ -432,7 +432,7 @@ describe('run', () => {
 		const runtime = fakeRuntime({ down: { code: 1, stdout: '', stderr: '{"removed":false}' } });
 		const r = await capture(['down', 'hello-pr-7'], runtime);
 		expect(r.code).toBe(1);
-		expect(r.stderr).toContain('koi:');
+		expect(r.stderr).toContain('previewlane:');
 	});
 
 	test('rejects a preview name that is not a label before touching the box', async () => {
@@ -447,7 +447,7 @@ describe('run', () => {
 		const inner = fakeRuntime({ list: { code: 0, stdout: '{"previews":[]}', stderr: '' } });
 		const runtime: Runtime = {
 			cwd: '/nonexistent',
-			env: { HOME: '/home/u', KOI_TARGET: 'team' },
+			env: { HOME: '/home/u', PREVIEWLANE_TARGET: 'team' },
 			git: { ...(await cliGit('/nonexistent')), root: async () => '/checkout' } as never,
 			box: async (ctx) => {
 				seen.push(ctx);
@@ -467,9 +467,9 @@ describe('run', () => {
 			config: '/tmp/k.yaml',
 			domain: 'd.example.com',
 		});
-		expect(seen[0]?.env).toEqual({ HOME: '/home/u', KOI_TARGET: 'team' });
+		expect(seen[0]?.env).toEqual({ HOME: '/home/u', PREVIEWLANE_TARGET: 'team' });
 		expect(seen[0]?.checkoutDir).toBe('/checkout');
-		expect(r.stderr).toBe('koi  hello\n');
+		expect(r.stderr).toBe('previewlane  hello\n');
 		// Outside a checkout, the working directory stands in.
 		const { git: _git, ...noGit } = runtime;
 		const plain = await capture(['list'], noGit);
@@ -479,10 +479,10 @@ describe('run', () => {
 	});
 
 	test('config show prints the target from the config file the environment names', async () => {
-		const home = await mkdtemp(join(tmpdir(), 'koi-home-'));
-		await mkdir(join(home, '.config', 'koi'), { recursive: true, mode: 0o700 });
+		const home = await mkdtemp(join(tmpdir(), 'previewlane-home-'));
+		await mkdir(join(home, '.config', 'previewlane'), { recursive: true, mode: 0o700 });
 		await writeFile(
-			join(home, '.config', 'koi', 'config.yaml'),
+			join(home, '.config', 'previewlane', 'config.yaml'),
 			toYaml({
 				version: 1,
 				defaultTarget: 'owner-aws',
@@ -490,7 +490,7 @@ describe('run', () => {
 					'owner-aws': {
 						domain: 'previews.example.net',
 						transport: { kind: 'aws-ssm' },
-						aws: { instanceId: 'i-0abc', uploadsBucket: 'koi-uploads-123456789012' },
+						aws: { instanceId: 'i-0abc', uploadsBucket: 'previewlane-uploads-123456789012' },
 						power: { kind: 'ec2' },
 					},
 				},
@@ -509,10 +509,10 @@ describe('run', () => {
 		expect(r.stderr).toBe('');
 		expect(r.stdout).toStartWith('target owner-aws (from defaultTarget) in ');
 		expect(r.stdout).toContain('domain: previews.example.net');
-		expect(r.stdout).toContain('profile: koi-cli');
+		expect(r.stdout).toContain('profile: previewlane-cli');
 		const missing = await capture(['config', 'show', '--target', 'nope'], runtime);
 		expect(missing.code).toBe(1);
-		expect(missing.stderr).toContain('koi: --target names "nope", but');
+		expect(missing.stderr).toContain('previewlane: --target names "nope", but');
 		const legacy = await capture(['config', 'show'], { ...runtime, env: { HOME: '/nonexistent' } });
 		expect(legacy.code).toBe(0);
 		expect(legacy.stdout).toContain('no target: there is no config file at');
@@ -521,20 +521,20 @@ describe('run', () => {
 	test('config without a subcommand is a usage error', async () => {
 		const r = await capture(['config']);
 		expect(r.code).toBe(2);
-		expect(r.stderr).toStartWith('koi: config needs a subcommand');
+		expect(r.stderr).toStartWith('previewlane: config needs a subcommand');
 		expect(r.stderr).toEndWith(USAGE);
 	});
 });
 
-// A git repository with a koi.yaml, committed, whose origin is on GitHub.
+// A git repository with a previewlane.yaml, committed, whose origin is on GitHub.
 async function gitRepo(): Promise<string> {
-	const dir = await mkdtemp(join(tmpdir(), 'koi-repo-'));
+	const dir = await mkdtemp(join(tmpdir(), 'previewlane-repo-'));
 	const git = (...args: string[]) =>
 		exec(['git', '-C', dir, '-c', 'user.email=t@example.com', '-c', 'user.name=t', ...args]);
 	await git('init', '-q', '-b', 'main');
 	await git('remote', 'add', 'origin', 'git@github.com:acme/hello.git');
 	await writeFile(join(dir, 'Dockerfile'), 'FROM scratch\n');
-	await writeFile(join(dir, 'koi.yaml'), 'port: 8080\nbuild:\n  kind: dockerfile\n');
+	await writeFile(join(dir, 'previewlane.yaml'), 'port: 8080\nbuild:\n  kind: dockerfile\n');
 	await git('add', '.');
 	await git('commit', '-q', '-m', 'init');
 	// As a clone has it: origin's main, fetched, to compare the tree with.
@@ -542,9 +542,9 @@ async function gitRepo(): Promise<string> {
 	return dir;
 }
 
-// koi and koid as on the box: awsBox runs koid ctl through an SSM client
+// previewlane and previewlaned as on the box: awsBox runs previewlaned ctl through an SSM client
 // that returns at most the first 24,000 characters of its output.
-function koidRuntime(clients: ReturnType<typeof koidClients>): Runtime {
+function previewlanedRuntime(clients: ReturnType<typeof previewlanedClients>): Runtime {
 	return {
 		cwd: '/nonexistent',
 		box: async () => ({
@@ -554,9 +554,9 @@ function koidRuntime(clients: ReturnType<typeof koidClients>): Runtime {
 	};
 }
 
-describe('run against koid through SSM', () => {
+describe('run against previewlaned through SSM', () => {
 	test('list collects every page of a list too long for one SSM reply', async () => {
-		// Many small previews, and many as large as koi makes them.
+		// Many small previews, and many as large as previewlane makes them.
 		for (const branch of ['main', 'é'.repeat(255), '\u0001'.repeat(255)]) {
 			const records = Array.from({ length: 300 }, (_, i) =>
 				previewRecord({ label: `hello-pr-${i + 1}`, pr: i + 1, branch }),
@@ -573,10 +573,10 @@ describe('run against koid through SSM', () => {
 				.sort((a, b) => (a.label < b.label ? -1 : 1));
 			// One reply with them all would be cut by SSM.
 			expect(JSON.stringify(summaries).length).toBeGreaterThan(24_000);
-			const clients = koidClients(
-				koidDeps({ store: { get: async () => undefined, list: async () => records } }),
+			const clients = previewlanedClients(
+				previewlanedDeps({ store: { get: async () => undefined, list: async () => records } }),
 			);
-			const r = await capture(['list', '--json'], koidRuntime(clients));
+			const r = await capture(['list', '--json'], previewlanedRuntime(clients));
 			expect(r.stderr).toBe('');
 			expect(r.code).toBe(0);
 			expect(JSON.parse(r.stdout)).toEqual(
@@ -717,7 +717,7 @@ describe('run against koid through SSM', () => {
 		);
 		expect(r.stdout).not.toContain('  commit ');
 		expect(r.stderr).toContain(
-			`koi  building #7 (${short(o.head7)}) merged into main (${short(o.base)}), merge commit ${short(o.merge7)}\n`,
+			`previewlane  building #7 (${short(o.head7)}) merged into main (${short(o.base)}), merge commit ${short(o.merge7)}\n`,
 		);
 		const j = await capture(['up', '--pr', '7', '--json'], runtime);
 		expect(j.code).toBe(0);
@@ -735,14 +735,14 @@ describe('run against koid through SSM', () => {
 		);
 	});
 
-	test('up prints why koid has no room for another preview, and exits 1', async () => {
+	test('up prints why previewlaned has no room for another preview, and exits 1', async () => {
 		const dir = await gitRepo();
 		const reason =
-			'koi has 63 live previews, and the list that lets a visit wake the box cannot take hello-main-abcdefgh as well';
-		const clients = koidClients(
-			koidDeps({
+			'previewlane has 63 live previews, and the list that lets a visit wake the box cannot take hello-main-abcdefgh as well';
+		const clients = previewlanedClients(
+			previewlanedDeps({
 				deployer: {
-					...koidDeps({}).deployer,
+					...previewlanedDeps({}).deployer,
 					up: async () => {
 						throw new CapacityError(reason);
 					},
@@ -757,26 +757,26 @@ describe('run against koid through SSM', () => {
 		});
 		expect(r.code).toBe(1);
 		expect(r.stdout).toBe('');
-		expect(r.stderr).toEndWith(`koi: ${reason}\n`);
+		expect(r.stderr).toEndWith(`previewlane: ${reason}\n`);
 		expect(clients.commands.map((c) => c[0])).toEqual(['ping', 'up']);
 	});
 
-	test('logs --build --tail N prints the last N lines, or koid saying it cut them', async () => {
-		const state = await mkdtemp(join(tmpdir(), 'koi-state-'));
+	test('logs --build --tail N prints the last N lines, or previewlaned saying it cut them', async () => {
+		const state = await mkdtemp(join(tmpdir(), 'previewlane-state-'));
 		const logs = new BuildLogs(state);
 		const write = async (lines: string[]) => {
 			const log = await logs.open('hello-pr-7', previewRecord().attempt);
 			for (const line of lines) log.line(line);
 			await log.close();
 		};
-		const clients = koidClients(
-			koidDeps({
+		const clients = previewlanedClients(
+			previewlanedDeps({
 				store: { get: async () => previewRecord(), list: async () => [] },
 				buildLogs: logs,
 			}),
 		);
 		const tail = (n: string) =>
-			capture(['logs', 'hello-pr-7', '--build', '--tail', n], koidRuntime(clients));
+			capture(['logs', 'hello-pr-7', '--build', '--tail', n], previewlanedRuntime(clients));
 		const untimed = (text: string) => text.replace(/^\S+ /gm, '');
 
 		await write(['a', 'b', 'c']);
@@ -785,25 +785,25 @@ describe('run against koid through SSM', () => {
 		expect(untimed(last.stdout)).toBe('c\n');
 		expect(untimed((await tail('2')).stdout)).toBe('b\nc\n');
 
-		// Lines longer together than SSM returns: koid ctl keeps their end and
+		// Lines longer together than SSM returns: previewlaned ctl keeps their end and
 		// says so.
 		await write(Array.from({ length: 5 }, (_, i) => `${i} ${'x'.repeat(4000)}`));
 		for (const n of ['5', '1']) {
 			// The second time, one line longer than that, as a log written
-			// before koid cut lines can hold.
+			// before previewlaned cut lines can hold.
 			if (n === '1') {
 				const file = join(state, 'logs', 'hello-pr-7', `${previewRecord().attempt}.build.log`);
 				await writeFile(file, `${'x'.repeat(20_000)}\n`);
 			}
 			const cut = await tail(n);
 			const printed = clients.outputs.at(-1) ?? '';
-			expect(printed).toStartWith('[koid: earlier output cut');
+			expect(printed).toStartWith('[previewlaned: earlier output cut');
 			expect(Buffer.byteLength(printed)).toBeLessThanOrEqual(16_000);
 			expect(cut).toEqual({ code: 0, stdout: printed, stderr: '' });
-			// With --json, the line koid put first says so in `truncated`.
+			// With --json, the line previewlaned put first says so in `truncated`.
 			const json = await capture(
 				['logs', 'hello-pr-7', '--build', '--tail', n, '--json'],
-				koidRuntime(clients),
+				previewlanedRuntime(clients),
 			);
 			expect(JSON.parse(json.stdout)).toEqual({
 				label: 'hello-pr-7',
@@ -815,7 +815,7 @@ describe('run against koid through SSM', () => {
 		await write(['a', 'b', 'c']);
 		const whole = await capture(
 			['logs', 'hello-pr-7', '--build', '--tail', '2', '--json'],
-			koidRuntime(clients),
+			previewlanedRuntime(clients),
 		);
 		expect(JSON.parse(whole.stdout)).toMatchObject({ truncated: false });
 		expect(untimed(JSON.parse(whole.stdout).text)).toBe('b\nc\n');
@@ -831,14 +831,14 @@ describe('table', () => {
 	});
 });
 
-describe('koi executable', () => {
+describe('previewlane executable', () => {
 	const repoRoot = join(import.meta.dir, '../../..');
-	const koi = (...args: string[]) =>
+	const previewlane = (...args: string[]) =>
 		Bun.spawnSync([process.execPath, 'packages/cli/src/main.ts', ...args], { cwd: repoRoot });
 
 	test('prints the version and exits 0', () => {
-		const result = koi('version');
-		expect(result.stdout.toString()).toBe(`koi ${VERSION}\n`);
+		const result = previewlane('version');
+		expect(result.stdout.toString()).toBe(`previewlane ${VERSION}\n`);
 		expect(result.stderr.toString()).toBe('');
 		expect(result.exitCode).toBe(0);
 	});
@@ -851,10 +851,10 @@ describe('koi executable', () => {
 	test.skipIf(process.platform !== 'linux' || Bun.which('ssh') === null)(
 		'SIGINT closes the host the command opened and exits 130',
 		async () => {
-			const dir = await mkdtemp(join(tmpdir(), 'koi-signal-'));
+			const dir = await mkdtemp(join(tmpdir(), 'previewlane-signal-'));
 			const home = join(dir, 'home');
 			const tmp = join(dir, 'tmp');
-			await mkdir(join(home, '.config', 'koi'), { recursive: true, mode: 0o700 });
+			await mkdir(join(home, '.config', 'previewlane'), { recursive: true, mode: 0o700 });
 			await mkdir(tmp);
 			await writeFile(join(dir, 'id'), 'not a key\n', { mode: 0o600 });
 			const silent = createServer(() => {});
@@ -866,7 +866,7 @@ describe('koi executable', () => {
 			);
 			try {
 				await writeFile(
-					join(home, '.config', 'koi', 'config.yaml'),
+					join(home, '.config', 'previewlane', 'config.yaml'),
 					toYaml({
 						version: 1,
 						defaultTarget: 'silent',
@@ -878,7 +878,7 @@ describe('koi executable', () => {
 									endpoint: {
 										host: '127.0.0.1',
 										port,
-										user: 'koi-connect',
+										user: 'previewlane-connect',
 										identityFile: join(dir, 'id'),
 										knownHostsFile: join(dir, 'known_hosts'),
 										hostKeyAlias: 'silent',
@@ -903,7 +903,7 @@ describe('koi executable', () => {
 				let started: string[] = [];
 				for (let i = 0; i < 400 && started.length === 0; i++) {
 					await Bun.sleep(25);
-					started = (await readdir(tmp)).filter((n) => n.startsWith('koi-ssh-'));
+					started = (await readdir(tmp)).filter((n) => n.startsWith('previewlane-ssh-'));
 				}
 				expect(started).toHaveLength(1);
 				const began = Date.now();
@@ -922,26 +922,26 @@ describe('koi executable', () => {
 	);
 
 	test('exits 2 for an unknown command', () => {
-		const result = koi('bogus');
+		const result = previewlane('bogus');
 		expect(result.stdout.toString()).toBe('');
 		expect(result.stderr.toString()).toContain('unknown command');
 		expect(result.exitCode).toBe(2);
 	});
 
-	// Run from source, koi cannot undo what the runtime loaded from the
+	// Run from source, previewlane cannot undo what the runtime loaded from the
 	// checkout, so it refuses to go on. The compiled binary loads nothing and
 	// is exercised in environ.test.ts.
 	test('from source, a checkout with a .env is refused unless the shell trusts it', async () => {
 		const target = (domain: string) => ({
 			domain,
 			transport: { kind: 'aws-ssm' },
-			aws: { instanceId: 'i-0abc', uploadsBucket: 'koi-uploads-123456789012' },
+			aws: { instanceId: 'i-0abc', uploadsBucket: 'previewlane-uploads-123456789012' },
 			power: { kind: 'ec2' },
 		});
-		const home = await mkdtemp(join(tmpdir(), 'koi-home-'));
-		await mkdir(join(home, '.config', 'koi'), { recursive: true, mode: 0o700 });
+		const home = await mkdtemp(join(tmpdir(), 'previewlane-home-'));
+		await mkdir(join(home, '.config', 'previewlane'), { recursive: true, mode: 0o700 });
 		await writeFile(
-			join(home, '.config', 'koi', 'config.yaml'),
+			join(home, '.config', 'previewlane', 'config.yaml'),
 			toYaml({
 				version: 1,
 				defaultTarget: 'mine',
@@ -950,7 +950,7 @@ describe('koi executable', () => {
 			{ mode: 0o600 },
 		);
 		// A checkout that tries to pick the file, the target and the instance.
-		const checkout = await mkdtemp(join(tmpdir(), 'koi-checkout-'));
+		const checkout = await mkdtemp(join(tmpdir(), 'previewlane-checkout-'));
 		const injected = join(checkout, 'injected.yaml');
 		await writeFile(
 			injected,
@@ -963,12 +963,12 @@ describe('koi executable', () => {
 		);
 		await writeFile(
 			join(checkout, '.env'),
-			`KOI_CONFIG=${injected}\nKOI_TARGET=evil\nKOI_INSTANCE_ID=i-0bad\n`,
+			`PREVIEWLANE_CONFIG=${injected}\nPREVIEWLANE_TARGET=evil\nPREVIEWLANE_INSTANCE_ID=i-0bad\n`,
 		);
 		const env = { PATH: process.env.PATH ?? '', HOME: home };
-		// The runtime does load that file into the environment before koi runs.
-		const probe = join(await mkdtemp(join(tmpdir(), 'koi-probe-')), 'probe.ts');
-		await writeFile(probe, 'console.log(process.env.KOI_CONFIG ?? "unset");\n');
+		// The runtime does load that file into the environment before previewlane runs.
+		const probe = join(await mkdtemp(join(tmpdir(), 'previewlane-probe-')), 'probe.ts');
+		await writeFile(probe, 'console.log(process.env.PREVIEWLANE_CONFIG ?? "unset");\n');
 		const loaded = Bun.spawnSync([process.execPath, 'run', probe], { cwd: checkout, env });
 		expect(loaded.stdout.toString().trim()).toBe(injected);
 
@@ -980,13 +980,13 @@ describe('koi executable', () => {
 		const refused = show();
 		expect(refused.stdout.toString()).toBe('');
 		expect(refused.stderr.toString()).toBe(
-			`koi: koi was started from source in a checkout that has dotenv or bunfig files: .env in ${checkout}. Bun loads these files before koi runs, so they already took effect before koi could check them, and koi cannot tell what they changed. Run the compiled koi binary instead (bun run --filter @koi/cli build writes packages/cli/dist/koi), which loads neither, or run koi from a directory without such files. To run from source in a checkout you trust, export KOI_TRUST_CHECKOUT=1 in the shell before starting koi.\n`,
+			`previewlane: previewlane was started from source in a checkout that has dotenv or bunfig files: .env in ${checkout}. Bun loads these files before previewlane runs, so they already took effect before previewlane could check them, and previewlane cannot tell what they changed. Run the compiled previewlane binary instead (bun run --filter @previewlane/cli build writes packages/cli/dist/previewlane), which loads neither, or run previewlane from a directory without such files. To run from source in a checkout you trust, export PREVIEWLANE_TRUST_CHECKOUT=1 in the shell before starting previewlane.\n`,
 		);
 		expect(refused.exitCode).toBe(1);
 
-		// A developer who trusts the checkout: koi runs, with whatever the
+		// A developer who trusts the checkout: previewlane runs, with whatever the
 		// checkout's .env set, which is that developer's choice.
-		const trusted = show({ KOI_TRUST_CHECKOUT: '1' });
+		const trusted = show({ PREVIEWLANE_TRUST_CHECKOUT: '1' });
 		expect(trusted.stderr.toString()).toBe('');
 		expect(trusted.exitCode).toBe(0);
 		expect(JSON.parse(trusted.stdout.toString())).toMatchObject({
@@ -1000,23 +1000,23 @@ describe('koi executable', () => {
 			[process.execPath, join(repoRoot, 'packages/cli/src/main.ts'), 'version'],
 			{ cwd: checkout, env },
 		);
-		expect(version.stdout.toString()).toBe(`koi ${VERSION}\n`);
+		expect(version.stdout.toString()).toBe(`previewlane ${VERSION}\n`);
 		expect(version.exitCode).toBe(0);
 	});
 
 	// A call the transport stopped waiting for leaves the SDK's work behind:
 	// the credential_process it spawned keeps running, and the runtime stays
-	// alive for it. koi ends the process itself once its output is out. No
-	// koi command puts a time limit on its operations yet. So this koi is
+	// alive for it. previewlane ends the process itself once its output is out. No
+	// previewlane command puts a time limit on its operations yet. So this previewlane is
 	// main() with one change: the wake is stopped as soon as the helper is
 	// seen running. A timer could end the wake before the helper starts, and
 	// then the test would prove nothing.
 	test('ends once the command is done, while a credential helper it stopped waiting for still runs', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-helper-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-helper-'));
 		const home = join(dir, 'home');
-		await mkdir(join(home, '.config', 'koi'), { recursive: true, mode: 0o700 });
+		await mkdir(join(home, '.config', 'previewlane'), { recursive: true, mode: 0o700 });
 		await writeFile(
-			join(home, '.config', 'koi', 'config.yaml'),
+			join(home, '.config', 'previewlane', 'config.yaml'),
 			toYaml({
 				version: 1,
 				defaultTarget: 'mine',
@@ -1027,7 +1027,7 @@ describe('koi executable', () => {
 						aws: {
 							profile: 'slow',
 							instanceId: 'i-0abc',
-							uploadsBucket: 'koi-uploads-123456789012',
+							uploadsBucket: 'previewlane-uploads-123456789012',
 						},
 						power: { kind: 'ec2' },
 					},
@@ -1045,9 +1045,9 @@ describe('koi executable', () => {
 			{ mode: 0o755 },
 		);
 		await writeFile(join(dir, 'aws-config'), `[profile slow]\ncredential_process = ${helper}\n`);
-		const koi = join(dir, 'koi-stopping.ts');
+		const previewlane = join(dir, 'previewlane-stopping.ts');
 		await writeFile(
-			koi,
+			previewlane,
 			[
 				`import { openHost } from ${JSON.stringify(join(repoRoot, 'packages/cli/src/host.ts'))};`,
 				`import { main } from ${JSON.stringify(join(repoRoot, 'packages/cli/src/main.ts'))};`,
@@ -1073,7 +1073,7 @@ describe('koi executable', () => {
 			].join('\n'),
 		);
 		const began = Date.now();
-		const result = Bun.spawnSync([process.execPath, koi, 'list'], {
+		const result = Bun.spawnSync([process.execPath, previewlane, 'list'], {
 			cwd: dir,
 			env: {
 				PATH: process.env.PATH ?? '',
@@ -1085,13 +1085,13 @@ describe('koi executable', () => {
 			timeout: 10_000,
 		});
 		const elapsed = Date.now() - began;
-		// The helper was started, and still sleeps: koi did not wait for it.
+		// The helper was started, and still sleeps: previewlane did not wait for it.
 		const pid = Number((await readFile(pidFile, 'utf8')).trim());
 		// Never signal pid 0 (the whole process group) or 1 if the file is odd.
 		expect(Number.isInteger(pid) && pid > 1).toBe(true);
 		try {
 			expect(result.stderr.toString()).toEndWith(
-				'koi: stopped while the credential helper was running\n',
+				'previewlane: stopped while the credential helper was running\n',
 			);
 			expect(result.stdout.toString()).toBe('');
 			expect(result.exitCode).toBe(1);
@@ -1107,17 +1107,17 @@ describe('koi executable', () => {
 	}, 15_000);
 
 	test.skipIf(process.platform !== 'linux')(
-		'a .env cannot grant itself KOI_TRUST_CHECKOUT: on Linux only the shell can',
+		'a .env cannot grant itself PREVIEWLANE_TRUST_CHECKOUT: on Linux only the shell can',
 		async () => {
-			const checkout = await mkdtemp(join(tmpdir(), 'koi-checkout-'));
-			await writeFile(join(checkout, '.env'), 'KOI_TRUST_CHECKOUT=1\nKOI_TARGET=evil\n');
+			const checkout = await mkdtemp(join(tmpdir(), 'previewlane-checkout-'));
+			await writeFile(join(checkout, '.env'), 'PREVIEWLANE_TRUST_CHECKOUT=1\nPREVIEWLANE_TARGET=evil\n');
 			const env = { PATH: process.env.PATH ?? '', HOME: '/nonexistent' };
 			const result = Bun.spawnSync(
 				[process.execPath, join(repoRoot, 'packages/cli/src/main.ts'), 'config', 'show'],
 				{ cwd: checkout, env },
 			);
 			expect(result.stderr.toString()).toStartWith(
-				`koi: koi was started from source in a checkout that has dotenv or bunfig files: .env in ${checkout}.`,
+				`previewlane: previewlane was started from source in a checkout that has dotenv or bunfig files: .env in ${checkout}.`,
 			);
 			expect(result.exitCode).toBe(1);
 		},

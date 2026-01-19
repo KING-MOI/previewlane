@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { PreviewLabelSchema, type PreviewRecord, PreviewRecordSchema, randomId } from '@koi/shared';
+import { PreviewLabelSchema, type PreviewRecord, PreviewRecordSchema, randomId } from '@previewlane/shared';
 import { KeyedLock } from './lock.ts';
 
 // Preview records, one JSON file per label under <stateDir>/previews. Writes go
@@ -18,10 +18,10 @@ export class PreviewStore {
 		this.dir = join(stateDir, 'previews');
 	}
 
-	// Also gives each record from before koid named attempts, which has no
+	// Also gives each record from before previewlaned named attempts, which has no
 	// attempt or an empty one, an attempt of its own. Build logs are kept by
 	// attempt, so this is where BuildLogs.upgrade puts the record's old log,
-	// and where koi logs --build finds it. A file that does not parse is left
+	// and where previewlane logs --build finds it. A file that does not parse is left
 	// for list() to report.
 	async init(): Promise<void> {
 		await mkdir(this.dir, { recursive: true });

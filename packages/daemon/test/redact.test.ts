@@ -29,11 +29,11 @@ import {
 	TIME,
 } from './png.ts';
 
-const KOI_TOKEN = `koi_${'0123456789abcdefghijklmnopqrstuv'}`;
+const PREVIEWLANE_TOKEN = `previewlane_${'0123456789abcdefghijklmnopqrstuv'}`;
 
 describe('redact', () => {
 	test.each([
-		['a koi token', `using ${KOI_TOKEN} now`, `using [redacted] now`],
+		['a previewlane token', `using ${PREVIEWLANE_TOKEN} now`, `using [redacted] now`],
 		[
 			'an Authorization header, keeping its scheme',
 			'curl -H "Authorization: Bearer abc.def-123456" https://api.openai.com',
@@ -88,11 +88,11 @@ describe('redact', () => {
 		expect(redact(text)).toBe(masked);
 	});
 
-	test('leaves hashes, koi names and ordinary build output alone', () => {
+	test('leaves hashes, previewlane names and ordinary build output alone', () => {
 		for (const text of [
 			`commit ${'0123456789abcdef'.repeat(2)}01234567`,
 			`sha256:${'9f'.repeat(32)}`,
-			'koi-preview/hello-pr-7:aaaaaaaaaaaaaaaa1 koi-hello-pr-7-aaaaaaaaaaaaaaaa1',
+			'previewlane-preview/hello-pr-7:aaaaaaaaaaaaaaaa1 previewlane-hello-pr-7-aaaaaaaaaaaaaaaa1',
 			'request abcdefghij0123456789abcdefghij0123456789: github.com/acme/hello',
 			'#5 [2/5] RUN npm ci --no-audit',
 			'#7 DONE 12.3s',
@@ -153,12 +153,12 @@ describe('redact', () => {
 });
 
 describe('login keys and known values', () => {
-	const LOGIN_KEY = 'koi-abcdefghijklmnopqrstuvwx';
+	const LOGIN_KEY = 'previewlane-abcdefghijklmnopqrstuvwx';
 
 	test('masks a preview login key and leaves what only looks like one', () => {
 		expect(redact(`APP_LOGIN_KEY=${LOGIN_KEY} set`)).toBe('APP_LOGIN_KEY=[redacted] set');
 		expect(redact(`visit /?k=${LOGIN_KEY}`)).toBe('visit /?k=[redacted]');
-		expect(redact('koi-abc is short')).toBe('koi-abc is short');
+		expect(redact('previewlane-abc is short')).toBe('previewlane-abc is short');
 		expect(redact(`x${LOGIN_KEY}`)).toBe(`x${LOGIN_KEY}`);
 	});
 
@@ -229,7 +229,7 @@ describe('a scrub of a scrub changes nothing', () => {
 
 	test.each([
 		['text with no secret', 'the page loaded fine'],
-		['a koi token', `using ${KOI_TOKEN} now`],
+		['a previewlane token', `using ${PREVIEWLANE_TOKEN} now`],
 		['a header', 'Authorization: Bearer abc.def-123456'],
 		['a header with no scheme', 'x-api-key: "abc123"'],
 		['a named value', 'password=hunter2, token: abc'],
@@ -239,8 +239,8 @@ describe('a scrub of a scrub changes nothing', () => {
 		['an existing mask', 'it said [redacted] and token=[redacted]'],
 		['a piece of a mask after a name', 'token=[reda'],
 		['a mask run into a value', 'token=[redacted]tail'],
-		['a token that ran into a header', `${KOI_TOKEN}authorization: abc`],
-		['a token that ran into bearer', `${KOI_TOKEN}bearer abcdefghij`],
+		['a token that ran into a header', `${PREVIEWLANE_TOKEN}authorization: abc`],
+		['a token that ran into bearer', `${PREVIEWLANE_TOKEN}bearer abcdefghij`],
 		['a key that ran into a name', `hf_${'a'.repeat(20)}-token=abc`],
 	])('the patterns: %s', (_what, text) => {
 		const once = redact(text);
@@ -248,13 +248,13 @@ describe('a scrub of a scrub changes nothing', () => {
 	});
 
 	test('a mask that opens the way for an earlier rule is followed through in one scrub', () => {
-		expect(redact(`${KOI_TOKEN}bearer abcdefghij`)).toBe('[redacted]bearer [redacted]');
-		expect(redact(`${KOI_TOKEN}authorization: abc`)).toBe('[redacted]authorization: [redacted]');
+		expect(redact(`${PREVIEWLANE_TOKEN}bearer abcdefghij`)).toBe('[redacted]bearer [redacted]');
+		expect(redact(`${PREVIEWLANE_TOKEN}authorization: abc`)).toBe('[redacted]authorization: [redacted]');
 	});
 
 	test.each([
 		['a plain value', 'private-value-1234'],
-		['a path', '.koi/runners'],
+		['a path', '.previewlane/runners'],
 		['a word', 'chromium'],
 		['a value that overlaps the end of the mask', 'acted]tail'],
 		['a value that overlaps the start of the mask', 'head[redac'],
@@ -316,7 +316,7 @@ describe('a scrub of a scrub changes nothing', () => {
 		expect(secrets.redact(once)).toBe(once);
 	});
 
-	test('one scrub is enough, so no line can make koid go round again', () => {
+	test('one scrub is enough, so no line can make previewlaned go round again', () => {
 		const secrets = new SecretRegistry();
 		// A value that a mask could complete, were it registered.
 		secrets.add('x[redacted]');
@@ -368,7 +368,7 @@ describe('a scrub of a scrub changes nothing', () => {
 		expect(out.length).toBeLessThanOrEqual(100);
 		expect(scrub(out)).toBe(out);
 		// A value that the cut makes whole is scrubbed too, within the limit.
-		const key = `${'y'.repeat(70)} koi-${'a1'.repeat(12)}zzzz`;
+		const key = `${'y'.repeat(70)} previewlane-${'a1'.repeat(12)}zzzz`;
 		const cut = scrubWithin(scrub, key, 99);
 		expect(cut).toBe(`${'y'.repeat(70)} [redacted]`);
 		expect(scrub(cut)).toBe(cut);
@@ -383,8 +383,8 @@ describe('holdsCredential', () => {
 	const HEX64 = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
 	test.each([
-		['a koi token', KOI_TOKEN],
-		['a preview login key', `koi-${'a1b2c3d4'.repeat(3)}`],
+		['a previewlane token', PREVIEWLANE_TOKEN],
+		['a preview login key', `previewlane-${'a1b2c3d4'.repeat(3)}`],
 		['an OpenAI key', 'sk-proj-AbCdEf0123456789abcdef0123'],
 		['an Anthropic key', `sk-ant-api03-${'aB3dE6gH9jK2'.repeat(6)}-AAAA`],
 		['an OpenRouter key', `sk-or-v1-${'0a'.repeat(32)}`],
@@ -428,7 +428,7 @@ describe('holdsCredential', () => {
 		['an image named after a word', 'ghcr.io/acme/token:v1.2.3'],
 		['an image named after a word, with a longer tag', 'ghcr.io/acme/secret:2024.01.02-build7'],
 		// Ordinary paths, and what the general patterns match in them.
-		['a runner path', '.koi/runners/home.sh'],
+		['a runner path', '.previewlane/runners/home.sh'],
 		['a path with a credential word', 'src/auth/token.ts'],
 		['a path with a colon after one', 'src/token:refresh/index.ts'],
 		['a glob', 'packages/secret-store/**'],
@@ -445,12 +445,12 @@ describe('holdsCredential', () => {
 		['a point that starts like an xAI key', 'xai-chat-completes-a-long-request'],
 		['a point that starts like a Perplexity key', 'pplx-search-renders-citations-list'],
 		['a point that starts like an OpenAI key', 'sk-learn-model-trains-on-fixture'],
-		['a point that looks like a login key', 'koi-abcdefghijklmnopqrstuvwx'],
+		['a point that looks like a login key', 'previewlane-abcdefghijklmnopqrstuvwx'],
 		// Commands that read a secret from where it belongs.
-		['a flag from the environment', '--token=$KOI_TOKEN'],
+		['a flag from the environment', '--token=$PREVIEWLANE_TOKEN'],
 		// biome-ignore lint/suspicious/noTemplateCurlyInString: a shell's braces, as a command has them
-		['a flag from the environment, braced', '--token=${KOI_TOKEN}'],
-		['a long name from the environment', '--token=$KOI_Long_Secret_Name_Number_1'],
+		['a flag from the environment, braced', '--token=${PREVIEWLANE_TOKEN}'],
+		['a long name from the environment', '--token=$PREVIEWLANE_Long_Secret_Name_Number_1'],
 		['a header from the environment', 'Authorization: Bearer $TOKEN'],
 		// biome-ignore lint/suspicious/noTemplateCurlyInString: a shell's braces, as a command has them
 		['a setting from the environment', 'API_KEY=${API_KEY}'],
@@ -470,7 +470,7 @@ describe('holdsCredential', () => {
 		// A mask costs little and a refusal stops planning, so these differ on purpose.
 		for (const text of [
 			'sk-learn-model-trains-on-fixture',
-			'--token=$KOI_TOKEN',
+			'--token=$PREVIEWLANE_TOKEN',
 			'password=test',
 		]) {
 			expect(holdsCredential(text)).toBe(false);
@@ -493,7 +493,7 @@ describe('LineScrubber', () => {
 		const registry = new SecretRegistry();
 		registry.add('supersecretvalue1');
 		const scrubber = new LineScrubber((text) => registry.redact(text));
-		const bytes = encode('a supersecretvalue1 b\nsecond koi_0123456789abcdefghijklmnopqrstuv\n');
+		const bytes = encode('a supersecretvalue1 b\nsecond previewlane_0123456789abcdefghijklmnopqrstuv\n');
 		let out = '';
 		for (let i = 0; i < bytes.length; i += 3) out += scrubber.push(bytes.subarray(i, i + 3));
 		out += scrubber.end();
@@ -508,7 +508,7 @@ describe('LineScrubber', () => {
 	});
 
 	test('discards an overlong line with the fixed diagnostic, however it arrives', () => {
-		const diagnostic = `[koi: a line over ${16} bytes was discarded]`;
+		const diagnostic = `[previewlane: a line over ${16} bytes was discarded]`;
 		const scrubber = new LineScrubber((text) => text, 16);
 		expect(scrubber.push(encode(`${'x'.repeat(40)}\nok\n`))).toBe(`${diagnostic}\nok\n`);
 		let out = '';
@@ -518,7 +518,7 @@ describe('LineScrubber', () => {
 		expect(out).toBe(`${diagnostic}\nfine\n`);
 		scrubber.push(encode('z'.repeat(20)));
 		expect(scrubber.end()).toBe(`${diagnostic}\n`);
-		expect(OVERLONG_LINE).toBe('[koi: a line over 65536 bytes was discarded]');
+		expect(OVERLONG_LINE).toBe('[previewlane: a line over 65536 bytes was discarded]');
 	});
 
 	test('bytes that are not UTF-8 become replacement characters', () => {

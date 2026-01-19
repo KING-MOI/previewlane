@@ -1,8 +1,8 @@
-import { KOI_DIR, type ProofRecord, TEXT_MAX, type VerifyConfig } from '@koi/shared';
+import { PREVIEWLANE_DIR, type ProofRecord, TEXT_MAX, type VerifyConfig } from '@previewlane/shared';
 import { holdsCredential, holdsCredentialShape, scrubWithin } from './redact.ts';
 
-// What a run's data may say once it leaves koid (docs/verify.md, "Running a
-// verification"). There are two kinds of text. Project text and koid's own values are
+// What a run's data may say once it leaves previewlaned (docs/verify.md, "Running a
+// verification"). There are two kinds of text. Project text and previewlaned's own values are
 // written once, as they are, so their digests hold; an execution descriptor holds nothing
 // else and never comes here. A plan is written the same way, and the little runtime text
 // it holds comes here once as it enters, before the digest. Runtime text is what a page, a
@@ -18,7 +18,7 @@ export interface SanitizeRules {
 
 export type Sanitize = <T>(record: T) => T;
 
-// The fields a record names that hold project text or koid's own values. A mask in one
+// The fields a record names that hold project text or previewlaned's own values. A mask in one
 // would change what it says or break its form, so a value someone registered as a key
 // (the keys page takes any) could make a run's own records unreadable. Any field not
 // named here is scrubbed, because a leak is worse than an ugly mask. No page or runner
@@ -26,9 +26,9 @@ export type Sanitize = <T>(record: T) => T;
 // came never reach this list (walk, sanitizeEvent), and of what a runner reports, only a
 // declared name and one of the protocol's outcomes do. A name here means this in every
 // record, so a field that holds what a runner chose goes by another name: `evidence` is
-// koid's artifact ids, and what a runner cited is `cited`.
+// previewlaned's artifact ids, and what a runner cited is `cited`.
 const FIXED_FIELDS: ReadonlySet<string> = new Set([
-	// Project text: what .koi/ declares, or what the pull request's git tree holds. A
+	// Project text: what .previewlane/ declares, or what the pull request's git tree holds. A
 	// report's `assertion` is a declared name: the verifier takes no report for another.
 	'assertion',
 	'assertions',
@@ -38,7 +38,7 @@ const FIXED_FIELDS: ReadonlySet<string> = new Set([
 	'pointId',
 	'profile',
 	'uncovered',
-	// Ids and digests koid makes or computes. An id above can be koid's too: an artifact's.
+	// Ids and digests previewlaned makes or computes. An id above can be previewlaned's too: an artifact's.
 	'artifact',
 	'commit',
 	'base',
@@ -54,7 +54,7 @@ const FIXED_FIELDS: ReadonlySet<string> = new Set([
 	'policyDigest',
 	'runId',
 	'sha256',
-	// Times from koid's clock.
+	// Times from previewlaned's clock.
 	'at',
 	'capturedAt',
 	'checkedAt',
@@ -66,7 +66,7 @@ const FIXED_FIELDS: ReadonlySet<string> = new Set([
 	'tombstoneUntil',
 	'updatedAt',
 	// Enums and fixed words. A media type is one of the recorder's literals for a kind,
-	// and an origin is the literal `recorder` or the address koid gave the recorder.
+	// and an origin is the literal `recorder` or the address previewlaned gave the recorder.
 	'availability',
 	'cleanup',
 	'code',
@@ -80,7 +80,7 @@ const FIXED_FIELDS: ReadonlySet<string> = new Set([
 	'source',
 	'state',
 	'status',
-	// How koid saw a verifier end, one of PointRun's fixed words.
+	// How previewlaned saw a verifier end, one of PointRun's fixed words.
 	'stopped',
 ]);
 
@@ -97,10 +97,10 @@ const TEXT_BOUNDS: ReadonlyMap<string, number> = new Map([
 	['removedFields', 200],
 ]);
 
-// `record` as it may leave koid now, with its runtime text scrubbed. It takes a record of
+// `record` as it may leave previewlaned now, with its runtime text scrubbed. It takes a record of
 // any kind (a controller state, a result, a report's text, an event, a reply) and never
 // changes what it is given. Scrubbing what this returned changes nothing, so a record
-// read back and sent on says what the file says, unless koid has learned a secret since.
+// read back and sent on says what the file says, unless previewlaned has learned a secret since.
 export function sanitizeRunData<T>(record: T, rules: SanitizeRules): T {
 	if (typeof record === 'string') return rules.redact(record) as T;
 	return (isEvent(record) ? sanitizeEvent(record, rules) : walk(record, undefined, rules)) as T;
@@ -113,7 +113,7 @@ function walk(value: unknown, key: string | undefined, rules: SanitizeRules): un
 	const out: Record<string, unknown> = {};
 	for (const [name, field] of Object.entries(value)) {
 		// A field called `reports` holds a runner's words as they came, whatever it calls a
-		// field, so nothing under it is fixed. A point's observations say what koid checked
+		// field, so nothing under it is fixed. A point's observations say what previewlaned checked
 		// of a report in fields of their own (ObservedPoint).
 		if (field !== undefined) out[name] = walk(field, key === 'reports' ? key : name, rules);
 	}
@@ -201,7 +201,7 @@ export interface DeclaredText {
 // chooses, a profile's name and a file's path, are checked as fields and never named, so
 // the answer cannot carry a value by way of a field's own name. Every declared field is
 // looked at, whether or not this plan would write it: the file is in the project either way.
-// A project can declare 64 MiB here, so the rest of koid gets a turn between points.
+// A project can declare 64 MiB here, so the rest of previewlaned gets a turn between points.
 export async function declaredCredential({
 	config,
 	policy,
@@ -215,7 +215,7 @@ export async function declaredCredential({
 		})),
 	};
 	const manifestField = credentialField(manifest, '');
-	if (manifestField !== undefined) return `${KOI_DIR}/verify.yaml, field ${manifestField}`;
+	if (manifestField !== undefined) return `${PREVIEWLANE_DIR}/verify.yaml, field ${manifestField}`;
 	for (const [i, { path, point, runners }] of config.points.entries()) {
 		await new Promise((resolve) => setImmediate(resolve));
 		const field = credentialField({ path, ...point, runners }, '');

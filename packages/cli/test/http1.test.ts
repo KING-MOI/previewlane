@@ -44,7 +44,7 @@ describe('HttpRelayClient', () => {
 		});
 		await Bun.sleep(1);
 		expect(r.sent()).toBe(
-			'POST /v1/uploads HTTP/1.1\r\nHost: koid\r\nConnection: keep-alive\r\ncontent-type: application/json\r\nContent-Length: 7\r\n\r\n{"a":1}',
+			'POST /v1/uploads HTTP/1.1\r\nHost: previewlaned\r\nConnection: keep-alive\r\ncontent-type: application/json\r\nContent-Length: 7\r\n\r\n{"a":1}',
 		);
 		r.reply(
 			'HTTP/1.1 201 Created\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}',
@@ -88,7 +88,7 @@ describe('HttpRelayClient', () => {
 		const big = relay();
 		const large = new HttpRelayClient(big, 100).request({ method: 'GET', path: '/a' });
 		big.reply('HTTP/1.1 200 OK\r\nContent-Length: 101\r\n\r\n');
-		await expect(large).rejects.toThrow('an HTTP reply of 101 bytes; koi takes at most 100');
+		await expect(large).rejects.toThrow('an HTTP reply of 101 bytes; previewlane takes at most 100');
 	});
 
 	test('a streamed body goes out a chunk at a time, and stops once the host has answered', async () => {

@@ -7,16 +7,16 @@ import { caddyApplier, renderCaddyfile } from '../src/caddy.ts';
 const base = { domain: 'previews.example.net', httpPort: 7777, logPort: 7778 };
 
 describe('renderCaddyfile', () => {
-	test('sends /__koi/* to koid before any preview route, and everything else to koid last', () => {
+	test('sends /__previewlane/* to previewlaned before any preview route, and everything else to previewlaned last', () => {
 		const text = renderCaddyfile({
 			...base,
 			routes: [{ label: 'hello', upstream: '172.19.0.2:8080' }],
 		});
-		const koiPaths = text.indexOf('handle /__koi/*');
+		const previewlanePaths = text.indexOf('handle /__previewlane/*');
 		const preview = text.indexOf('@p0 host hello.previews.example.net');
 		const fallback = text.indexOf('\thandle {\n\t\treverse_proxy 127.0.0.1:7777');
-		expect(koiPaths).toBeGreaterThan(0);
-		expect(preview).toBeGreaterThan(koiPaths);
+		expect(previewlanePaths).toBeGreaterThan(0);
+		expect(preview).toBeGreaterThan(previewlanePaths);
 		expect(fallback).toBeGreaterThan(preview);
 		expect(text).toContain('reverse_proxy 172.19.0.2:8080');
 		expect(text).toContain('handle_errors 502 503 504');
@@ -38,10 +38,10 @@ describe('renderCaddyfile', () => {
 		);
 	});
 
-	test("passes the X-Forwarded-For CloudFront sent on to koid's own pages", () => {
+	test("passes the X-Forwarded-For CloudFront sent on to previewlaned's own pages", () => {
 		const text = renderCaddyfile({ ...base, routes: [] });
 		expect(text).toContain(
-			'\thandle {\n\t\treverse_proxy 127.0.0.1:7777 {\n\t\t\theader_up X-Koi-Forwarded-For {http.request.header.X-Forwarded-For}\n\t\t}\n\t}',
+			'\thandle {\n\t\treverse_proxy 127.0.0.1:7777 {\n\t\t\theader_up X-Previewlane-Forwarded-For {http.request.header.X-Forwarded-For}\n\t\t}\n\t}',
 		);
 	});
 
@@ -74,7 +74,7 @@ describe('caddyApplier', () => {
 		status: () => number,
 		onPost: (body: string) => Promise<void> = async () => {},
 	) {
-		const dir = await mkdtemp(join(tmpdir(), 'koid-caddy-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlaned-caddy-'));
 		const file = join(dir, 'Caddyfile');
 		await writeFile(file, 'provisioned\n');
 		const posts: Array<{ url: string; type: string | null; body: string }> = [];

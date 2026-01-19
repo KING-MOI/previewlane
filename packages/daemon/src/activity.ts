@@ -1,5 +1,5 @@
 import { utimes, writeFile } from 'node:fs/promises';
-import { labelFromHost, RESERVED_LABELS } from '@koi/shared';
+import { labelFromHost, RESERVED_LABELS } from '@previewlane/shared';
 import { exec } from './exec.ts';
 
 // Keeps the box awake while someone is using it. The idle timer on the box
@@ -32,7 +32,7 @@ export class Activity {
 		}
 	}
 
-	// Counts a request for a live preview. A request for one of koi's own
+	// Counts a request for a live preview. A request for one of previewlane's own
 	// pages (RESERVED_LABELS: the keys page and its API) keeps the box awake
 	// too, though it has no record to renew. Anything else is ignored.
 	visit(label: string): void {

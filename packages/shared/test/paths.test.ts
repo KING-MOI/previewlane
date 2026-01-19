@@ -45,7 +45,7 @@ describe('RelativePathSchema', () => {
 		expect(RelativePathSchema.parse('./docker//app.Dockerfile')).toBe('docker/app.Dockerfile');
 		expect(RelativePathSchema.parse('services/web/')).toBe('services/web');
 		expect(RelativePathSchema.parse('...')).toBe('...');
-		expect(RelativePathSchema.parse('packages/@koi/app')).toBe('packages/@koi/app');
+		expect(RelativePathSchema.parse('packages/@previewlane/app')).toBe('packages/@previewlane/app');
 	});
 });
 

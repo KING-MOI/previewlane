@@ -1,5 +1,5 @@
-// koi's own matcher for `select.paths` and the manifest's point globs. A pull request
-// chooses the globs and the file names, and koid matches them on its one event loop. koid
+// previewlane's own matcher for `select.paths` and the manifest's point globs. A pull request
+// chooses the globs and the file names, and previewlaned matches them on its one event loop. previewlaned
 // cannot see the cost of a third-party matcher or stop one partway, so this one counts its
 // steps and can pause at any step. docs/verify.md has the grammar ("Globs") and the numbers
 // ("Planning limits").
@@ -14,7 +14,7 @@ export const GLOB_MAX_EXPANSIONS = 1024;
 export const GLOB_MAX_EXPANDED_CHARS = 65_536;
 // What one plan may spend. "Planning limits" has the measurements behind it.
 export const GLOB_STEP_BUDGET = 4_000_000_000;
-// How many steps run before the rest of koid gets a turn: under 2 milliseconds.
+// How many steps run before the rest of previewlaned gets a turn: under 2 milliseconds.
 export const GLOB_TURN_STEPS = 256 * 1024;
 // What starting a match costs next to one trip round the loop. A plan is mostly matches
 // that end on their first character, and this is most of their time.
@@ -85,7 +85,7 @@ function parse(glob: string): string[][] | string {
 	return pieces;
 }
 
-// What is wrong with a glob, or undefined. The schemas call this, so a glob koi cannot
+// What is wrong with a glob, or undefined. The schemas call this, so a glob previewlane cannot
 // match never loads.
 export function globProblem(glob: string): string | undefined {
 	const parsed = parse(glob);
@@ -164,7 +164,7 @@ export function compileGlob(glob: string): CompiledGlob {
 }
 
 // Where one match has got to. It lives outside the loop so the loop can stop at any step
-// and go on after koid's other work has had a turn.
+// and go on after previewlaned's other work has had a turn.
 interface Cursor {
 	expansion: number;
 	glob: number;
@@ -281,7 +281,7 @@ export interface GlobWorkOptions {
 	over: (budget: number) => Error;
 	// A test sets these. The budget is otherwise GLOB_STEP_BUDGET, the same on every box.
 	budget?: number | undefined;
-	// Runs each time matching gives the rest of koid a turn.
+	// Runs each time matching gives the rest of previewlaned a turn.
 	onTurn?: (() => void) | undefined;
 }
 

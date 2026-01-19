@@ -3,14 +3,14 @@ import {
 	MAX_BUILD_TIMEOUT_MINUTES,
 	MAX_HEALTH_TIMEOUT_SECONDS,
 	RESERVED_LABELS,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import type { Deployer, PreviewView } from './deployer.ts';
 import { page } from './pages.ts';
 
 export const DAEMON_VERSION = '0.1.0';
 
 // How long a waiting page keeps checking. A first deployment may take the
-// longest build and health check any recipe allows; koid fails it after
+// longest build and health check any recipe allows; previewlaned fails it after
 // that, and the page then shows the failure. A build queued behind others
 // can take longer, and the page then offers a refresh. Starting a stopped
 // preview takes at most the longest health check.
@@ -24,7 +24,7 @@ export interface HttpOptions {
 	deployer: Pick<Deployer, 'view' | 'ensureRunning'>;
 	onVisit: (label: string) => void;
 	log: (message: string) => void;
-	// koi's own pages, by reserved label (keys.<domain> -> the keys page).
+	// previewlane's own pages, by reserved label (keys.<domain> -> the keys page).
 	pages?: Record<string, (request: Request) => Promise<Response>>;
 }
 
@@ -42,13 +42,13 @@ export function createHttpServer(options: HttpOptions) {
 export async function handle(request: Request, options: HttpOptions): Promise<Response> {
 	const url = new URL(request.url);
 	const host = labelFromHost(request.headers.get('host'), options.domain);
-	// koi's own subdomains are never previews: health reports the box, and
+	// previewlane's own subdomains are never previews: health reports the box, and
 	// everything else goes to their page.
 	const reserved = host !== null && (RESERVED_LABELS as readonly string[]).includes(host);
 	const label = reserved ? null : host;
 	if (label !== null) options.onVisit(label);
 
-	if (url.pathname === '/__koi/health') {
+	if (url.pathname === '/__previewlane/health') {
 		if (label === null) return Response.json({ ok: true, version: DAEMON_VERSION });
 		const view = await options.deployer.view(label);
 		wakeIfStopped(label, view, options);
@@ -96,7 +96,7 @@ function pageFor(view: PreviewView): Response {
 			return page({
 				status: 404,
 				title: 'No preview here',
-				message: 'Nothing is deployed at this address. Ask the author to run koi up.',
+				message: 'Nothing is deployed at this address. Ask the author to run previewlane up.',
 				refresh: true,
 			});
 		case 'expired':
@@ -105,7 +105,7 @@ function pageFor(view: PreviewView): Response {
 				status: 410,
 				title: 'This preview has expired',
 				message:
-					'Nobody had visited it for a while, so it was removed. Ask the author to run koi up again.',
+					'Nobody had visited it for a while, so it was removed. Ask the author to run previewlane up again.',
 				refresh: true,
 			});
 		case 'halted':
@@ -113,7 +113,7 @@ function pageFor(view: PreviewView): Response {
 				status: 507,
 				title: 'This preview was stopped',
 				message:
-					'It was stopped for using too much disk, and stays stopped until the author runs koi up again.',
+					'It was stopped for using too much disk, and stays stopped until the author runs previewlane up again.',
 				refresh: true,
 			});
 		case 'failed':
@@ -121,7 +121,7 @@ function pageFor(view: PreviewView): Response {
 				status: 500,
 				title: 'The build failed',
 				message:
-					'There is no working version of this preview yet. The author can see why with koi logs.',
+					'There is no working version of this preview yet. The author can see why with previewlane logs.',
 				refresh: true,
 			});
 		case 'building':

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { ResultSchema } from '@koi/shared';
+import { ResultSchema } from '@previewlane/shared';
 import {
 	type AssertionReport,
 	escapeText,
@@ -269,7 +269,7 @@ describe('judgePoint', () => {
 		);
 		expect(v.outcome).toBe('blocked');
 		expect(v.reasons).toEqual([
-			'runner_blocked: saved reported blocked (no provider); a claim koid could not confirm',
+			'runner_blocked: saved reported blocked (no provider); a claim previewlaned could not confirm',
 		]);
 	});
 
@@ -562,8 +562,8 @@ function report(over: Partial<ReportInput> = {}): ReportInput {
 describe('renderComment', () => {
 	test('fills the template literally', () => {
 		expect(renderComment(report())).toBe(
-			`<!-- koi-verification:${RUN} -->
-## koi verification: incomplete
+			`<!-- previewlane-verification:${RUN} -->
+## previewlane verification: incomplete
 
 Run: ${RUN}. Verification policy satisfied: no (advisory rollout).
 Tested commit: ${'c'.repeat(40)}.
@@ -581,11 +581,11 @@ Exclusions: none.
 Uncovered changes: src/app.ts.
 Recovery and retries: none.
 Completion: evaluated. Cleanup: succeeded.
-Evidence: Not published. Export with koi verify evidence ${RUN} --out ./koi-evidence..
+Evidence: Not published. Export with previewlane verify evidence ${RUN} --out ./previewlane-evidence..
 Retention: 2026-11-05T12:00:00.000Z. Unavailable artifacts: none.
 Capture limits: Text and declared secret fields were filtered. Pixels, encoded secrets, and unknown application data cannot be certified secret-free. Unsafe artifacts were withheld.
 
-Rerun: \`koi verify run hello-pr-7 --profile pr\`.
+Rerun: \`previewlane verify run hello-pr-7 --profile pr\`.
 This run checks the declared preview points. CI and code-review approvals are separate.
 `,
 		);
@@ -602,16 +602,16 @@ This run checks the declared preview points. CI and code-review approvals are se
 				executionDigest: undefined,
 				origin: undefined,
 				completion: 'interrupted',
-				interruption: 'koid_restarted',
+				interruption: 'previewlaned_restarted',
 				retainedUntil: undefined,
 			}),
 		);
-		expect(text).toContain('## koi verification: passed\n');
+		expect(text).toContain('## previewlane verification: passed\n');
 		expect(text).toContain('Verification policy satisfied: yes.');
 		expect(text).toContain('PR head: unavailable. Base: unavailable at unavailable.');
 		expect(text).toContain('Execution: unavailable.');
 		expect(text).toContain('Origin: unavailable.');
-		expect(text).toContain('Completion: interrupted (koid_restarted). Cleanup: succeeded.');
+		expect(text).toContain('Completion: interrupted (previewlaned_restarted). Cleanup: succeeded.');
 		expect(text).toContain('Retention: unavailable.');
 	});
 
@@ -651,7 +651,7 @@ describe('renderReport', () => {
 			limitations: ['pixels were not inspected'],
 			reasons: [{ id: 'hello.home', reasons: ['verifier_unavailable: nothing ran'] }],
 		});
-		expect(text).toStartWith(`<!-- koi-verification:${RUN} -->`);
+		expect(text).toStartWith(`<!-- previewlane-verification:${RUN} -->`);
 		expect(text).toContain('## Point reasons\n\n- hello.home: verifier_unavailable: nothing ran\n');
 		expect(text).toContain(
 			'## Problems\n\n- 2026-10-06T12:00:01.000Z capture_failed: screenshot point-opened: frames moved\n',
@@ -701,8 +701,8 @@ describe('renderReport', () => {
 		};
 		const full = report({
 			completion: 'interrupted',
-			interruption: 'koid_restarted',
-			evidenceLink: 'https://koi.example/runs/1',
+			interruption: 'previewlaned_restarted',
+			evidenceLink: 'https://previewlane.example/runs/1',
 			exclusions: ['one'],
 			recoveries: ['one'],
 			unavailable: ['one'],

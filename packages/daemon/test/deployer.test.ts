@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { LEASE_MAX_SECONDS, type PreviewRecord, RecipeSchema } from '@koi/shared';
+import { LEASE_MAX_SECONDS, type PreviewRecord, RecipeSchema } from '@previewlane/shared';
 import { Activity } from '../src/activity.ts';
 import { caddyApplier, type Route } from '../src/caddy.ts';
 import {
@@ -48,12 +48,12 @@ describe('up', () => {
 		await t.up(request());
 		const record = await t.store.get('hello-pr-7');
 		expect(record?.status).toBe('running');
-		expect(record?.deployment?.image).toBe('koi-preview/hello-pr-7:aaaaaaaaaaaaaaaa1');
+		expect(record?.deployment?.image).toBe('previewlane-preview/hello-pr-7:aaaaaaaaaaaaaaaa1');
 		expect(t.lastRoutes()).toEqual([{ label: 'hello-pr-7', upstream: '172.19.0.2:8080' }]);
 		expect(t.published.at(-1)).toEqual(['hello-pr-7']);
 		const run = t.docker.runs[0];
-		expect(run?.network).toBe('koi-previews');
-		expect(run?.env.KOI_PREVIEW_URL).toBe('https://hello-pr-7.previews.example.net');
+		expect(run?.network).toBe('previewlane-previews');
+		expect(run?.env.PREVIEWLANE_PREVIEW_URL).toBe('https://hello-pr-7.previews.example.net');
 		expect(t.awakeCalls()).toBeGreaterThan(0);
 	});
 
@@ -76,7 +76,7 @@ describe('up', () => {
 		expect((await t.store.get('hello-pr-7'))?.deployment?.merge).toBeUndefined();
 	});
 
-	test('the same request accepted again after koi down makes a deployment with a new id, whatever Docker gives the image', async () => {
+	test('the same request accepted again after previewlane down makes a deployment with a new id, whatever Docker gives the image', async () => {
 		const t = await setup();
 		await t.up(request());
 		const first = (await t.store.get('hello-pr-7'))?.deployment;
@@ -115,16 +115,16 @@ describe('up', () => {
 		const record = await t.store.get('hello-pr-7');
 		expect(record?.status).toBe('failed');
 		expect(record?.error).toContain('no answer on port 8080');
-		expect(record?.error).toContain('logs of koi-hello-pr-7-cccccccccccccccc3');
+		expect(record?.error).toContain('logs of previewlane-hello-pr-7-cccccccccccccccc3');
 		expect(record?.deployment).toEqual(first);
-		expect(t.docker.containers.has('koi-hello-pr-7-cccccccccccccccc3')).toBe(false);
-		expect(t.docker.images.has('koi-preview/hello-pr-7:cccccccccccccccc3')).toBe(false);
+		expect(t.docker.containers.has('previewlane-hello-pr-7-cccccccccccccccc3')).toBe(false);
+		expect(t.docker.images.has('previewlane-preview/hello-pr-7:cccccccccccccccc3')).toBe(false);
 		expect(t.lastRoutes()).toEqual([{ label: 'hello-pr-7', upstream: '172.19.0.2:8080' }]);
 	});
 
 	test('a container that exits during start-up fails fast with its logs', async () => {
 		const t = await setup();
-		t.docker.crashing.add('koi-hello-pr-7-aaaaaaaaaaaaaaaa1');
+		t.docker.crashing.add('previewlane-hello-pr-7-aaaaaaaaaaaaaaaa1');
 		await t.up(request());
 		const record = await t.store.get('hello-pr-7');
 		expect(record?.status).toBe('failed');
@@ -191,7 +191,7 @@ describe('up', () => {
 	});
 
 	test('the build log is written out before the record says how the build ended', async () => {
-		// koi up reads the log to its end once the record says running or
+		// previewlane up reads the log to its end once the record says running or
 		// failed, and stops there. This log keeps lines in memory until flush
 		// or close, and its first flush waits until the test lets it go on.
 		for (const buildError of [undefined, 'docker build exited 1: RUN npm ci failed']) {
@@ -221,7 +221,7 @@ describe('up', () => {
 
 	test('masks key-shaped values in the build log and in the error the record keeps', async () => {
 		const t = await setup();
-		const token = `koi_${'0123456789abcdefghijklmnopqrstuv'}`;
+		const token = `previewlane_${'0123456789abcdefghijklmnopqrstuv'}`;
 		const key = 'sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789';
 		t.docker.buildOutput = [`#5 echo ${token}`, `#6 Authorization: Bearer ${key}`];
 		// The health check fails, and the error carries the container's log.
@@ -317,8 +317,8 @@ describe('up', () => {
 		expect(t.docker.images.has(first?.image ?? '')).toBe(true);
 		expect(t.lastRoutes()).toEqual(routed);
 		// Only the new attempt's container and image are gone.
-		expect(t.docker.containers.has('koi-hello-pr-7-bbbbbbbbbbbbbbbb2')).toBe(false);
-		expect(t.docker.images.has('koi-preview/hello-pr-7:bbbbbbbbbbbbbbbb2')).toBe(false);
+		expect(t.docker.containers.has('previewlane-hello-pr-7-bbbbbbbbbbbbbbbb2')).toBe(false);
+		expect(t.docker.images.has('previewlane-preview/hello-pr-7:bbbbbbbbbbbbbbbb2')).toBe(false);
 	});
 
 	test('a failed attempt keeps its container while Caddy may still route to it', async () => {
@@ -333,12 +333,12 @@ describe('up', () => {
 		const record = await t.store.get('hello-pr-7');
 		expect(record?.status).toBe('failed');
 		expect(record?.deployment).toEqual(first);
-		expect(t.docker.containers.has('koi-hello-pr-7-bbbbbbbbbbbbbbbb2')).toBe(true);
-		expect(t.docker.images.has('koi-preview/hello-pr-7:bbbbbbbbbbbbbbbb2')).toBe(true);
+		expect(t.docker.containers.has('previewlane-hello-pr-7-bbbbbbbbbbbbbbbb2')).toBe(true);
+		expect(t.docker.images.has('previewlane-preview/hello-pr-7:bbbbbbbbbbbbbbbb2')).toBe(true);
 		// Once Caddy takes routes without it, reconcile removes it.
 		await t.deployer.reconcile();
-		expect(t.docker.containers.has('koi-hello-pr-7-bbbbbbbbbbbbbbbb2')).toBe(false);
-		expect(t.docker.images.has('koi-preview/hello-pr-7:bbbbbbbbbbbbbbbb2')).toBe(false);
+		expect(t.docker.containers.has('previewlane-hello-pr-7-bbbbbbbbbbbbbbbb2')).toBe(false);
+		expect(t.docker.images.has('previewlane-preview/hello-pr-7:bbbbbbbbbbbbbbbb2')).toBe(false);
 		expect(t.docker.containers.has(first?.container ?? '')).toBe(true);
 	});
 
@@ -346,7 +346,7 @@ describe('up', () => {
 		const t = await setup();
 		await t.up(request());
 		const retried = request({ id: 'bbbbbbbbbbbbbbbb2', commit: 'b'.repeat(40) });
-		const left = 'koi-hello-pr-7-bbbbbbbbbbbbbbbb2';
+		const left = 'previewlane-hello-pr-7-bbbbbbbbbbbbbbbb2';
 		t.rejectApplies(2, undefined, 1);
 		await t.up(retried);
 		expect(t.docker.containers.has(left)).toBe(true);
@@ -363,7 +363,7 @@ describe('up', () => {
 		const t = await setup();
 		await t.up(request());
 		const retried = request({ id: 'bbbbbbbbbbbbbbbb2', commit: 'b'.repeat(40) });
-		const left = 'koi-hello-pr-7-bbbbbbbbbbbbbbbb2';
+		const left = 'previewlane-hello-pr-7-bbbbbbbbbbbbbbbb2';
 		t.rejectApplies(2, undefined, 1);
 		await t.up(retried);
 		t.rejectApplies(1);
@@ -371,7 +371,7 @@ describe('up', () => {
 		const record = await t.store.get('hello-pr-7');
 		expect(record?.status).toBe('failed');
 		expect(record?.error).toBe(
-			`${left}, left by an earlier attempt of this request, stays until Caddy takes routes without it; run koi up again: caddy rejected the config: 400 bad`,
+			`${left}, left by an earlier attempt of this request, stays until Caddy takes routes without it; run previewlane up again: caddy rejected the config: 400 bad`,
 		);
 		expect(t.docker.containers.has(left)).toBe(true);
 		expect(t.docker.runs.filter((r) => r.name === left)).toHaveLength(1);
@@ -390,7 +390,7 @@ describe('up', () => {
 			return update(label, change);
 		};
 		await t.up(request());
-		expect(t.docker.containers.has('koi-hello-pr-7-aaaaaaaaaaaaaaaa1')).toBe(false);
+		expect(t.docker.containers.has('previewlane-hello-pr-7-aaaaaaaaaaaaaaaa1')).toBe(false);
 		expect(t.logs.join('\n')).toContain('ENOSPC');
 	});
 
@@ -411,8 +411,8 @@ describe('up', () => {
 		expect(record?.deployment?.requestId).toBe('cccccccccccccccc3');
 		// The second build's container (172.19.0.3) was never routed.
 		expect(t.applied.flat().map((r) => r.upstream)).not.toContain('172.19.0.3:8080');
-		expect(t.docker.containers.has('koi-hello-pr-7-bbbbbbbbbbbbbbbb2')).toBe(false);
-		expect(t.docker.images.has('koi-preview/hello-pr-7:bbbbbbbbbbbbbbbb2')).toBe(false);
+		expect(t.docker.containers.has('previewlane-hello-pr-7-bbbbbbbbbbbbbbbb2')).toBe(false);
+		expect(t.docker.images.has('previewlane-preview/hello-pr-7:bbbbbbbbbbbbbbbb2')).toBe(false);
 		expect(t.lastRoutes()).toEqual([{ label: 'hello-pr-7', upstream: '172.19.0.4:8080' }]);
 	});
 
@@ -446,7 +446,7 @@ describe('up', () => {
 		expect((await t.store.get('hello-pr-7'))?.status).toBe('running');
 	});
 
-	test('a retry after koi down, while the first build runs, deploys once and is not marked failed', async () => {
+	test('a retry after previewlane down, while the first build runs, deploys once and is not marked failed', async () => {
 		const t = await setup();
 		// The first build of the request is under way.
 		const gate = t.hold('keepAwake');
@@ -454,7 +454,7 @@ describe('up', () => {
 		await t.deployer.up('aaaaaaaaaaaaaaaa1');
 		await gate.reached;
 		const first = (await t.store.get('hello-pr-7'))?.attempt;
-		// koi down removes the record; the same request is sent again and
+		// previewlane down removes the record; the same request is sent again and
 		// queues a second build behind the first.
 		expect(await t.deployer.down('hello-pr-7')).toBe(true);
 		expect(await t.deployer.up('aaaaaaaaaaaaaaaa1')).toEqual({ label: 'hello-pr-7', queued: true });
@@ -477,7 +477,7 @@ describe('up', () => {
 		expect(log).not.toContain('already exists');
 	});
 
-	test('a build queued before koi down and a retry skips itself', async () => {
+	test('a build queued before previewlane down and a retry skips itself', async () => {
 		const t = await setup();
 		// Another preview's build holds the box, so this one waits in the queue.
 		const gate = t.hold('keepAwake');
@@ -494,18 +494,18 @@ describe('up', () => {
 		expect(t.logs).toContain(
 			'build aaaaaaaaaaaaaaaa1 for hello-pr-7: superseded before it started',
 		);
-		expect(t.docker.builds.filter((b) => b.labels['koi.preview'] === 'hello-pr-7')).toHaveLength(1);
+		expect(t.docker.builds.filter((b) => b.labels['previewlane.preview'] === 'hello-pr-7')).toHaveLength(1);
 		expect((await t.store.get('hello-pr-7'))?.status).toBe('running');
 	});
 
-	test('a build that fails after koi down and a retry leaves the retry its own status', async () => {
+	test('a build that fails after previewlane down and a retry leaves the retry its own status', async () => {
 		const t = await setup();
 		// The first build waits in its health check.
 		const probing = t.hold('probe');
 		t.addRequest(request());
 		await t.deployer.up('aaaaaaaaaaaaaaaa1');
 		await probing.reached;
-		// koi down removes its container, and the retry is queued.
+		// previewlane down removes its container, and the retry is queued.
 		expect(await t.deployer.down('hello-pr-7')).toBe(true);
 		await t.deployer.up('aaaaaaaaaaaaaaaa1');
 		// The retry's build waits once it has started.
@@ -583,7 +583,7 @@ describe('up', () => {
 		const refused = t.deployer.up('cccccccccccccccc3');
 		await expect(refused).rejects.toBeInstanceOf(CapacityError);
 		await expect(refused).rejects.toThrow(
-			'koi has 63 live previews, and the list that lets a visit wake the box cannot take a as well: it would pass the 4096 bytes its SSM parameter holds; remove a preview with koi down NAME and run koi up again',
+			'previewlane has 63 live previews, and the list that lets a visit wake the box cannot take a as well: it would pass the 4096 bytes its SSM parameter holds; remove a preview with previewlane down NAME and run previewlane up again',
 		);
 		expect(await t.store.get('a')).toBeUndefined();
 		expect(t.docker.builds).toHaveLength(1);
@@ -789,7 +789,7 @@ describe('ensureRunning', () => {
 		await t.deployer.sync();
 		expect(t.lastRoutes()).toEqual([]);
 		await Promise.all([1, 2, 3].map(() => t.deployer.ensureRunning('hello-pr-7')));
-		expect(t.docker.starts).toEqual(['koi-hello-pr-7-aaaaaaaaaaaaaaaa1']);
+		expect(t.docker.starts).toEqual(['previewlane-hello-pr-7-aaaaaaaaaaaaaaaa1']);
 		expect(t.lastRoutes()).toHaveLength(1);
 	});
 
@@ -857,7 +857,7 @@ describe('ensureRunning', () => {
 		await t.up(request());
 		t.docker.stopAll();
 		await t.deployer.sync();
-		const token = `koi_${'0123456789abcdefghijklmnopqrstuv'}`;
+		const token = `previewlane_${'0123456789abcdefghijklmnopqrstuv'}`;
 		t.docker.containerLogs = `calling the provider with ${token}`;
 		t.setHealthy(() => false);
 		await t.deployer.ensureRunning('hello-pr-7');
@@ -1270,7 +1270,7 @@ describe('expire', () => {
 		const start = t.now();
 		const allow = refuseVisitWrites(t);
 		// A visit every ten minutes from hour 12 to hour 48; flushes and
-		// expiry run as often as they do in koid.
+		// expiry run as often as they do in previewlaned.
 		t.advance(12 * HOUR);
 		while (t.now() <= start + 48 * HOUR) {
 			t.activity.visit('hello-pr-7');
@@ -1503,7 +1503,7 @@ describe('disk', () => {
 		expect(await t.deployer.view('hello-pr-7')).toEqual({ kind: 'halted' });
 		await t.deployer.ensureRunning('hello-pr-7');
 		expect(t.docker.starts).toEqual([]);
-		// A new koi up does not wake it while it builds, and replaces it.
+		// A new previewlane up does not wake it while it builds, and replaces it.
 		t.addRequest(request({ id: 'bbbbbbbbbbbbbbbb2' }));
 		await t.up(request({ id: 'bbbbbbbbbbbbbbbb2' }));
 		const after = await t.store.get('hello-pr-7');
@@ -1559,7 +1559,7 @@ describe('disk', () => {
 		t.docker.diskBytes.set(container, 11 * GiB);
 		refuseHaltMarkers(t);
 		await t.deployer.stopOversized();
-		// koid restarts; the container is stopped and still over the limit.
+		// previewlaned restarts; the container is stopped and still over the limit.
 		const deployer = t.restart();
 		await deployer.reconcile();
 		expect(await deployer.stopOversized()).toEqual([container]);
@@ -1680,15 +1680,15 @@ describe('disk', () => {
 		t.addRequest(request());
 		await t.deployer.up('aaaaaaaaaaaaaaaa1');
 		await gate.reached;
-		t.docker.diskBytes.set('koi-hello-pr-7-aaaaaaaaaaaaaaaa1', 11 * GiB);
-		expect(await t.deployer.stopOversized()).toEqual(['koi-hello-pr-7-aaaaaaaaaaaaaaaa1']);
+		t.docker.diskBytes.set('previewlane-hello-pr-7-aaaaaaaaaaaaaaaa1', 11 * GiB);
+		expect(await t.deployer.stopOversized()).toEqual(['previewlane-hello-pr-7-aaaaaaaaaaaaaaaa1']);
 		gate.release();
 		await t.deployer.settled('hello-pr-7');
 		const record = await t.store.get('hello-pr-7');
 		expect(record?.status).toBe('failed');
 		// It passed its health check before the stop, and the cutover noticed.
 		expect(record?.error).toBe(
-			'koi-hello-pr-7-aaaaaaaaaaaaaaaa1 stopped before it could be routed',
+			'previewlane-hello-pr-7-aaaaaaaaaaaaaaaa1 stopped before it could be routed',
 		);
 		expect(t.docker.containers.size).toBe(0);
 	});
@@ -1742,7 +1742,7 @@ describe('disk', () => {
 		const record = await t.store.get('hello-pr-7');
 		expect(record?.status).toBe('failed');
 		expect(record?.error).toBe(
-			'the box is short of disk: 4 GiB of 80 GiB free after trimming the build cache, and a build needs 8 GiB; remove previews with koi down and run koi up again',
+			'the box is short of disk: 4 GiB of 80 GiB free after trimming the build cache, and a build needs 8 GiB; remove previews with previewlane down and run previewlane up again',
 		);
 		expect(t.docker.prunes).toEqual(['20gb']);
 		expect(t.docker.builds).toHaveLength(0);
@@ -1890,7 +1890,7 @@ describe('reconcile', () => {
 		await t.up(request({ id: 'bbbbbbbbbbbbbbbb2', label: 'other', pr: 8 }));
 		const routes = t.lastRoutes();
 		expect(routes).toHaveLength(2);
-		// koid restarts while both keep running; only hello-pr-7 answers.
+		// previewlaned restarts while both keep running; only hello-pr-7 answers.
 		t.setHealthy((url) => url.startsWith('http://172.19.0.2:'));
 		const deployer = t.restart();
 		await deployer.reconcile();
@@ -1923,12 +1923,12 @@ describe('reconcile', () => {
 		expect(routedAtStop).toEqual([]);
 		expect((await t.docker.inspect(container)).running).toBe(false);
 		expect(t.logs).toContain(
-			`stopped ${container}, which ran outside koi.slice; its next visit starts it there`,
+			`stopped ${container}, which ran outside previewlane.slice; its next visit starts it there`,
 		);
 		await deployer.stopOversized();
 		await deployer.ensureRunning('hello-pr-7');
 		expect(t.docker.starts).toEqual([container]);
-		expect(await t.docker.slice(container)).toBe('koi.slice');
+		expect(await t.docker.slice(container)).toBe('previewlane.slice');
 		expect(t.lastRoutes()).toHaveLength(1);
 	});
 
@@ -1944,7 +1944,7 @@ describe('reconcile', () => {
 		const deployer = t.restart();
 		await deployer.reconcile();
 		expect(t.logs.join('\n')).toContain(
-			`stopping ${container}, which runs outside koi.slice: docker stop ${container} timed out`,
+			`stopping ${container}, which runs outside previewlane.slice: docker stop ${container} timed out`,
 		);
 		expect((await t.docker.inspect(container)).running).toBe(true);
 		expect(t.lastRoutes()).toEqual([]);
@@ -1959,7 +1959,7 @@ describe('reconcile', () => {
 		expect((await t.docker.inspect(container)).running).toBe(false);
 		await deployer.ensureRunning('hello-pr-7');
 		expect(t.docker.starts).toEqual([container]);
-		expect(await t.docker.slice(container)).toBe('koi.slice');
+		expect(await t.docker.slice(container)).toBe('previewlane.slice');
 		expect(t.lastRoutes()).toHaveLength(1);
 	});
 
@@ -1975,9 +1975,9 @@ describe('reconcile', () => {
 		expect(t.lastRoutes()).toEqual([]);
 		expect((await t.docker.inspect(container)).running).toBe(false);
 		expect(t.logs).toContain(
-			`stopped ${container}, which ran outside koi.slice; its next visit starts it there`,
+			`stopped ${container}, which ran outside previewlane.slice; its next visit starts it there`,
 		);
-		t.docker.startSlice = 'koi.slice';
+		t.docker.startSlice = 'previewlane.slice';
 		await t.deployer.ensureRunning('hello-pr-7');
 		expect(t.lastRoutes()).toHaveLength(1);
 	});
@@ -2019,26 +2019,26 @@ describe('reconcile', () => {
 		expect((await t.docker.inspect(container)).running).toBe(true);
 	});
 
-	test("leaves a verification run's helpers alone, even when the image carries koi.preview", async () => {
+	test("leaves a verification run's helpers alone, even when the image carries previewlane.preview", async () => {
 		const t = await setup();
 		await t.up(request());
 		const run = 'r'.repeat(16);
 		await t.docker.createNetwork({
-			name: `koi-v-${run}`,
+			name: `previewlane-v-${run}`,
 			bridge: 'kv0123456789ab',
 			subnet: '10.213.0.0/28',
 			gateway: '10.213.0.1',
-			labels: { 'koi.run': run },
+			labels: { 'previewlane.run': run },
 		});
 		// The project chooses the image, and Docker copies its labels onto
-		// the container. koid sets koi.preview to nothing over it, so the
+		// the container. previewlaned sets previewlane.preview to nothing over it, so the
 		// helper is no preview: neither reconciled nor watched for disk use.
-		t.docker.imageLabels.set('r', { 'koi.preview': 'hello-pr-7' });
-		const recorder = `koi-verify-${run}-recorder`;
+		t.docker.imageLabels.set('r', { 'previewlane.preview': 'hello-pr-7' });
+		const recorder = `previewlane-verify-${run}-recorder`;
 		await t.docker.createRecorder({
 			name: recorder,
 			image: 'r',
-			network: `koi-v-${run}`,
+			network: `previewlane-v-${run}`,
 			ip: '10.213.0.3',
 			mac: '02:4b:0a:d5:00:03',
 			runId: run,
@@ -2047,9 +2047,9 @@ describe('reconcile', () => {
 			env: {},
 		});
 		expect(t.docker.containers.get(recorder)?.labels).toEqual({
-			'koi.preview': '',
-			'koi.role': 'recorder',
-			'koi.run': run,
+			'previewlane.preview': '',
+			'previewlane.role': 'recorder',
+			'previewlane.run': run,
 		});
 		// Over the disk limit too, were it a preview.
 		t.docker.diskBytes.set(recorder, 11 * 1024 ** 3);
@@ -2065,24 +2065,24 @@ describe('reconcile', () => {
 		expect(t.lastRoutes()).toHaveLength(1);
 	});
 
-	test('a preview whose image carries koi.role is still watched for disk use and reconciled', async () => {
+	test('a preview whose image carries previewlane.role is still watched for disk use and reconciled', async () => {
 		const t = await setup();
 		await t.up(request());
-		// A pull request's Dockerfile can LABEL koi.role. koid sets it to
+		// A pull request's Dockerfile can LABEL previewlane.role. previewlaned sets it to
 		// nothing over that, so the container is a preview all the same.
-		t.docker.imageLabels.set('x', { 'koi.role': 'verifier' });
-		const orphan = 'koi-hello-pr-7-orphan';
+		t.docker.imageLabels.set('x', { 'previewlane.role': 'verifier' });
+		const orphan = 'previewlane-hello-pr-7-orphan';
 		await t.docker.run({
 			name: orphan,
 			image: 'x',
-			network: 'koi-previews',
+			network: 'previewlane-previews',
 			user: '1',
 			env: {},
-			labels: { 'koi.preview': 'hello-pr-7' },
+			labels: { 'previewlane.preview': 'hello-pr-7' },
 		});
 		expect(t.docker.containers.get(orphan)?.labels).toEqual({
-			'koi.role': '',
-			'koi.preview': 'hello-pr-7',
+			'previewlane.role': '',
+			'previewlane.preview': 'hello-pr-7',
 		});
 		t.docker.diskBytes.set(orphan, 11 * 1024 ** 3);
 		expect(await t.deployer.stopOversized()).toEqual([orphan]);
@@ -2090,26 +2090,26 @@ describe('reconcile', () => {
 		expect(t.docker.containers.has(orphan)).toBe(false);
 	});
 
-	test('a preview an older koid made, with the koi.role its image set, is still watched for disk use and reconciled', async () => {
+	test('a preview an older previewlaned made, with the previewlane.role its image set, is still watched for disk use and reconciled', async () => {
 		const t = await setup();
 		await t.up(request());
-		// Before koid set koi.role to nothing on every preview, a label from
+		// Before previewlaned set previewlane.role to nothing on every preview, a label from
 		// a pull request's Dockerfile reached the container as it was, and
-		// so did koi.run. The name says what the container is; no label
+		// so did previewlane.run. The name says what the container is; no label
 		// takes it out of the watchdog's or the reconciler's sight.
-		const orphan = `koi-hello-pr-7-${'a'.repeat(20)}`;
+		const orphan = `previewlane-hello-pr-7-${'a'.repeat(20)}`;
 		await t.docker.run({
 			name: orphan,
 			image: 'x',
-			network: 'koi-previews',
+			network: 'previewlane-previews',
 			user: '1',
 			env: {},
-			labels: { 'koi.preview': 'hello-pr-7' },
+			labels: { 'previewlane.preview': 'hello-pr-7' },
 		});
 		const container = t.docker.containers.get(orphan);
 		if (container === undefined) throw new Error('no container');
-		container.labels['koi.role'] = 'recorder';
-		container.labels['koi.run'] = 'r'.repeat(16);
+		container.labels['previewlane.role'] = 'recorder';
+		container.labels['previewlane.run'] = 'r'.repeat(16);
 		t.docker.diskBytes.set(orphan, 11 * 1024 ** 3);
 		expect(await t.deployer.stopOversized()).toEqual([orphan]);
 		expect(container.running).toBe(false);
@@ -2117,22 +2117,22 @@ describe('reconcile', () => {
 		expect(t.docker.containers.has(orphan)).toBe(false);
 	});
 
-	test('a helper whose koi.preview an image forged is no preview, nor is a container only named like one', async () => {
+	test('a helper whose previewlane.preview an image forged is no preview, nor is a container only named like one', async () => {
 		const t = await setup();
 		await t.up(request());
 		const run = 'r'.repeat(16);
 		await t.docker.createNetwork({
-			name: `koi-v-${run}`,
+			name: `previewlane-v-${run}`,
 			bridge: 'kv0123456789ab',
 			subnet: '10.213.0.0/28',
 			gateway: '10.213.0.1',
-			labels: { 'koi.run': run },
+			labels: { 'previewlane.run': run },
 		});
-		const recorder = `koi-verify-${run}-recorder`;
+		const recorder = `previewlane-verify-${run}-recorder`;
 		await t.docker.createRecorder({
 			name: recorder,
 			image: 'r',
-			network: `koi-v-${run}`,
+			network: `previewlane-v-${run}`,
 			ip: '10.213.0.3',
 			mac: '02:4b:0a:d5:00:03',
 			runId: run,
@@ -2140,23 +2140,23 @@ describe('reconcile', () => {
 			dns: '10.213.0.1',
 			env: {},
 		});
-		// As if koid had not set koi.preview to nothing over the image's:
+		// As if previewlaned had not set previewlane.preview to nothing over the image's:
 		// the name alone keeps the helper out of reconcile and the watchdog.
 		const helper = t.docker.containers.get(recorder);
 		if (helper === undefined) throw new Error('no container');
-		helper.labels['koi.preview'] = 'hello-pr-7';
+		helper.labels['previewlane.preview'] = 'hello-pr-7';
 		t.docker.diskBytes.set(recorder, 11 * 1024 ** 3);
 		// A container made by hand under a helper's name, with a preview's
 		// label and no run or role: not a preview here, and not a helper to
 		// cleanup either (verification-network.ts, helperOf).
-		const odd = `koi-verify-${run}-verifier`;
+		const odd = `previewlane-verify-${run}-verifier`;
 		await t.docker.run({
 			name: odd,
 			image: 'x',
-			network: 'koi-previews',
+			network: 'previewlane-previews',
 			user: '1',
 			env: {},
-			labels: { 'koi.preview': 'hello-pr-7' },
+			labels: { 'previewlane.preview': 'hello-pr-7' },
 		});
 		t.docker.diskBytes.set(odd, 11 * 1024 ** 3);
 		const deployer = t.restart();
@@ -2174,18 +2174,18 @@ describe('reconcile', () => {
 		const t = await setup();
 		await t.up(request());
 		await t.docker.run({
-			name: 'koi-hello-pr-7-orphan',
+			name: 'previewlane-hello-pr-7-orphan',
 			image: 'x',
-			network: 'koi-previews',
+			network: 'previewlane-previews',
 			user: '1',
 			env: {},
-			labels: { 'koi.preview': 'hello-pr-7' },
+			labels: { 'previewlane.preview': 'hello-pr-7' },
 		});
 		t.rejectNextApply('caddy rejected the config: 400 bad');
 		await expect(t.deployer.reconcile()).rejects.toThrow('caddy rejected');
-		expect(t.docker.containers.has('koi-hello-pr-7-orphan')).toBe(true);
+		expect(t.docker.containers.has('previewlane-hello-pr-7-orphan')).toBe(true);
 		await t.deployer.reconcile();
-		expect(t.docker.containers.has('koi-hello-pr-7-orphan')).toBe(false);
+		expect(t.docker.containers.has('previewlane-hello-pr-7-orphan')).toBe(false);
 	});
 
 	test.each(['queued', 'building', 'starting'] as const)(
@@ -2197,23 +2197,23 @@ describe('reconcile', () => {
 			if (record === undefined) throw new Error('no record');
 			await t.store.put({ ...record, status });
 			await t.docker.run({
-				name: 'koi-hello-pr-7-orphan',
+				name: 'previewlane-hello-pr-7-orphan',
 				image: 'x',
-				network: 'koi-previews',
+				network: 'previewlane-previews',
 				user: '1',
 				env: {},
-				labels: { 'koi.preview': 'hello-pr-7' },
+				labels: { 'previewlane.preview': 'hello-pr-7' },
 			});
-			t.docker.images.add('koi-preview/hello-pr-7:orphan');
+			t.docker.images.add('previewlane-preview/hello-pr-7:orphan');
 			await t.deployer.reconcile();
 			const after = await t.store.get('hello-pr-7');
 			expect(after?.status).toBe('failed');
 			expect(after?.error).toBe(
-				'interrupted: the daemon restarted before this build finished; run koi up again',
+				'interrupted: the daemon restarted before this build finished; run previewlane up again',
 			);
 			expect(after?.deployment).toEqual(record.deployment);
-			expect(t.docker.containers.has('koi-hello-pr-7-orphan')).toBe(false);
-			expect(t.docker.images.has('koi-preview/hello-pr-7:orphan')).toBe(false);
+			expect(t.docker.containers.has('previewlane-hello-pr-7-orphan')).toBe(false);
+			expect(t.docker.images.has('previewlane-preview/hello-pr-7:orphan')).toBe(false);
 			expect(t.docker.containers.has(record.deployment?.container ?? '')).toBe(true);
 			expect(t.docker.images.has(record.deployment?.image ?? '')).toBe(true);
 		},
@@ -2274,7 +2274,7 @@ describe('the egress proxy address map', () => {
 	});
 
 	test("a dead preview's address never maps to it once another preview's container has it", async () => {
-		// The reviewer's scenario: A's container dies on its own (koid hears
+		// The reviewer's scenario: A's container dies on its own (previewlaned hears
 		// nothing), and Docker gives its address to B's new container.
 		const t = await setup({ proxy: true });
 		t.docker.reuseAddresses = true;
@@ -2316,7 +2316,7 @@ describe('the egress proxy address map', () => {
 		expect(t.docker.events[ran + 1]).toBe('map {}');
 	});
 
-	test('koid keeps a container whose address the proxy may still map, and frees it once the proxy confirms', async () => {
+	test('previewlaned keeps a container whose address the proxy may still map, and frees it once the proxy confirms', async () => {
 		const t = await setup({ proxy: true });
 		await t.up(request());
 		const a = (await t.store.get(A))?.deployment?.container ?? '';
@@ -2386,7 +2386,7 @@ describe('lease', () => {
 			commit: 'a'.repeat(40),
 			merge: { head: 'b'.repeat(40), base: 'c'.repeat(40), baseBranch: 'main' },
 		});
-		// On the record, so it outlives koid.
+		// On the record, so it outlives previewlaned.
 		expect((await t.store.get('hello-pr-7'))?.lease).toEqual(reply.lease);
 		// The preview still serves as before.
 		expect(await t.deployer.view('hello-pr-7')).toEqual({ kind: 'running' });
@@ -2537,7 +2537,7 @@ describe('lease', () => {
 		await expect(t.deployer.acquireLease('hello-pr-7', 'dev@laptop', 60)).rejects.toThrow(
 			'hello-pr-7 has no serving deployment to lease',
 		);
-		// A deployment from before koid kept ids cannot be identified either.
+		// A deployment from before previewlaned kept ids cannot be identified either.
 		t.docker.buildError = undefined;
 		await t.up(request());
 		await t.store.update('hello-pr-7', (r) => {
@@ -2546,7 +2546,7 @@ describe('lease', () => {
 			return { ...r, deployment: old };
 		});
 		await expect(t.deployer.acquireLease('hello-pr-7', 'dev@laptop', 60)).rejects.toThrow(
-			'made before koid recorded deployment ids',
+			'made before previewlaned recorded deployment ids',
 		);
 		// A deployment stopped for disk use serves nothing.
 		await t.up(request({ id: 'bbbbbbbbbbbbbbbb2' }));
@@ -2573,7 +2573,7 @@ describe('lease', () => {
 		const refused = t.deployer.acquireLease('hello-pr-7', 'dev@laptop', 60);
 		await expect(refused).rejects.toBeInstanceOf(LeaseError);
 		await expect(refused).rejects.toThrow(
-			'hello-pr-7 is not running; open https://hello-pr-7.previews.example.net/ to start it, then run koi lease again',
+			'hello-pr-7 is not running; open https://hello-pr-7.previews.example.net/ to start it, then run previewlane lease again',
 		);
 		expect((await t.store.get('hello-pr-7'))?.lease).toBeUndefined();
 		// A visit that starts it makes it leasable, bound to the same deployment.
@@ -2592,7 +2592,7 @@ describe('lease', () => {
 		t.docker.stopAll();
 		await t.deployer.sync();
 		const container = (await t.store.get('hello-pr-7'))?.deployment?.container ?? '';
-		// Started outside koid: Docker runs it, Caddy sends nobody to it.
+		// Started outside previewlaned: Docker runs it, Caddy sends nobody to it.
 		await t.docker.start(container);
 		expect((await t.docker.inspect(container)).running).toBe(true);
 		expect(t.lastRoutes()).toEqual([]);
@@ -2621,7 +2621,7 @@ describe('lease', () => {
 		t.advance(8 * 86_400_000);
 		expect(await t.deployer.view('hello-pr-7')).toEqual({ kind: 'overdue' });
 		await expect(t.deployer.acquireLease('hello-pr-7', 'dev@laptop', 60)).rejects.toThrow(
-			'hello-pr-7 is past its ttl and expires on its next visit; run koi up to deploy it again',
+			'hello-pr-7 is past its ttl and expires on its next visit; run previewlane up to deploy it again',
 		);
 	});
 
@@ -2674,7 +2674,7 @@ describe('lease', () => {
 		const refused = t.deployer.down('hello-pr-7');
 		await expect(refused).rejects.toBeInstanceOf(LeaseError);
 		await expect(refused).rejects.toThrow(
-			`leased by dev@laptop until ${lease.expiresAt}; run koi down hello-pr-7 --force`,
+			`leased by dev@laptop until ${lease.expiresAt}; run previewlane down hello-pr-7 --force`,
 		);
 		expect((await t.store.get('hello-pr-7'))?.status).toBe('running');
 		expect(t.docker.containers.size).toBe(1);
@@ -2688,7 +2688,7 @@ describe('lease', () => {
 		expect(await t.deployer.down('hello-pr-7')).toBe(true);
 	});
 
-	test('a lease outlives a koid restart', async () => {
+	test('a lease outlives a previewlaned restart', async () => {
 		const t = await setup();
 		await t.up(request());
 		const { lease, deployment } = await t.deployer.acquireLease('hello-pr-7', 'dev@laptop', 3600);
@@ -2731,7 +2731,7 @@ describe('lease', () => {
 			domain: 'previews.example.net',
 			httpPort: 7777,
 			logPort: 7778,
-			file: join(await mkdtemp(join(tmpdir(), 'koid-lease-caddy-')), 'Caddyfile'),
+			file: join(await mkdtemp(join(tmpdir(), 'previewlaned-lease-caddy-')), 'Caddyfile'),
 			adminUrl: 'http://127.0.0.1:2019',
 			fetch: (async (_url: URL, init: RequestInit) => {
 				loads.push(String(init.body));
@@ -2759,8 +2759,8 @@ describe('lease', () => {
 		// deployment, and both containers run.
 		expect(running).toContain('reverse_proxy 172.19.0.3:8080');
 		expect(t.docker.containers.has(first?.container ?? '')).toBe(true);
-		expect(t.docker.containers.has('koi-hello-pr-7-bbbbbbbbbbbbbbbb2')).toBe(true);
-		// koid's own view still says the previous deployment serves.
+		expect(t.docker.containers.has('previewlane-hello-pr-7-bbbbbbbbbbbbbbbb2')).toBe(true);
+		// previewlaned's own view still says the previous deployment serves.
 		expect(await t.deployer.view('hello-pr-7')).toEqual({ kind: 'running' });
 		const refused = t.deployer.acquireLease('hello-pr-7', 'dev@laptop', 60);
 		await expect(refused).rejects.toBeInstanceOf(LeaseError);
@@ -2789,7 +2789,7 @@ describe('lease', () => {
 		await t.up(second);
 		expect((await t.store.get('hello-pr-7'))?.status).toBe('failed');
 		expect((await t.store.get('hello-pr-7'))?.deployment).toEqual(first);
-		expect(t.docker.containers.has('koi-hello-pr-7-bbbbbbbbbbbbbbbb2')).toBe(true);
+		expect(t.docker.containers.has('previewlane-hello-pr-7-bbbbbbbbbbbbbbbb2')).toBe(true);
 		const refused = t.deployer.acquireLease('hello-pr-7', 'dev@laptop', 60);
 		await expect(refused).rejects.toBeInstanceOf(LeaseError);
 		await expect(refused).rejects.toThrow('the routes of hello-pr-7 are not settled');
@@ -2889,7 +2889,7 @@ describe('verification inputs', () => {
 		const recipeJson = digestOf(await readFile(join(dir, 'recipe.json'), 'utf8'));
 		t.docker.onBuild = async () => {
 			// The installed recipe is replaced while the build runs, as a
-			// deploy of a newer koid does before it restarts this one.
+			// deploy of a newer previewlaned does before it restarts this one.
 			await writeFile(join(dir, 'Dockerfile'), 'FROM busybox\n');
 		};
 		const deployer = new Deployer({
@@ -2920,7 +2920,7 @@ describe('verification inputs', () => {
 		const recipeJson = digestOf(await readFile(join(installed, 'recipe.json'), 'utf8'));
 		let read: { dockerfile: string; context: string[] } | undefined;
 		t.docker.onBuild = async () => {
-			// A deploy of a newer koid replaces the whole installed directory
+			// A deploy of a newer previewlaned replaces the whole installed directory
 			// while this build runs: new files, and the old Dockerfile gone.
 			await rm(installed, { recursive: true, force: true });
 			await mkdir(installed, { recursive: true });
@@ -2976,7 +2976,7 @@ describe('verification inputs', () => {
 		t.addRequest(r);
 		await deployer.up(r.id);
 		await gate.reached;
-		// A deploy of a newer koid replaces the installed recipe meanwhile:
+		// A deploy of a newer previewlaned replaces the installed recipe meanwhile:
 		// another port, an env, and a login key the old one did not have.
 		const replaced = `${JSON.stringify(
 			builtinRecipe({ port: 9100, env: { APP_MODE: 'preview' }, loginKeyEnv: 'APP_LOGIN_KEY' }),
@@ -2992,7 +2992,7 @@ describe('verification inputs', () => {
 		expect(record?.deployment?.env.APP_MODE).toBe('preview');
 		// The key the copy asks for was made in the build, registered before
 		// the container started, and the record keeps it.
-		expect(record?.loginKey).toMatch(/^koi-[a-z0-9]{24}$/);
+		expect(record?.loginKey).toMatch(/^previewlane-[a-z0-9]{24}$/);
 		expect(record?.deployment?.env.APP_LOGIN_KEY).toBe(record?.loginKey ?? '');
 		expect(registered).toEqual([record?.loginKey ?? '']);
 		expect(runsAt).toEqual([0]);
@@ -3082,7 +3082,7 @@ describe('login keys and the secret registry', () => {
 		await deployer.up(r.id);
 		await deployer.settled(r.label);
 		const record = await t.store.get(r.label);
-		expect(record?.loginKey).toMatch(/^koi-[a-z0-9]{24}$/);
+		expect(record?.loginKey).toMatch(/^previewlane-[a-z0-9]{24}$/);
 		expect(registered).toEqual([record?.loginKey ?? '']);
 		expect(seenAt).toEqual([{ builds: 0, runs: 0, records: 0 }]);
 		expect(record?.deployment?.env.APP_LOGIN_KEY).toBe(record?.loginKey ?? '');

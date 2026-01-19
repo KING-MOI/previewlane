@@ -27,7 +27,7 @@ describe('exec', () => {
 	});
 
 	test('says which program it could not start', async () => {
-		for (const program of ['/nonexistent/koi-gh', 'koi-no-such-program']) {
+		for (const program of ['/nonexistent/previewlane-gh', 'previewlane-no-such-program']) {
 			const err = await exec([program, 'pr']).catch((e: unknown) => e);
 			expect(err).toBeInstanceOf(SpawnError);
 			expect((err as Error).message).toStartWith(`cannot run ${program}: `);

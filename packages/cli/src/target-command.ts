@@ -7,8 +7,8 @@ import { exec } from './exec.ts';
 import { withFileLock } from './lock.ts';
 import type { Io } from './main.ts';
 
-// `koi target`: what a target's endpoint is, and which host key koi trusts
-// for an SSH target. Trust is given one way only: `koi target trust NAME
+// `previewlane target`: what a target's endpoint is, and which host key previewlane trusts
+// for an SSH target. Trust is given one way only: `previewlane target trust NAME
 // --fingerprint SHA256:...` enrolls the key the host offers if, and only
 // if, its fingerprint is the one given, which the operator read on the host
 // or in the provider's console. ssh-keyscan collects the candidate; it does
@@ -43,7 +43,7 @@ export async function targetCommand(
 		case 'trust':
 			return trust(cli, io, deps);
 		default:
-			throw new Error('koi target needs a subcommand: show or trust');
+			throw new Error('previewlane target needs a subcommand: show or trust');
 	}
 }
 
@@ -51,7 +51,7 @@ export async function targetCommand(
 // alias, so that what trust writes is the file's own endpoint.
 async function namedTarget(cli: ParsedCli, deps: TargetCommandDeps) {
 	const name = cli.name;
-	if (name === undefined) throw new Error('koi target needs a target name');
+	if (name === undefined) throw new Error('previewlane target needs a target name');
 	const { path } = configPath({ config: cli.config }, deps.env);
 	const loaded = await loadUserConfig(path, true, deps.notice);
 	if (loaded === undefined) throw new Error(`no config file at ${path}`);
@@ -82,7 +82,7 @@ async function show(cli: ParsedCli, io: Io, deps: TargetCommandDeps): Promise<nu
 	if (endpoint !== undefined && hostKeys !== null) {
 		lines.push(
 			hostKeys.length === 0
-				? `  host key: none trusted for ${endpoint.hostKeyAlias} in ${endpoint.knownHostsFile}; run koi target trust ${name} --fingerprint SHA256:... with the fingerprint from the host's operator`
+				? `  host key: none trusted for ${endpoint.hostKeyAlias} in ${endpoint.knownHostsFile}; run previewlane target trust ${name} --fingerprint SHA256:... with the fingerprint from the host's operator`
 				: `  host key: ${hostKeys.map((k) => `${k.fingerprint} (${k.type})`).join(', ')} as ${endpoint.hostKeyAlias} in ${endpoint.knownHostsFile}`,
 		);
 	}
@@ -127,7 +127,7 @@ async function trust(cli: ParsedCli, io: Io, deps: TargetCommandDeps): Promise<n
 	const match = offered.find((k) => k.fingerprint === wanted);
 	if (match === undefined) {
 		throw new Error(
-			`none of the ${offered.length} host ${offered.length === 1 ? 'key' : 'keys'} ${host}:${port} offers has the fingerprint ${wanted}, so koi trusts nothing. Offered: ${offered.map((k) => `${k.fingerprint} (${k.type})`).join(', ')}. Check the fingerprint with the host's operator (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub on the host) and run koi target trust again with the right one`,
+			`none of the ${offered.length} host ${offered.length === 1 ? 'key' : 'keys'} ${host}:${port} offers has the fingerprint ${wanted}, so previewlane trusts nothing. Offered: ${offered.map((k) => `${k.fingerprint} (${k.type})`).join(', ')}. Check the fingerprint with the host's operator (ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub on the host) and run previewlane target trust again with the right one`,
 		);
 	}
 	// The file is read and written under its lock: two trusts that share a
@@ -135,7 +135,7 @@ async function trust(cli: ParsedCli, io: Io, deps: TargetCommandDeps): Promise<n
 	// the last to write would erase the other's key.
 	const replaced = await withFileLock(
 		knownHostsFile,
-		'koi target trust',
+		'previewlane target trust',
 		deps.sleep ?? Bun.sleep,
 		async () => {
 			const kept: string[] = [];
@@ -151,7 +151,7 @@ async function trust(cli: ParsedCli, io: Io, deps: TargetCommandDeps): Promise<n
 				}
 				had = true;
 				// A line the alias shares with other names (`team,prod ssh-ed25519
-				// ...`) stays for them, with their key. koi's own line for the alias
+				// ...`) stays for them, with their key. previewlane's own line for the alias
 				// is appended below.
 				const others = hostsWithoutAlias(entry.hosts, hostKeyAlias);
 				if (others !== '') kept.push(`${entry.marker}${others}${entry.rest}`);
@@ -269,7 +269,7 @@ function checkOnlyKey(
 	const revocation = revocations.find((k) => k.fingerprint === wanted.fingerprint);
 	if (revocation !== undefined) {
 		throw new Error(
-			`${file} revokes the key ${wanted.fingerprint} for ${alias}, on the line "${revocation.entry.line}", so ssh would refuse it. koi changed nothing. If the key is good after all, remove that line by hand and run koi target trust again`,
+			`${file} revokes the key ${wanted.fingerprint} for ${alias}, on the line "${revocation.entry.line}", so ssh would refuse it. previewlane changed nothing. If the key is good after all, remove that line by hand and run previewlane target trust again`,
 		);
 	}
 	let present = false;
@@ -277,14 +277,14 @@ function checkOnlyKey(
 		if (entry.revoked) continue;
 		if (fingerprint(entry.key) !== wanted.fingerprint || entry.marker !== '') {
 			throw new Error(
-				`after the rewrite ${file} would still trust ${fingerprint(entry.key)} for ${alias}, on the line "${entry.line}", where only ${wanted.fingerprint} should be trusted. koi changed nothing. Remove that line by hand and run koi target trust again`,
+				`after the rewrite ${file} would still trust ${fingerprint(entry.key)} for ${alias}, on the line "${entry.line}", where only ${wanted.fingerprint} should be trusted. previewlane changed nothing. Remove that line by hand and run previewlane target trust again`,
 			);
 		}
 		present = true;
 	}
 	if (!present) {
 		throw new Error(
-			`ssh-keygen does not find the key koi wrote for ${alias} in the rewritten ${file}, so koi changed nothing`,
+			`ssh-keygen does not find the key previewlane wrote for ${alias} in the rewritten ${file}, so previewlane changed nothing`,
 		);
 	}
 }
@@ -333,7 +333,7 @@ async function readKeys(
 
 // What ssh-keygen -l prints for the key lines on its stdin. It exits 255 when no
 // line holds a key it can parse, which readKeys reads as no keys. Any other
-// failure throws, so that a revocation koi could not read cannot pass as none.
+// failure throws, so that a revocation previewlane could not read cannot pass as none.
 async function sshKeygenList(keys: string): Promise<string> {
 	const r = await exec(['ssh-keygen', '-E', 'sha256', '-l', '-f', '-'], {
 		stdin: keys,
@@ -358,7 +358,7 @@ export async function knownHostsLines(file: string): Promise<string[]> {
 	// revocation behind one could be missed here and still refuse the key later.
 	if (text.includes('\0')) {
 		throw new Error(
-			`${file} has a NUL byte, so koi cannot tell what it trusts. Remove that line and run the command again`,
+			`${file} has a NUL byte, so previewlane cannot tell what it trusts. Remove that line and run the command again`,
 		);
 	}
 	const lines = text.split('\n');

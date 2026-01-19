@@ -12,7 +12,7 @@ import {
 	relay,
 	sanitizeEnvironment,
 	socketFromArgv,
-} from '../koi-ssh-gateway.ts';
+} from '../previewlane-ssh-gateway.ts';
 
 const PING = `ctl-b64 ${encodeCtlArgs(['ping'])}`;
 
@@ -30,7 +30,7 @@ const HOST: HostInfo = {
 };
 
 describe('parseCommand', () => {
-	test('takes exactly tunnel-v1 and ctl-b64 with one blob koid would decode', () => {
+	test('takes exactly tunnel-v1 and ctl-b64 with one blob previewlaned would decode', () => {
 		expect(parseCommand('tunnel-v1')).toEqual({ verb: 'tunnel-v1' });
 		const blob = encodeCtlArgs(['status', 'hello-pr-7', 'b'.repeat(20), '0']);
 		expect(parseCommand(`ctl-b64 ${blob}`)).toEqual({ verb: 'ctl-b64', blob });
@@ -98,7 +98,7 @@ describe('parseCommand', () => {
 			'bash',
 			'sh -c tunnel-v1',
 			'/bin/sh',
-			'koid ctl ping',
+			'previewlaned ctl ping',
 			`exec ${PING}`,
 		]) {
 			expect(refused(c)).toContain('is not a command of this account');
@@ -109,7 +109,7 @@ describe('parseCommand', () => {
 describe('socketFromArgv and sanitizeEnvironment', () => {
 	test('the socket is the fixed path, or the one the sshd configuration gives', () => {
 		expect(socketFromArgv([])).toBe(CONTROL_SOCKET);
-		expect(CONTROL_SOCKET).toBe('/run/koi/control.sock');
+		expect(CONTROL_SOCKET).toBe('/run/previewlane/control.sock');
 		expect(socketFromArgv(['--socket', '/tmp/k.sock'])).toBe('/tmp/k.sock');
 		for (const argv of [
 			['--socket'],
@@ -118,14 +118,14 @@ describe('socketFromArgv and sanitizeEnvironment', () => {
 			['--other'],
 			['/a'],
 		]) {
-			expect(() => socketFromArgv(argv)).toThrow('usage: koi-ssh-gateway');
+			expect(() => socketFromArgv(argv)).toThrow('usage: previewlane-ssh-gateway');
 		}
 	});
 
 	test('the environment is emptied, whatever it held', () => {
 		const env: NodeJS.ProcessEnv = {
 			PATH: '/usr/bin',
-			KOID_CONTROL_SOCKET: '/elsewhere.sock',
+			PREVIEWLANED_CONTROL_SOCKET: '/elsewhere.sock',
 			LD_PRELOAD: '/x.so',
 			HTTP_PROXY: 'http://proxy',
 			SSH_ORIGINAL_COMMAND: 'tunnel-v1',
@@ -135,9 +135,9 @@ describe('socketFromArgv and sanitizeEnvironment', () => {
 	});
 });
 
-// koid's control API, as far as the gateway tests need it.
-async function koid() {
-	const dir = await mkdtemp(join(tmpdir(), 'koi-gw-'));
+// previewlaned's control API, as far as the gateway tests need it.
+async function previewlaned() {
+	const dir = await mkdtemp(join(tmpdir(), 'previewlane-gw-'));
 	const socket = join(dir, 'control.sock');
 	const seen: string[] = [];
 	const server = Bun.serve({
@@ -186,8 +186,8 @@ function streams() {
 }
 
 describe('gateway', () => {
-	test('ctl-b64 runs koid ctl against the socket and exits as it does', async () => {
-		const k = await koid();
+	test('ctl-b64 runs previewlaned ctl against the socket and exits as it does', async () => {
+		const k = await previewlaned();
 		try {
 			const s = streams();
 			expect(await gateway(PING, [], k.socket, s)).toBe(CTL_EXIT.ok);
@@ -196,7 +196,7 @@ describe('gateway', () => {
 			const d = streams();
 			expect(await gateway(`ctl-b64 ${encodeCtlArgs(['describe'])}`, [], k.socket, d)).toBe(0);
 			expect(JSON.parse(d.out())).toEqual(HOST);
-			// A command koid ctl refuses is refused by it, with its status.
+			// A command previewlaned ctl refuses is refused by it, with its status.
 			const r = streams();
 			expect(await gateway(`ctl-b64 ${encodeCtlArgs(['down', 'nothing'])}`, [], k.socket, r)).toBe(
 				CTL_EXIT.refused,
@@ -208,14 +208,14 @@ describe('gateway', () => {
 		}
 	});
 
-	test('a refused request runs nothing and reaches koid with nothing', async () => {
-		const k = await koid();
+	test('a refused request runs nothing and reaches previewlaned with nothing', async () => {
+		const k = await previewlaned();
 		try {
 			for (const command of [undefined, 'scp -t /tmp', 'bash', 'tunnel-v1 x']) {
 				const s = streams();
 				expect(await gateway(command, [], k.socket, s)).toBe(CTL_EXIT.usage);
 				expect(s.out()).toBe('');
-				expect(s.err()).toStartWith('koi-ssh-gateway: ');
+				expect(s.err()).toStartWith('previewlane-ssh-gateway: ');
 			}
 			expect(k.seen).toEqual([]);
 		} finally {
@@ -223,27 +223,27 @@ describe('gateway', () => {
 		}
 	});
 
-	test('without koid, ctl-b64 and tunnel-v1 say so and exit as koid ctl does', async () => {
+	test('without previewlaned, ctl-b64 and tunnel-v1 say so and exit as previewlaned ctl does', async () => {
 		const c = streams();
 		expect(await gateway(PING, [], '/nonexistent/control.sock', c)).toBe(CTL_EXIT.unavailable);
-		expect(c.err()).toContain('cannot reach koid');
+		expect(c.err()).toContain('cannot reach previewlaned');
 		const t = streams();
 		expect(await gateway('tunnel-v1', [], '/nonexistent/control.sock', t)).toBe(
 			CTL_EXIT.unavailable,
 		);
-		expect(t.err()).toContain('cannot reach koid at /nonexistent/control.sock');
+		expect(t.err()).toContain('cannot reach previewlaned at /nonexistent/control.sock');
 		expect(t.out()).toBe('');
 	});
 
 	test('the fixed socket is used however the environment is set', async () => {
-		const k = await koid();
+		const k = await previewlaned();
 		try {
-			process.env.KOID_CONTROL_SOCKET = k.socket;
+			process.env.PREVIEWLANED_CONTROL_SOCKET = k.socket;
 			const s = streams();
 			expect(await gateway(PING, [], socketFromArgv([]), s)).toBe(CTL_EXIT.unavailable);
 			expect(k.seen).toEqual([]);
 		} finally {
-			delete process.env.KOID_CONTROL_SOCKET;
+			delete process.env.PREVIEWLANED_CONTROL_SOCKET;
 			await k.stop();
 		}
 	});
@@ -251,22 +251,22 @@ describe('gateway', () => {
 
 describe('relay', () => {
 	test('copies bytes both ways and ends with the session, parsing nothing', async () => {
-		const k = await koid();
+		const k = await previewlaned();
 		try {
 			const s = streams();
 			const done = relay(k.socket, s.stdin, s.stdout, s.stderr);
 			const body = new Uint8Array(300_000);
 			s.stdin.write(
-				`PUT /v1/uploads/x/source HTTP/1.1\r\nHost: koid\r\nContent-Length: ${body.byteLength}\r\n\r\n`,
+				`PUT /v1/uploads/x/source HTTP/1.1\r\nHost: previewlaned\r\nContent-Length: ${body.byteLength}\r\n\r\n`,
 			);
 			for (let at = 0; at < body.byteLength; at += 65536)
 				s.stdin.write(body.subarray(at, at + 65536));
-			s.stdin.write('GET /health HTTP/1.1\r\nHost: koid\r\n\r\n');
+			s.stdin.write('GET /health HTTP/1.1\r\nHost: previewlaned\r\n\r\n');
 			for (let i = 0; i < 200 && !s.out().includes('{"ok":true}'); i++) await Bun.sleep(10);
 			expect(s.out()).toContain('{"bytes":300000}');
 			expect(s.out()).toContain('{"ok":true}');
 			expect(k.seen).toEqual(['PUT /v1/uploads/x/source', 'GET /health']);
-			// The session's input ends: koid sees the end and closes, the relay ends.
+			// The session's input ends: previewlaned sees the end and closes, the relay ends.
 			s.stdin.end();
 			expect(await done).toBe(0);
 			expect(s.err()).toBe('');
@@ -275,13 +275,13 @@ describe('relay', () => {
 		}
 	});
 
-	test('ends when koid closes first, leaving the session to the gateway', async () => {
-		const k = await koid();
+	test('ends when previewlaned closes first, leaving the session to the gateway', async () => {
+		const k = await previewlaned();
 		try {
 			const s = streams();
 			const done = relay(k.socket, s.stdin, s.stdout, s.stderr);
 			// A request Bun answers and then closes on.
-			s.stdin.write('GET /health HTTP/1.0\r\nHost: koid\r\n\r\n');
+			s.stdin.write('GET /health HTTP/1.0\r\nHost: previewlaned\r\n\r\n');
 			expect(await done).toBe(0);
 			expect(s.out()).toContain('{"ok":true}');
 			// stdin was unpiped and is still open: the process ends it, not the relay.

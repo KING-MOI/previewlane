@@ -21,7 +21,7 @@ import {
 	UploadIdSchema,
 	type UploadTicket,
 	type UpRequest,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { ZodError, type z } from 'zod';
 import { BodyTimeoutError, BodyTooLargeError, readJson } from './body.ts';
 import { minFreeBytes, diskSpace as statDiskSpace } from './fsutil.ts';
@@ -88,7 +88,7 @@ import {
 // upload the CLI saw acknowledged survives a crash of the box. The same
 // holds for a POST /v1/uploads that finds its content committed: the ledger
 // says whether each entry is known durable, an entry read from the disk at
-// startup is not until this koid has synced the directory, and the call
+// startup is not until this previewlaned has synced the directory, and the call
 // syncs before it answers 200. An entry whose request file is missing or
 // does not parse, or whose source is missing, is broken: a removal failed
 // part way through it. The reader would refuse it, so it is never
@@ -201,7 +201,7 @@ type BodyOutcome =
 // An entry under ready as the ledger knows it. `durable` is set once the
 // ready directory has been synced with the entry in it. An entry read from
 // the disk at startup starts without it: nothing on the disk says whether
-// the koid that wrote it got as far as that sync, so the first call that
+// the previewlaned that wrote it got as far as that sync, so the first call that
 // would acknowledge it syncs first.
 interface Entry {
 	bytes: number;
@@ -252,9 +252,9 @@ export class UploadApi {
 		this.diskSpace = options.diskSpace ?? statDiskSpace;
 	}
 
-	// Makes the spool directories, reads what an earlier koid committed into
+	// Makes the spool directories, reads what an earlier previewlaned committed into
 	// the ledger, and clears what it left half done. Fails, and with it the
-	// start of koid, when an entry cannot be read: a ledger short of an
+	// start of previewlaned, when an entry cannot be read: a ledger short of an
 	// entry's bytes would admit uploads the spool has no room for, and a
 	// disk that cannot be read is not one to take uploads on.
 	async init(): Promise<void> {
@@ -285,7 +285,7 @@ export class UploadApi {
 	// soon after the first commit could lose ready and the entry with it,
 	// an upload the CLI saw acknowledged. The spool root, the directory
 	// that names it, incoming and ready are synced at every start whether
-	// or not this one made them: the koid that made them may have exited
+	// or not this one made them: the previewlaned that made them may have exited
 	// before it synced them, and this one finds them present and makes
 	// nothing. Four syncs, cheap. Each directory before its parent, as a
 	// file before its directory.
@@ -386,14 +386,14 @@ export class UploadApi {
 		const { requestId, sizeBytes, sha256 } = body.value;
 		if (sizeBytes > this.limits.maxSourceBytes) {
 			return json(413, {
-				error: `the source is ${sizeBytes} bytes; koid takes at most ${this.limits.maxSourceBytes}`,
+				error: `the source is ${sizeBytes} bytes; previewlaned takes at most ${this.limits.maxSourceBytes}`,
 			});
 		}
 		return this.spool.run(async () => {
 			const existing = await this.compareReady(requestId, sizeBytes, sha256);
 			if (existing.kind === 'same') {
 				// Committed, but perhaps not durable: the sync after its commit
-				// failed and no retry came, or a previous koid wrote it. The
+				// failed and no retry came, or a previous previewlaned wrote it. The
 				// caller is told it is committed only once it is durable, as a
 				// commit is answered.
 				const failed = await this.syncEntry(requestId);
@@ -442,7 +442,7 @@ export class UploadApi {
 			const keep = Math.floor(minFreeBytes(disk.size));
 			if (disk.free - promised - reserve < keep) {
 				return json(507, {
-					error: `the disk has ${disk.free} bytes free, ${promised} of them promised to uploads under way; ${reserve} more would leave less than the ${keep} bytes koid keeps free`,
+					error: `the disk has ${disk.free} bytes free, ${promised} of them promised to uploads under way; ${reserve} more would leave less than the ${keep} bytes previewlaned keeps free`,
 				});
 			}
 			const now = this.now();
@@ -632,7 +632,7 @@ export class UploadApi {
 		const bytes = Buffer.from(JSON.stringify(parsed), 'utf8');
 		if (bytes.byteLength > this.limits.maxRequestBytes) {
 			return json(413, {
-				error: `the request is ${bytes.byteLength} bytes once its defaults are filled in; koid keeps at most ${this.limits.maxRequestBytes}`,
+				error: `the request is ${bytes.byteLength} bytes once its defaults are filled in; previewlaned keeps at most ${this.limits.maxRequestBytes}`,
 			});
 		}
 		ticket.state = 'committing';
@@ -765,7 +765,7 @@ export class UploadApi {
 
 	// Under `spool`: drops tickets past their hour, with what they received,
 	// and whatever is under incoming with no ticket (an upload a previous
-	// koid was taking); then entries past their day that nobody claims, and
+	// previewlaned was taking); then entries past their day that nobody claims, and
 	// broken entries whatever their age. A held ticket waits for the next
 	// round (expire). A claimed entry stays whatever its age or state: the
 	// deployer accepted its request and has not copied its source yet.

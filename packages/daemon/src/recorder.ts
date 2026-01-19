@@ -14,7 +14,7 @@ import {
 	type RecorderHealth,
 	RecorderHealthSchema,
 	type RunNetworkRecord,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import type { Docker } from './docker.ts';
 import type { SecretRegistry } from './redact.ts';
 import {
@@ -35,7 +35,7 @@ import { privateHost, type VerificationNetwork } from './verification-network.ts
 import { scrubFields } from './verification-sanitize.ts';
 import { CapExceededError, type RunWriter } from './verification-store.ts';
 
-// koid's side of the recorder (docs/verify.md, "Recorder and evidence"):
+// previewlaned's side of the recorder (docs/verify.md, "Recorder and evidence"):
 // starts the stopped recorder B3a created, waits for it on the control port
 // through the run network, has the firewall bind the run's permits to the
 // recorder's bridge port now that it has one, and then asks it for a
@@ -46,7 +46,7 @@ import { CapExceededError, type RunWriter } from './verification-store.ts';
 // other token, for the browser port, and never this one.
 
 export interface RecorderTokens {
-	// koid's capability for the control port.
+	// previewlaned's capability for the control port.
 	control: string;
 	// The verifier's capability for the browser port.
 	browser: string;
@@ -59,8 +59,8 @@ export function newRecorderTokens(): RecorderTokens {
 // What the recorder is created with (RunNetworkRequest.recorderEnv).
 export function recorderEnv(tokens: RecorderTokens): Record<string, string> {
 	return {
-		KOI_RECORDER_CONTROL_TOKEN: tokens.control,
-		KOI_RECORDER_BROWSER_TOKEN: tokens.browser,
+		PREVIEWLANE_RECORDER_CONTROL_TOKEN: tokens.control,
+		PREVIEWLANE_RECORDER_BROWSER_TOKEN: tokens.browser,
 	};
 }
 
@@ -128,7 +128,7 @@ export interface ReadRequest {
 	maxBodyBytes: number;
 }
 
-// The control API as koid calls it. Tests use a fake. Every call takes the
+// The control API as previewlaned calls it. Tests use a fake. Every call takes the
 // options last; the HTTP one aborts the request on the signal, and a fake
 // may ignore it.
 export interface RecorderApi {
@@ -232,7 +232,7 @@ export function httpRecorder(
 			throw new RecorderError(
 				502,
 				'bad_reply',
-				'the recorder answered with a shape koid cannot read',
+				'the recorder answered with a shape previewlaned cannot read',
 			);
 		return parsed.data;
 	};
@@ -378,7 +378,7 @@ export interface RecorderSessionOptions {
 	budget?: RunBudget | undefined;
 }
 
-// The most koid reads of one capture before sanitizing it whole. The store
+// The most previewlaned reads of one capture before sanitizing it whole. The store
 // caps the sanitized result again.
 const MAX_RAW_BYTES = 32 * 1024 ** 2;
 const EVENTS_PAGE = 500;
@@ -472,7 +472,7 @@ export class RecorderSession {
 		await deps.docker.start(endpoint.container, options.budget?.signal);
 		// The one error the catch below records nothing for: giveUp wrote
 		// its problem already. The HTTP client throws the same class for a
-		// connection that drops or a reply koid cannot read, and those have
+		// connection that drops or a reply previewlaned cannot read, and those have
 		// no problem yet.
 		let recorded: RecorderError | undefined;
 		try {
@@ -526,8 +526,8 @@ export class RecorderSession {
 					`answers for run ${health.runId}, not ${record.runId}`,
 				);
 			}
-			// koid gave it this address, and execution.json and the report say it unscrubbed
-			// as a value of koid's, so it must be that value.
+			// previewlaned gave it this address, and execution.json and the report say it unscrubbed
+			// as a value of previewlaned's, so it must be that value.
 			const origin = new URL(`http://${privateHost(record.runId)}:${record.appPort}`).origin;
 			if (health.origin !== origin) {
 				throw await giveUp('recorder_mismatch', `answers for another origin, not ${origin}`);
@@ -554,7 +554,7 @@ export class RecorderSession {
 		} catch (err) {
 			// A failure past the health wait has no problem on the run yet,
 			// unless giveUp wrote it. A recorder that answered an error or
-			// something koid cannot read failed; one that stopped answering,
+			// something previewlaned cannot read failed; one that stopped answering,
 			// or anything else that broke (the firewall, the store), is
 			// unavailable. The run's budget ending is not a failure of the
 			// recorder: the points say not-run, and the evidence stays as it
@@ -802,13 +802,13 @@ export class RecorderSession {
 				(o) => this.api.events(this.recorderSeq, EVENTS_PAGE, o),
 				signal,
 			);
-			// What the recorder lost after the last sequence read: events koid
+			// What the recorder lost after the last sequence read: events previewlaned
 			// never got. The recorder counts against the read's cursor, so an
 			// eviction of an event already read is not a gap.
 			if (page.dropped > 0) {
 				await this.run.addProblem(
 					'observation_gap',
-					`the recorder dropped ${page.dropped} events before koid read them`,
+					`the recorder dropped ${page.dropped} events before previewlaned read them`,
 				);
 			}
 			for (const event of page.events) {
@@ -957,7 +957,7 @@ export class RecorderSession {
 	// the names of the fields the recorder discarded, bounded by count. record()
 	// scrubs and then cuts the result like every other event. A point and an
 	// attempt are the envelope's, so the session's own go there (record): the
-	// recorder only says back what koid told it, and a scrub of its copy would
+	// recorder only says back what previewlaned told it, and a scrub of its copy would
 	// put a mask in a field the event's schema holds to a point id.
 	private flatten(fields: Record<string, unknown>): Record<string, unknown> {
 		const out: Record<string, unknown> = {};

@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
-"""koi-verify-net: the firewall permits of one verification run.
+"""previewlane-verify-net: the firewall permits of one verification run.
 
-koid runs as koi and cannot change iptables. For a verification run it needs
+previewlaned runs as previewlane and cannot change iptables. For a verification run it needs
 a handful of permits on the run's private bridge, so provisioning installs
-this file at /usr/local/libexec/koi-verify-net, owned by root, with a sudoers
-rule that lets koi run exactly this path. It is the only way koid changes
+this file at /usr/local/libexec/previewlane-verify-net, owned by root, with a sudoers
+rule that lets previewlane run exactly this path. It is the only way previewlaned changes
 the firewall, and it takes four commands:
 
-  provision      creates the KOI-VERIFY chains with their default denies and
+  provision      creates the PREVIEWLANE-VERIFY chains with their default denies and
                  the jumps that reach them, or brings an older layout up to
                  date, puts the layer 2 allowlist for kv+ bridges in front
                  of ebtables' FORWARD, and turns on the filtering of VLAN
                  tagged frames. Run as root by provisioning
                  (host/cloud-init.sh) and by the helper's installer, never by
-                 koid. It keeps every run's permits, and a chain it rebuilds
+                 previewlaned. It keeps every run's permits, and a chain it rebuilds
                  is reached before the old one goes, so kv+ traffic is
                  confined at every instant;
   apply          reads one JSON descriptor on stdin (docs/verify.md, "Run
                  network"), pins each running endpoint's MAC to its bridge
                  port and the recorder's address to its MAC on the host, and
                  installs that run's permits as one generation of rules;
-  revoke RUN     removes that generation from every KOI-VERIFY chain, the
+  revoke RUN     removes that generation from every PREVIEWLANE-VERIFY chain, the
                  pins on the run's bridge and the run's connection tracking
                  entries;
   attest         prints a JSON summary of the chains, of the path that
                  reaches them, of the layer 2 allowlist and the pins, and of
-                 the bridge filtering sysctls, for koid's host check.
+                 the bridge filtering sysctls, for previewlaned's host check.
 
 Every field of the descriptor is checked against a fixed shape before any
 command runs. The permits are the exact connections the design allows
@@ -48,7 +48,7 @@ apply and revoke first finish or discard a chain swap an interrupted
 provision left, so the permits they install or remove are in the chains
 every command reads.
 
-A run's state file under /run/koi-verify is written before its first rule
+A run's state file under /run/previewlane-verify is written before its first rule
 and removed after its last connection tracking entry, so the subnet to flush
 is on record whenever a rule of the run can exist.
 """
@@ -63,22 +63,22 @@ import shlex
 import subprocess
 import sys
 
-# Bumped when the rules this file installs change shape. koid refuses to
+# Bumped when the rules this file installs change shape. previewlaned refuses to
 # verify on a host whose helper reports another version.
 POLICY_VERSION = 2
 
-ENV_FILE = "/etc/koi/verify/env"
-STATE_DIR = "/run/koi-verify"
-LOCK_FILE = "/run/koi-verify.lock"
+ENV_FILE = "/etc/previewlane/verify/env"
+STATE_DIR = "/run/previewlane-verify"
+LOCK_FILE = "/run/previewlane-verify.lock"
 
-# The chains provision creates. KOI-VERIFY is reached from DOCKER-USER, so it
+# The chains provision creates. PREVIEWLANE-VERIFY is reached from DOCKER-USER, so it
 # sees bridged traffic before Docker's own rules; the other two are reached
 # from INPUT and OUTPUT for kv+ interfaces.
-CHAIN_FORWARD = "KOI-VERIFY"
-CHAIN_INPUT = "KOI-VERIFY-IN"
-CHAIN_OUTPUT = "KOI-VERIFY-OUT"
+CHAIN_FORWARD = "PREVIEWLANE-VERIFY"
+CHAIN_INPUT = "PREVIEWLANE-VERIFY-IN"
+CHAIN_OUTPUT = "PREVIEWLANE-VERIFY-OUT"
 # Every chain of the helper's, permanent or staged for a swap, has this prefix.
-CHAIN_PREFIX = "KOI-VERIFY"
+CHAIN_PREFIX = "PREVIEWLANE-VERIFY"
 
 
 def _rules(*lines):
@@ -133,7 +133,7 @@ BASE_IPV6 = [
 # So a tagged frame, and anything else that is not IPv4 or ARP, is dropped
 # before iptables is asked. ebtables is ebtables-nft, from the iptables
 # package; the protocol names come from /etc/ethertypes (netbase).
-L2_CHAIN = "KOI-VERIFY-L2"
+L2_CHAIN = "PREVIEWLANE-VERIFY-L2"
 L2_JUMP = ["--logical-in", "kv+", "-j", L2_CHAIN]
 L2_RULES = _rules(
     "-p IPv4 -j RETURN",
@@ -142,13 +142,13 @@ L2_RULES = _rules(
 )
 ETHERTYPES = {"ipv4": 0x0800, "arp": 0x0806}
 # The bridge filtering sysctls provision sets to 1. The other two,
-# bridge-nf-call-iptables and -ip6tables, Docker and koi-firewall set.
+# bridge-nf-call-iptables and -ip6tables, Docker and previewlane-firewall set.
 BRIDGE_SYSCTLS = ("net.bridge.bridge-nf-filter-vlan-tagged",)
 
 RECORDER_CONTROL_PORT = 4318
 RECORDER_PLAYWRIGHT_PORT = 4317
 # The host user whose connections to the recorder's control port pass.
-KOI_USER = "koi"
+PREVIEWLANE_USER = "previewlane"
 
 RUN_ID = re.compile(r"^[a-z0-9]{16,40}$")
 BRIDGE = re.compile(r"^kv[0-9a-f]{12}$")
@@ -180,7 +180,7 @@ class Failed(Exception):
 
 
 def read_pool(path=None):
-    """The reserved pool from the KOI_VERIFY_POOL line of the env file, or None."""
+    """The reserved pool from the PREVIEWLANE_VERIFY_POOL line of the env file, or None."""
     path = ENV_FILE if path is None else path
     try:
         with open(path, encoding="utf-8") as f:
@@ -189,7 +189,7 @@ def read_pool(path=None):
         return None
     for line in lines:
         key, sep, value = line.strip().partition("=")
-        if sep and key == "KOI_VERIFY_POOL":
+        if sep and key == "PREVIEWLANE_VERIFY_POOL":
             return parse_pool(value.strip().strip("'\""))
     return None
 
@@ -198,18 +198,18 @@ def parse_pool(text):
     try:
         pool = ipaddress.ip_network(text, strict=True)
     except ValueError as err:
-        raise Refused(f"KOI_VERIFY_POOL {text!r} is not a network: {err}") from None
+        raise Refused(f"PREVIEWLANE_VERIFY_POOL {text!r} is not a network: {err}") from None
     if pool.version != 4:
-        raise Refused("KOI_VERIFY_POOL must be an IPv4 network")
+        raise Refused("PREVIEWLANE_VERIFY_POOL must be an IPv4 network")
     if not 16 <= pool.prefixlen <= 28:
-        raise Refused("KOI_VERIFY_POOL must be between a /16 and a /28")
+        raise Refused("PREVIEWLANE_VERIFY_POOL must be between a /16 and a /28")
     return pool
 
 
 def parse_descriptor(text, pool):
     """The descriptor as a dict with parsed fields, or Refused. Every key is checked."""
     if pool is None:
-        raise Refused(f"no KOI_VERIFY_POOL in {ENV_FILE}; the host is not provisioned for verification")
+        raise Refused(f"no PREVIEWLANE_VERIFY_POOL in {ENV_FILE}; the host is not provisioned for verification")
     if len(text) > MAX_DESCRIPTOR_BYTES:
         raise Refused("the descriptor is too large")
     try:
@@ -291,7 +291,7 @@ def parse_descriptor(text, pool):
 
 
 def network_name(run_id):
-    return f"koi-v-{run_id}"
+    return f"previewlane-v-{run_id}"
 
 
 # --- Rules as iptables prints them --------------------------------------------------
@@ -316,7 +316,7 @@ ALIASES = {
     "--source-ports": "--sports",
 }
 PORT_OPTIONS = ("--dport", "--sport")
-COMMENT_PREFIX = "koi-run="
+COMMENT_PREFIX = "previewlane-run="
 
 # Every option the parser knows, with how many values follow it. Each value
 # is taken by position, whatever it looks like: a comment of "!" or "-j" is
@@ -417,7 +417,7 @@ def split_groups(tokens):
             groups.append([("! " if negate else "") + token, []])
             negate = False
             if arity is None:
-                problems.append(f"option {token} is not one koi-verify-net knows")
+                problems.append(f"option {token} is not one previewlane-verify-net knows")
                 guessing = True
             else:
                 wanted = arity
@@ -589,7 +589,7 @@ def generate_rules(desc, ports, uid):
     ports maps a role to the host side of its veth pair, or None while the
     container is not running. A permit between two containers names the
     port of each end that is known: --physdev-in for the sender and
-    --physdev-out for the receiver. uid is koi's, the one host user whose
+    --physdev-out for the receiver. uid is previewlane's, the one host user whose
     connections to the recorder's control port pass. The first rule of each
     chain goes in first, so a chain reads top to bottom as listed here.
     Pure: tests assert the exact output.
@@ -811,7 +811,7 @@ class Tables:
 KV_BRIDGE = re.compile(r"^kv[0-9a-f]{12}$")
 KV_PREFIX = re.compile(r"^kv[0-9a-f]{0,12}$")
 # Targets that can only deny or observe: a rule with one of these before a
-# koi guard never lets traffic past it.
+# previewlane guard never lets traffic past it.
 HARMLESS_TARGETS = frozenset({"DROP", "REJECT", "LOG", "NFLOG"})
 MAX_CHAIN_DEPTH = 8
 
@@ -840,7 +840,7 @@ def may_match_kv(rule, flags):
 
 
 def bypass(tables, table, rule, flags, stack=()):
-    """How a rule before a koi guard could let kv+ traffic past it: its text, or None when it cannot.
+    """How a rule before a previewlane guard could let kv+ traffic past it: its text, or None when it cannot.
 
     A deny or a log never does. A jump into a user chain is followed, where
     RETURN comes back to the rule after it. An accept, a goto, a RETURN in a
@@ -893,7 +893,7 @@ def guard_problem(tables, table, parent, guard, flags, first=False):
 def permit_problem(rule, chain, states, expected):
     """Why a rule above a chain's defaults is not a permit the helper installed, or None."""
     if rule.unparsed is not None:
-        return f"chain {chain} has a rule above its defaults that koi-verify-net cannot read in full ({rule.unparsed}): {rule.text}"
+        return f"chain {chain} has a rule above its defaults that previewlane-verify-net cannot read in full ({rule.unparsed}): {rule.text}"
     if rule.run is None:
         return f"chain {chain} has a rule that is not a run permit above its defaults: {rule.text}"
     if rule.run not in states:
@@ -984,7 +984,7 @@ def check_sysctl():
 def set_bridge_sysctls():
     """Sets each sysctl of BRIDGE_SYSCTLS to 1 while br_netfilter is loaded; returns what changed.
 
-    provision runs at every boot (koi-firewall), so this holds across
+    provision runs at every boot (previewlane-firewall), so this holds across
     reboots; host/cloud-init.sh also writes them to /etc/sysctl.d.
     """
     changed = []
@@ -1103,7 +1103,7 @@ def provision_l2(run):
 # does not age out, sticky so no frame from another port moves it. And the
 # host keeps the recorder's address at the recorder's MAC as a permanent
 # neighbour, so an ARP reply from another container cannot change where
-# koid's connection to the recorder goes.
+# previewlaned's connection to the recorder goes.
 
 
 def fdb_entries(run):
@@ -1332,7 +1332,7 @@ def attest(run, env_file=None, state_dir=None):
         "sysctl": check_sysctl(),
         "runs": sorted(states),
         # The bridge port each endpoint's permits are bound to, as the last
-        # apply found it. koid will not release a runner on a port of None.
+        # apply found it. previewlaned will not release a runner on a port of None.
         "ports": {run_id: None if state is None else state.get("ports") for run_id, state in states.items()},
         "rules": rules,
     }
@@ -1528,8 +1528,8 @@ def check_network(run, desc):
         problems.append(f"has bridge {options.get('com.docker.network.bridge.name')!r}, not {desc['bridge']}")
     if subnets != [desc["subnet"]]:
         problems.append(f"has subnets {subnets}, not [{desc['subnet']}]")
-    if labels.get("koi.run") != desc["runId"]:
-        problems.append("is not labelled koi.run for this run")
+    if labels.get("previewlane.run") != desc["runId"]:
+        problems.append("is not labelled previewlane.run for this run")
     if problems:
         raise Refused(f"network {name} {'; '.join(problems)}")
 
@@ -1549,10 +1549,10 @@ def check_endpoint(run, desc, role):
         raise Refused(f"{role} {name}: {err}") from None
     labels = (info.get("Config") or {}).get("Labels") or {}
     if role == "app":
-        if not labels.get("koi.preview"):
+        if not labels.get("previewlane.preview"):
             raise Refused(f"app {name} is not a preview container")
-    elif labels.get("koi.role") != role or labels.get("koi.run") != desc["runId"]:
-        raise Refused(f"{role} {name} is not labelled koi.role={role} koi.run={desc['runId']}")
+    elif labels.get("previewlane.role") != role or labels.get("previewlane.run") != desc["runId"]:
+        raise Refused(f"{role} {name} is not labelled previewlane.role={role} previewlane.run={desc['runId']}")
     networks = (info.get("NetworkSettings") or {}).get("Networks") or {}
     attached = networks.get(network_name(desc["runId"]))
     if attached is None:
@@ -1565,7 +1565,7 @@ def check_endpoint(run, desc, role):
             raise Refused(f"{role} {name} has mac {attached.get('MacAddress')!r}, not {endpoint['mac']}")
         sandbox = (info.get("NetworkSettings") or {}).get("SandboxKey")
         if not isinstance(sandbox, str) or not sandbox.startswith("/var/run/docker/netns/"):
-            raise Refused(f"{role} {name} has no network namespace koi-verify-net can read")
+            raise Refused(f"{role} {name} has no network namespace previewlane-verify-net can read")
         inside = json.loads(run(["nsenter", f"--net={sandbox}", "--", "ip", "-j", "link", "show"]))
         outside = json.loads(run(["ip", "-j", "link", "show"]))
         return peer_port(inside, outside, endpoint["mac"], desc["bridge"])
@@ -1579,7 +1579,7 @@ def check_endpoint(run, desc, role):
 
 
 def find_run(run, run_id):
-    """Every rule of the run in every KOI-VERIFY chain, staged ones included, in listing order.
+    """Every rule of the run in every PREVIEWLANE-VERIFY chain, staged ones included, in listing order.
 
     One listing of the whole table, so a chain the helper did not expect
     (a staged copy an interrupted swap left, under any name with the
@@ -1590,7 +1590,7 @@ def find_run(run, run_id):
 
 
 def remove_run(run, run_id):
-    """Deletes every rule of the run in every KOI-VERIFY chain, last first; returns the deleted rules."""
+    """Deletes every rule of the run in every PREVIEWLANE-VERIFY chain, last first; returns the deleted rules."""
     found = find_run(run, run_id)
     for rule in reversed(found):
         run(delete_command(rule))
@@ -1623,11 +1623,11 @@ def disable_ipv6(bridge):
         pass
 
 
-def koi_uid():
+def previewlane_uid():
     try:
-        return pwd.getpwnam(KOI_USER).pw_uid
+        return pwd.getpwnam(PREVIEWLANE_USER).pw_uid
     except KeyError:
-        raise Refused(f"user {KOI_USER} does not exist") from None
+        raise Refused(f"user {PREVIEWLANE_USER} does not exist") from None
 
 
 def apply(run, text, env_file=None, state_dir=None, lock_file=None):
@@ -1662,7 +1662,7 @@ def apply(run, text, env_file=None, state_dir=None, lock_file=None):
             raise Refused(f"subnet {subnet} overlaps the host route {clash}")
         check_network(run, desc)
         ports = {role: check_endpoint(run, desc, role) for role in ROLES}
-        uid = koi_uid()
+        uid = previewlane_uid()
         # A second apply for the same run replaces its generation. The old
         # rules go first, and the state changes only once they are gone, so
         # at every instant the rules installed are ones the state describes:
@@ -1749,8 +1749,8 @@ def revoke(run, run_id, state_dir=None, lock_file=None):
 
 
 USAGE = (
-    "usage: koi-verify-net apply < descriptor.json | koi-verify-net revoke RUN_ID"
-    " | koi-verify-net attest | koi-verify-net provision\n"
+    "usage: previewlane-verify-net apply < descriptor.json | previewlane-verify-net revoke RUN_ID"
+    " | previewlane-verify-net attest | previewlane-verify-net provision\n"
 )
 
 
@@ -1768,10 +1768,10 @@ def main(argv, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr, run=run_co
             stderr.write(USAGE)
             return 2
     except Refused as err:
-        stderr.write(f"koi-verify-net: refused: {err}\n")
+        stderr.write(f"previewlane-verify-net: refused: {err}\n")
         return 2
     except Failed as err:
-        stderr.write(f"koi-verify-net: {err}\n")
+        stderr.write(f"previewlane-verify-net: {err}\n")
         return 1
     json.dump(result, stdout)
     stdout.write("\n")

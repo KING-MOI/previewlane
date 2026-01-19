@@ -10,7 +10,7 @@ import {
 	INPUT_VOLUME_ROLE,
 	type InputVolumePart,
 	inputVolumeName,
-	KOI_DIR,
+	PREVIEWLANE_DIR,
 	type Point,
 	RECORDER_BROWSER_PORT,
 	RUNNER_PROTOCOL_VERSION,
@@ -23,7 +23,7 @@ import {
 	type SupervisorLine,
 	SupervisorLineSchema,
 	stagingName,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import supervisorSource from '../../../host/verifier/supervisor.py' with { type: 'text' };
 import type { AttachedContainer, Docker, ExitState, Mount, VolumeMount } from './docker.ts';
 import { type CallOptions, RecorderDeadlineError } from './recorder.ts';
@@ -36,12 +36,12 @@ import { readFileNoFollow, SNAPSHOT_LIMITS } from './verification-snapshot.ts';
 import { CapExceededError, clockReaches, type RunWriter } from './verification-store.ts';
 
 // The verifier (docs/verify.md, "Writing a runner"): the container a
-// point's commands run in, and koid's side of the runner protocol over its
+// point's commands run in, and previewlaned's side of the runner protocol over its
 // stdin and stdout. One verifier per point: created from the project's
 // runner image, resolved to a digest and checked against the operator's
 // allowlist; given the frozen inputs under /workspace and the point's
-// fixtures under /fixtures, root-owned and read-only; started with koi's own
-// supervisor (host/verifier/supervisor.py, embedded in koid) as its
+// fixtures under /fixtures, root-owned and read-only; started with previewlane's own
+// supervisor (host/verifier/supervisor.py, embedded in previewlaned) as its
 // entrypoint, whatever the image's; attached without a TTY; and stopped and
 // removed when the point ends or reaches its budget. Its output is read from
 // the moment it starts, under bounds, whatever the handler is doing
@@ -53,7 +53,7 @@ import { CapExceededError, clockReaches, type RunWriter } from './verification-s
 // How the inputs get in. Docker refuses `docker cp` into a container whose
 // root is read-only, and the verifier's root must stay read-only, so nothing
 // is ever copied into the verifier. Each point gets three Docker volumes,
-// one each for /koi, /workspace and /fixtures, filled through a staging
+// one each for /previewlane, /workspace and /fixtures, filled through a staging
 // container made from the same image with the volumes mounted writable and a
 // writable root of its own. It is on no network and never started: `docker
 // cp` works on a created container, so no code of the image runs. It goes
@@ -61,14 +61,14 @@ import { CapExceededError, clockReaches, type RunWriter } from './verification-s
 // read-only. Three volumes rather than one with subpaths, since volume
 // subpaths need Docker 26. No host directory is involved at any step.
 
-export const SUPERVISOR_PATH = '/koi/supervisor.py';
-export const POINT_FILE = '/koi/point.json';
+export const SUPERVISOR_PATH = '/previewlane/supervisor.py';
+export const POINT_FILE = '/previewlane/point.json';
 export const WORKSPACE = '/workspace';
 export const FIXTURES_DIR = '/fixtures';
 // Where each input volume is mounted, and so the top directory of its
 // entries in the archive (pointInputs).
 const INPUT_PATHS: Record<InputVolumePart, string> = {
-	koi: '/koi',
+	previewlane: '/previewlane',
 	workspace: WORKSPACE,
 	fixtures: FIXTURES_DIR,
 };
@@ -81,18 +81,18 @@ export const SUPERVISOR_SOURCE: string = supervisorSource;
 export const SUPERVISOR_COMMAND = ['-I', SUPERVISOR_PATH, POINT_FILE];
 export const SUPERVISOR_INTERPRETER = 'python3';
 
-// The bounds on what koid reads from a verifier, from the design's runner
+// The bounds on what previewlaned reads from a verifier, from the design's runner
 // protocol section. One rule covers them: each is counted as the output arrives,
-// and koid never waits while it handles a line. Events over their rate, lines
+// and previewlaned never waits while it handles a line. Events over their rate, lines
 // that are not protocol lines past their count, bytes past the total, and lines
 // past what the queue may hold stop the verifier with runner_protocol_limit.
 // Under them, every line is handled at full speed.
 //
 // There is no rate on bytes. The reader keeps up with a runner whatever it
-// writes, so a wait on the handler's side would slow koid and nothing else, and
-// a runner that had finished in time would run out of time on koid's account.
+// writes, so a wait on the handler's side would slow previewlaned and nothing else, and
+// a runner that had finished in time would run out of time on previewlaned's account.
 // The total, the queue and the cap on log lines kept already bound what a runner
-// can make koid hold and write.
+// can make previewlaned hold and write.
 //
 // queueBytes is the total, so a runner under the total reaches it only through
 // the cost of each line (LINE_COST): 8 MiB of empty lines would be half a gigabyte
@@ -113,12 +113,12 @@ export const PROTOCOL_LIMITS = {
 
 export type ProtocolLimits = { -readonly [K in keyof typeof PROTOCOL_LIMITS]: number };
 
-// Seconds past the point's budget before koid stops the container itself:
+// Seconds past the point's budget before previewlaned stops the container itself:
 // the supervisor's own SIGTERM grace, and time for its exit line.
 const STOP_GRACE_SECONDS = 15;
-// The least koid may go on handling what a verifier wrote after it exited, past
+// The least previewlaned may go on handling what a verifier wrote after it exited, past
 // the time the point had anyway. The runner has finished by then, so this is
-// koid's time, and a point that reaches its end is blocked with a reason of its
+// previewlaned's time, and a point that reaches its end is blocked with a reason of its
 // own and not point_timeout. It has to end, or a stuck capture would hold the
 // point open. A recorder call gives up after 30 seconds of its own, so a slow one
 // still leaves time for the lines behind it.
@@ -138,7 +138,7 @@ export const VERIFIER_STUCK =
 // How long the output streams may stay silent, without ending, once the
 // container has exited. What is left by then is unread, which fails the point.
 const DRAIN_MS = 5_000;
-// `docker start --attach` is up before the container is: how often koid looks,
+// `docker start --attach` is up before the container is: how often previewlaned looks,
 // and how many times, before it gives up on the container running.
 const RUNNING_POLL_MS = 100;
 const RUNNING_POLLS = 300;
@@ -185,9 +185,9 @@ export function imageEnvProblems(env: string[]): string[] {
 }
 
 export interface ImagePolicy {
-	// The id of the box's default verifier image (KOI_VERIFIER_IMAGE).
+	// The id of the box's default verifier image (PREVIEWLANE_VERIFIER_IMAGE).
 	defaultImageId: string;
-	// References or digests a manifest may name besides it (KOI_VERIFIER_IMAGES).
+	// References or digests a manifest may name besides it (PREVIEWLANE_VERIFIER_IMAGES).
 	allowed: readonly string[];
 }
 
@@ -203,7 +203,7 @@ export const IMAGE_REASONS = [
 ] as const;
 
 // The runner image a manifest names, as the image on the box it resolves
-// to, or why no point may run in it. koid never pulls: an image a pull
+// to, or why no point may run in it. previewlaned never pulls: an image a pull
 // request names is one the operator put on the box and on the allowlist,
 // or the default. A mutable tag is a lookup input; the digest is what runs.
 export async function resolveRunnerImage(
@@ -232,7 +232,7 @@ export async function resolveRunnerImage(
 	if (info === undefined) {
 		return {
 			ok: false,
-			reason: `image_missing: ${reference} is not on the box; koid never pulls an image a pull request names`,
+			reason: `image_missing: ${reference} is not on the box; previewlaned never pulls an image a pull request names`,
 		};
 	}
 	let allowed = info.id === policy.defaultImageId || policy.allowed.includes(reference);
@@ -251,7 +251,7 @@ export async function resolveRunnerImage(
 	if (!allowed) {
 		return {
 			ok: false,
-			reason: `image_not_allowed: ${reference} (${info.id}) is not on this host's allowlist (KOI_VERIFIER_IMAGES)`,
+			reason: `image_not_allowed: ${reference} (${info.id}) is not on this host's allowlist (PREVIEWLANE_VERIFIER_IMAGES)`,
 		};
 	}
 	const problems = imageEnvProblems(info.env);
@@ -273,7 +273,7 @@ export interface VerifierEnvInput {
 	previewUrl: string;
 	recorderIp: string;
 	browserToken: string;
-	// Fixture path under .koi/ to its path in the container.
+	// Fixture path under .previewlane/ to its path in the container.
 	fixtures: Record<string, string>;
 	timeoutSeconds: number;
 	maxRequests: number;
@@ -291,16 +291,16 @@ export function verifierEnv(input: VerifierEnvInput): Record<string, string> {
 		TMPDIR: '/tmp',
 		LANG: 'C.UTF-8',
 		TZ: 'UTC',
-		KOI_PROTOCOL_VERSION: String(RUNNER_PROTOCOL_VERSION),
-		KOI_RUN_ID: input.runId,
-		KOI_POINT_ID: input.pointId,
-		KOI_ATTEMPT: String(input.attempt),
-		KOI_PREVIEW_URL: input.previewUrl,
-		KOI_RECORDER_WS: `ws://${input.recorderIp}:${RECORDER_BROWSER_PORT}/${input.browserToken}`,
-		KOI_FIXTURES: JSON.stringify(input.fixtures),
-		KOI_TIMEOUT_SECONDS: String(input.timeoutSeconds),
-		KOI_MAX_REQUESTS: String(input.maxRequests),
-		...(input.loginKey !== undefined ? { KOI_LOGIN_KEY: input.loginKey } : {}),
+		PREVIEWLANE_PROTOCOL_VERSION: String(RUNNER_PROTOCOL_VERSION),
+		PREVIEWLANE_RUN_ID: input.runId,
+		PREVIEWLANE_POINT_ID: input.pointId,
+		PREVIEWLANE_ATTEMPT: String(input.attempt),
+		PREVIEWLANE_PREVIEW_URL: input.previewUrl,
+		PREVIEWLANE_RECORDER_WS: `ws://${input.recorderIp}:${RECORDER_BROWSER_PORT}/${input.browserToken}`,
+		PREVIEWLANE_FIXTURES: JSON.stringify(input.fixtures),
+		PREVIEWLANE_TIMEOUT_SECONDS: String(input.timeoutSeconds),
+		PREVIEWLANE_MAX_REQUESTS: String(input.maxRequests),
+		...(input.loginKey !== undefined ? { PREVIEWLANE_LOGIN_KEY: input.loginKey } : {}),
 	};
 }
 
@@ -458,17 +458,17 @@ const FILE_MODE = 0o444;
 const EXECUTABLE_MODE = 0o555;
 
 // What the verifier's input volumes hold: the supervisor and the point file
-// under /koi, the whole snapshot under /workspace, and the point's fixtures
+// under /previewlane, the whole snapshot under /workspace, and the point's fixtures
 // under /fixtures, checked against the snapshot's digests. Each top
 // directory is an entry even when empty, so its mode reaches the volume's
-// root. Returns the archive, the fixture map KOI_FIXTURES carries, and the bytes
+// root. Returns the archive, the fixture map PREVIEWLANE_FIXTURES carries, and the bytes
 // of the unique input files, which is what SNAPSHOT_LIMITS.totalBytes holds.
 //
 // A fixture is a file of the snapshot, so it is in /workspace too. It counts once
 // against the limit a deployment's snapshot already passed, or a valid snapshot
 // could not run. What bounds the disk is then this: /workspace holds at most
 // totalBytes, /fixtures holds only copies of its files, each once however often a
-// point lists it, and /koi holds two small files. So the volumes and the archive
+// point lists it, and /previewlane holds two small files. So the volumes and the archive
 // in memory take at most twice totalBytes, plus tar's headers, and a run has one
 // verifier at a time, whose volumes go before the next is filled.
 export async function pointInputs(
@@ -528,7 +528,7 @@ export async function pointInputs(
 	dir(FIXTURES_DIR.slice(1));
 	const fixtures: Record<string, string> = {};
 	for (const fixture of new Set(point.requires?.fixtures ?? [])) {
-		const path = `${KOI_DIR}/${fixture}`;
+		const path = `${PREVIEWLANE_DIR}/${fixture}`;
 		const recorded = inputs.fixtures.find((f) => f.path === path);
 		const found = read.get(path);
 		if (recorded === undefined || found === undefined) {
@@ -579,7 +579,7 @@ export function inputVolumes(runId: string): VolumeMount[] {
 
 // Every way a verifier's mounts differ from its input volumes, read-only at
 // their paths: a mount an image declared, one of the volumes writable or
-// elsewhere, or one missing. Empty when they are what koid asked for.
+// elsewhere, or one missing. Empty when they are what previewlaned asked for.
 export function mountProblems(mounts: Mount[], volumes: VolumeMount[]): string[] {
 	const problems: string[] = [];
 	const wanted = (m: Mount) =>
@@ -589,7 +589,7 @@ export function mountProblems(mounts: Mount[], volumes: VolumeMount[]): string[]
 	const extra = mounts.filter((m) => !wanted(m));
 	if (extra.length > 0) {
 		problems.push(
-			`has mounts koi did not ask for: ${extra.map((m) => `${m.type} at ${m.destination}`).join(', ')}`,
+			`has mounts previewlane did not ask for: ${extra.map((m) => `${m.type} at ${m.destination}`).join(', ')}`,
 		);
 	}
 	const absent = volumes.filter(
@@ -615,7 +615,7 @@ export type Classified =
 const MAC_FIELD = ',"mac":"';
 
 // Whether a line ends in the MAC the key gives the text before it, as
-// supervisor.py signs it. koid checks the bytes it read, so no canonical form
+// supervisor.py signs it. previewlaned checks the bytes it read, so no canonical form
 // is needed on either side.
 function signedWith(line: string, key: string): boolean {
 	const at = line.lastIndexOf(MAC_FIELD);
@@ -721,7 +721,7 @@ export class LineSplitter {
 
 // The bounds on one point's output: the total, a token bucket for events, and
 // the count of lines that were not protocol lines. Over any of them the point
-// stops. The reader counts all of them as the output arrives, so how long koid
+// stops. The reader counts all of them as the output arrives, so how long previewlaned
 // takes to handle a line changes none of them.
 export class ProtocolBudget {
 	private total = 0;
@@ -788,7 +788,7 @@ export type OutputItem =
 // Reads a verifier's two output streams for as long as the attachment lasts,
 // whatever the event handler is doing, and enforces the bounds on what it read.
 //
-// What bounds koid's memory is this loop and not the kernel pipe. Bun reads a
+// What bounds previewlaned's memory is this loop and not the kernel pipe. Bun reads a
 // spawned process's pipe into memory for as long as no reader holds the stream:
 // a child can write gigabytes that way before anyone reads a byte. So the
 // reader takes both streams in the same tick as the spawn (attach, then this
@@ -909,7 +909,7 @@ export class OutputReader {
 		const cost = bytes + LINE_COST;
 		const { queueBytes } = this.budget.limits;
 		if (this.queued + cost > queueBytes) {
-			this.limit(`the runner's output outran koid: over ${queueBytes} bytes waited to be handled`);
+			this.limit(`the runner's output outran previewlaned: over ${queueBytes} bytes waited to be handled`);
 			return;
 		}
 		this.queued += cost;
@@ -931,7 +931,7 @@ export class OutputReader {
 }
 
 // The supervisor's exit code for its exit line, as supervisor.py computes
-// it: the worst step. koid compares it with the container's exit code.
+// it: the worst step. previewlaned compares it with the container's exit code.
 export function supervisorExitCode(line: Extract<SupervisorLine, { event: 'exit' }>): number {
 	if (line.steps.length === 0) return line.status === 'failed' ? 3 : 4;
 	let code = 0;
@@ -947,7 +947,7 @@ export function supervisorExitCode(line: Extract<SupervisorLine, { event: 'exit'
 
 // The latest a verifier's run should return: the last the watchdog can stop the
 // point, which is a runner that exits at the end of its stop grace and whose
-// output then takes all of koid's handling time, and then what its cleanup and
+// output then takes all of previewlaned's handling time, and then what its cleanup and
 // its last records may take. The run's deadline ends everything sooner.
 export function verifierStopBy(pointDeadline: number, deadline: number): number {
 	const stopped = pointDeadline + STOP_GRACE_SECONDS * 1000 + HANDLING_MS;
@@ -1044,7 +1044,7 @@ export interface PointRun {
 		events: number;
 		logLines: number;
 		bytes: number;
-		// The most koid held at once waiting to be handled (OutputReader).
+		// The most previewlaned held at once waiting to be handled (OutputReader).
 		queuedBytes: number;
 		malformed: number;
 		captures: number;
@@ -1151,7 +1151,7 @@ export class VerifierRunner {
 			attached = await docker.attach(name);
 			run.startedAt = this.deps.now().getTime();
 			// Noted the moment it happens, whatever the handler is doing, so the
-			// time koid then takes over the queue is not charged to the runner.
+			// time previewlaned then takes over the queue is not charged to the runner.
 			attached.exited.then(
 				(code) => run.exited(code),
 				() => run.exited(125),
@@ -1213,7 +1213,7 @@ export class VerifierRunner {
 			if (run.stopped === 'exited') run.stopped = 'failed';
 			log(`run ${x.runId}, point ${x.pointId}: ${message(err)}`);
 		} finally {
-			// Before the stop: what a step says from here on is koid's stop killing
+			// Before the stop: what a step says from here on is previewlaned's stop killing
 			// it, which says nothing about the app.
 			output?.stopHolding();
 			watch.disarm();
@@ -1293,7 +1293,7 @@ export class VerifierRunner {
 		for (const volume of volumes) {
 			await docker.createVolume(
 				volume.name,
-				{ 'koi.role': INPUT_VOLUME_ROLE, 'koi.run': x.runId },
+				{ 'previewlane.role': INPUT_VOLUME_ROLE, 'previewlane.run': x.runId },
 				signal,
 			);
 		}
@@ -1322,7 +1322,7 @@ export class VerifierRunner {
 	// for each line, so a limit either checked itself would wait behind all of
 	// them. A timer does not: it ends the signal, which every such call holds, and
 	// stops the container. Once the verifier has exited, the runner's time is over
-	// and this watches koid's own on what it wrote (HANDLING_MS). The exit never
+	// and this watches previewlaned's own on what it wrote (HANDLING_MS). The exit never
 	// shortens what the point had. Returns that stop, for the reader's bounds, a
 	// look that says whether the point is over, without waiting for the timer, and
 	// the function that disarms it.
@@ -1428,8 +1428,8 @@ export class VerifierRunner {
 			(): Wake => ({ kind: 'exit' }),
 		);
 		const open = new Set<OutputStream>(['stdout', 'stderr']);
-		// When koid last finished a line. The drain's limit is on the streams'
-		// silence, so koid's own time on a slow capture does not count against them.
+		// When previewlaned last finished a line. The drain's limit is on the streams'
+		// silence, so previewlaned's own time on a slow capture does not count against them.
 		let handledAt = 0;
 		for (;;) {
 			if (signal.aborted) return;
@@ -1493,7 +1493,7 @@ class PointState {
 	exit: ExitState | undefined;
 	exitCode: number | undefined;
 	startedAt: number | undefined;
-	// When the attachment reported the container's end, on koid's clock.
+	// When the attachment reported the container's end, on previewlaned's clock.
 	exitedAt: number | undefined;
 	events = 0;
 	logLines = 0;
@@ -1538,7 +1538,7 @@ class PointState {
 		}
 	}
 
-	// What the point has left of its budget, in seconds, on koid's clock.
+	// What the point has left of its budget, in seconds, on previewlaned's clock.
 	secondsLeft(): number {
 		return (this.x.pointDeadline - this.deps.now().getTime()) / 1000;
 	}
@@ -1552,12 +1552,12 @@ class PointState {
 	// The point's time ended before the runner did: it is blocked, and whatever
 	// the runner reports after that does not count. Returns why it stops. A
 	// verifier that exited first was in time, whatever is still queued: what ran
-	// out is koid's own time on its output, and the reason must not read as the
+	// out is previewlaned's own time on its output, and the reason must not read as the
 	// runner's.
 	outOfTime(): string {
 		if (this.exitedAt !== undefined && this.stopped === 'exited') {
 			const handling =
-				'handling_timeout: the verifier exited in time, and koid ran out of time handling what it wrote';
+				'handling_timeout: the verifier exited in time, and previewlaned ran out of time handling what it wrote';
 			this.blocked ??= handling;
 			return handling;
 		}
@@ -1580,14 +1580,14 @@ class PointState {
 		this.failures.push(`runner_protocol_limit: ${why}`);
 	}
 
-	// Output koid did not read fails the point: what is unread could be the
+	// Output previewlaned did not read fails the point: what is unread could be the
 	// step that failed, and a pass must rest on all of it.
 	outputIncomplete(why: string): void {
 		this.failures.push(`runner_output_incomplete: ${why}, so what it wrote was not all read`);
 	}
 
 	// One line as it arrives, on the reader's loop: every bound on lines is counted
-	// here, so the time koid takes over the queue cannot change what they see. A
+	// here, so the time previewlaned takes over the queue cannot change what they see. A
 	// burst queued behind a long capture is not a burst the runner made, and a
 	// flood behind one stops the point at once. Returns why the point must stop.
 	arrived(stream: OutputStream, line: SplitLine): string | undefined {
@@ -1648,9 +1648,9 @@ class PointState {
 		}
 	}
 
-	// What koid had read and not handled when the point stopped. Only the
+	// What previewlaned had read and not handled when the point stopped. Only the
 	// supervisor's signed word counts by then: a step may have reported its
-	// failure while koid waited on a capture, and that stands. A runner's events
+	// failure while previewlaned waited on a capture, and that stands. A runner's events
 	// are over, like everything else it says after the stop. A line counts once it
 	// is taken in, so a failure to record one must not lose the lines behind it.
 	async settle(rest: OutputItem[], queuedBytes: number): Promise<void> {
@@ -1800,7 +1800,7 @@ class PointState {
 						}
 					} catch (err) {
 						// The recorder call ran out of the point's time. The refusal is
-						// koid's, so what a runner reports on hearing of it says nothing
+						// previewlaned's, so what a runner reports on hearing of it says nothing
 						// about the app. Reading stops here, as the watchdog's stop does.
 						if (err instanceof RecorderDeadlineError) return this.outOfTime();
 						status = 'failed';
@@ -1912,8 +1912,8 @@ class PointState {
 
 		// A step's signed failure counts however the point went on: a cleanup
 		// that later ran out of time, a cancel or a limit takes nothing back.
-		// Each of these came before koid stopped the container, since koid
-		// handles no line after that, so none is a step koid's own stop killed.
+		// Each of these came before previewlaned stopped the container, since previewlaned
+		// handles no line after that, so none is a step previewlaned's own stop killed.
 		// A step stopped at the budget says nothing about the app, as with the
 		// watchdog's own stop. A run skipped because of one is the same.
 		const timedOut = steps.find((s) => s.status === 'timeout');

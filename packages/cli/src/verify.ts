@@ -23,13 +23,13 @@ import {
 	SSM_ARTIFACT_MAX_BYTES,
 	SSM_EXPORT_MAX_BYTES,
 	TEARDOWN_ALLOWANCE_SECONDS,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import { type Box, BoxUnavailableError, ctlErrorText } from './box.ts';
 import { type HealthAnswer, STATUS_RETRY_MS, wakePreview } from './up.ts';
 
-// The koi verify commands (docs/verify.md, "Running a verification"), over
-// koid ctl verify through SSM. Every reply is a page; these read every page
-// and give the whole, with what any page said it cut. koid judges; the CLI
+// The previewlane verify commands (docs/verify.md, "Running a verification"), over
+// previewlaned ctl verify through SSM. Every reply is a page; these read every page
+// and give the whole, with what any page said it cut. previewlaned judges; the CLI
 // shows and waits.
 
 export interface VerifyDeps {
@@ -65,21 +65,21 @@ export const EXPORT_LIMITS: ExportLimits = {
 	artifactBytes: SSM_ARTIFACT_MAX_BYTES,
 };
 
-// How often koi verify run asks for the run's status.
+// How often previewlane verify run asks for the run's status.
 export const VERIFY_POLL_MS = 5_000;
-// What koi waits past the run's own limit before it stops following: the
-// teardown allowance koid gives itself, and time for the box.
+// What previewlane waits past the run's own limit before it stops following: the
+// teardown allowance previewlaned gives itself, and time for the box.
 export const FOLLOW_MARGIN_MS = (TEARDOWN_ALLOWANCE_SECONDS + 180) * 1000;
 
 type Schema<T> = { parse(data: unknown): T };
 
-// One koid ctl verify call, parsed. Throws with koid's own message when it
+// One previewlaned ctl verify call, parsed. Throws with previewlaned's own message when it
 // refused, and BoxUnavailableError when SSM could not run it this time.
 async function call<T>(box: Box, args: string[], schema: Schema<T>): Promise<T> {
 	const r = await box.ctl(['verify', ...args]);
 	if (r.code === CTL_EXIT.unavailable) throw new BoxUnavailableError(ctlErrorText(r));
 	if (r.code !== CTL_EXIT.ok) {
-		throw new Error(ctlErrorText(r) || `koid ctl verify ${args[0] ?? ''} failed`);
+		throw new Error(ctlErrorText(r) || `previewlaned ctl verify ${args[0] ?? ''} failed`);
 	}
 	return schema.parse(JSON.parse(r.stdout));
 }
@@ -106,14 +106,14 @@ export async function planVerification(
 	let next = first.next;
 	let pages = 1;
 	while (next !== undefined) {
-		if (pages > 10_000) throw new Error('the plan has more pages than koi reads');
+		if (pages > 10_000) throw new Error('the plan has more pages than previewlane reads');
 		const page = await call(deps.box, ['plan-page', plan.planId, next], PlanReplySchema);
 		plan.points = [...plan.points, ...page.points];
 		plan.blocked = [...plan.blocked, ...page.blocked];
 		plan.uncovered = [...plan.uncovered, ...page.uncovered];
 		mergeTruncated(plan, page);
 		if (page.next !== undefined && page.next === next) {
-			throw new Error(`koid ctl verify plan-page did not move past ${next}`);
+			throw new Error(`previewlaned ctl verify plan-page did not move past ${next}`);
 		}
 		next = page.next;
 		pages += 1;
@@ -139,7 +139,7 @@ export async function readRunStatus(runId: string, deps: VerifyDeps): Promise<Ru
 		status.points = [...status.points, ...page.points];
 		mergeTruncated(status, page);
 		if (page.next !== undefined && page.next <= next) {
-			throw new Error(`koid ctl verify status did not move past ${next}`);
+			throw new Error(`previewlaned ctl verify status did not move past ${next}`);
 		}
 		next = page.next;
 	}
@@ -190,7 +190,7 @@ export async function followRun(
 		if (status.state !== 'running') return status;
 		if (deps.now().getTime() >= deadline) {
 			throw new Error(
-				`run ${runId} is still running after its limit of ${accepted.limits.runSeconds} seconds and the follow margin; see koi verify status ${runId}, or koi verify cancel ${runId}`,
+				`run ${runId} is still running after its limit of ${accepted.limits.runSeconds} seconds and the follow margin; see previewlane verify status ${runId}, or previewlane verify cancel ${runId}`,
 			);
 		}
 	}
@@ -203,14 +203,14 @@ export interface RunReport {
 	run: RunStatusReply;
 }
 
-// koi verify run: wake the preview, plan, start, follow to the end.
+// previewlane verify run: wake the preview, plan, start, follow to the end.
 export async function runVerification(
 	label: string,
 	profile: string,
 	deps: VerifyDeps,
 ): Promise<RunReport> {
-	// koid leases only a preview that runs and is routed, and after the box
-	// wakes none is until someone visits. So visit first, as koi lease does.
+	// previewlaned leases only a preview that runs and is routed, and after the box
+	// wakes none is until someone visits. So visit first, as previewlane lease does.
 	await wakePreview(label, deps.domain, {
 		probe: deps.probe,
 		sleep: deps.sleep,
@@ -235,10 +235,10 @@ export async function runVerification(
 // are well under this; the average of what was read replaces it.
 const EVENT_LINE_ESTIMATE_BYTES = 256;
 
-// koi verify evidence RUN --out DIR: the manifest, the status, the events
+// previewlane verify evidence RUN --out DIR: the manifest, the status, the events
 // and every artifact the SSM path can carry, each written to a temporary
 // file, checked against the manifest's hash and renamed into place. Expired
-// evidence has no events or artifacts left, so koid answers 410 for them: the
+// evidence has no events or artifacts left, so previewlaned answers 410 for them: the
 // export skips them, saves what is retained, and says what is missing. `out`
 // must not exist, or must be empty: nothing here overwrites. The ceilings
 // bound what is asked for, not only what is kept: every request is for at
@@ -260,7 +260,7 @@ export async function exportEvidence(
 		if (!existing.isDirectory()) throw new Error(`${dir} exists and is not a directory`);
 		if ((await readdir(dir)).length > 0) {
 			throw new Error(
-				`${dir} is not empty; koi verify evidence writes only into an empty directory`,
+				`${dir} is not empty; previewlane verify evidence writes only into an empty directory`,
 			);
 		}
 	}
@@ -277,7 +277,7 @@ export async function exportEvidence(
 	}
 	if (evidence.expired) {
 		notes.push('the evidence has expired; only the manifest and the status remain');
-		notes.push('events are unavailable: koid no longer keeps them for this run');
+		notes.push('events are unavailable: previewlaned no longer keeps them for this run');
 		missing.push(
 			`events: the ${evidence.events?.count ?? 'recorded'} events of this run have expired`,
 		);
@@ -287,7 +287,7 @@ export async function exportEvidence(
 		const why = evidence.expired
 			? 'they have expired'
 			: evidence.finalized
-				? 'koid did not list them'
+				? 'previewlaned did not list them'
 				: 'the run is not finalized';
 		missing.push(`${unlisted} of ${evidence.artifactCount} artifacts: ${why}`);
 	}
@@ -308,14 +308,14 @@ export async function exportEvidence(
 			notes.push(stoppedAt);
 			missing.push(stoppedAt);
 		} else if (recorded !== undefined && events < recorded.count) {
-			missing.push(`events: koid gave ${events} of the ${recorded.count} recorded`);
+			missing.push(`events: previewlaned gave ${events} of the ${recorded.count} recorded`);
 		} else if (
 			recorded !== undefined &&
 			exported.outOfOrder === undefined &&
 			exported.sha256 !== recorded.sha256
 		) {
 			missing.push(
-				`events: the ${events} lines koid gave hash to ${exported.sha256}, and the manifest says ${recorded.sha256}`,
+				`events: the ${events} lines previewlaned gave hash to ${exported.sha256}, and the manifest says ${recorded.sha256}`,
 			);
 		}
 	}
@@ -376,7 +376,7 @@ export async function exportEvidence(
 				const bytes = Buffer.from(chunk.dataBase64, 'base64');
 				if (bytes.length !== chunk.length || chunk.offset !== offset || bytes.length > allowance) {
 					throw new Error(
-						`${entry.id}: koid sent ${bytes.length} bytes at ${chunk.offset}, not up to ${allowance} at ${offset}`,
+						`${entry.id}: previewlaned sent ${bytes.length} bytes at ${chunk.offset}, not up to ${allowance} at ${offset}`,
 					);
 				}
 				// Hashed and counted once it is all in the file, so the hash and
@@ -439,7 +439,7 @@ export async function exportEvidence(
 // ones that did not fit), the sequence the events stop after if they do, the first
 // place the sequence numbers do not count up by one, and the digest of the bytes
 // written. A count alone says nothing of which events these are: a line replaced by
-// a copy of another keeps it. koid writes each line so that writing it again here
+// a copy of another keeps it. previewlaned writes each line so that writing it again here
 // gives the same bytes, so the digest can be held to the manifest's.
 async function exportEvents(
 	runId: string,
@@ -497,7 +497,7 @@ async function exportEvents(
 			}
 			if (!page.more) return end(undefined);
 			if (page.next <= after && page.events.length === 0) {
-				throw new Error(`koid ctl verify events did not move past ${after}`);
+				throw new Error(`previewlaned ctl verify events did not move past ${after}`);
 			}
 			after = Math.max(after, page.next);
 		}
@@ -557,7 +557,7 @@ async function readEvidence(runId: string, deps: VerifyDeps): Promise<EvidenceRe
 		evidence.artifacts = [...evidence.artifacts, ...page.artifacts];
 		mergeTruncated(evidence, page);
 		if (page.next !== undefined && page.next <= next) {
-			throw new Error(`koid ctl verify evidence did not move past ${next}`);
+			throw new Error(`previewlaned ctl verify evidence did not move past ${next}`);
 		}
 		next = page.next;
 	}

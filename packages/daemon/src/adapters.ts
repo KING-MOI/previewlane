@@ -9,7 +9,7 @@ import { s3Uploads, type Uploads } from './uploads.ts';
 
 // The upload store and the live list the configuration selects. On AWS
 // they are S3 and an SSM parameter; on a plain host, a spool under
-// KOI_SPOOL_DIR filled through the control socket, and a JSON file.
+// PREVIEWLANE_SPOOL_DIR filled through the control socket, and a JSON file.
 export interface Adapters {
 	uploads: Uploads;
 	live: LiveList;
@@ -26,14 +26,14 @@ export function buildAdapters(config: Config, deps: AdapterDeps): Adapters {
 	const live = buildLive(config);
 	if (config.uploads === 's3') {
 		if (config.uploadsBucket === undefined)
-			throw new Error('KOI_UPLOADS=s3 needs KOI_UPLOADS_BUCKET');
+			throw new Error('PREVIEWLANE_UPLOADS=s3 needs PREVIEWLANE_UPLOADS_BUCKET');
 		return {
 			uploads: s3Uploads(config.uploadsBucket, new S3Client({ region: config.region })),
 			live,
 		};
 	}
 	if (config.spoolDir === undefined || config.spoolBudgetBytes === undefined) {
-		throw new Error('KOI_UPLOADS=spool needs KOI_SPOOL_DIR and KOI_SPOOL_BUDGET_BYTES');
+		throw new Error('PREVIEWLANE_UPLOADS=spool needs PREVIEWLANE_SPOOL_DIR and PREVIEWLANE_SPOOL_BUDGET_BYTES');
 	}
 	const spool = new UploadApi({
 		spoolDir: config.spoolDir,
@@ -48,9 +48,9 @@ export function buildAdapters(config: Config, deps: AdapterDeps): Adapters {
 function buildLive(config: Config): LiveList {
 	if (config.live === 'ssm') {
 		if (config.previewsParam === undefined)
-			throw new Error('KOI_LIVE=ssm needs KOI_PREVIEWS_PARAM');
+			throw new Error('PREVIEWLANE_LIVE=ssm needs PREVIEWLANE_PREVIEWS_PARAM');
 		return ssmLiveList(config.previewsParam, new SSMClient({ region: config.region }));
 	}
-	if (config.liveFile === undefined) throw new Error('KOI_LIVE=file needs KOI_LIVE_FILE');
+	if (config.liveFile === undefined) throw new Error('PREVIEWLANE_LIVE=file needs PREVIEWLANE_LIVE_FILE');
 	return fileLiveList(config.liveFile);
 }

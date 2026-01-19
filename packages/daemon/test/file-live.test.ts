@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileLiveList } from '../src/file-live.ts';
 
 async function file() {
-	const root = await mkdtemp(join(tmpdir(), 'koid-live-'));
+	const root = await mkdtemp(join(tmpdir(), 'previewlaned-live-'));
 	return { root, path: join(root, 'state', 'live-previews.json') };
 }
 

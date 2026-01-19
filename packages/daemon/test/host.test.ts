@@ -17,9 +17,9 @@ import {
 } from '../src/host.ts';
 
 const spec = hostSpec({
-	network: 'koi-previews',
-	buildNetwork: 'koi-build',
-	builder: 'koi-builder',
+	network: 'previewlane-previews',
+	buildNetwork: 'previewlane-build',
+	builder: 'previewlane-builder',
 });
 const [previews, build] = spec.networks as [(typeof spec.networks)[0], (typeof spec.networks)[0]];
 
@@ -32,27 +32,27 @@ const confined = (bridge: string) => ({
 });
 
 // docker buildx inspect, as printed by buildx 0.34 for a stopped builder.
-const builderOutput = `Name:          koi-builder
+const builderOutput = `Name:          previewlane-builder
 Driver:        docker-container
 Last Activity: 2026-10-06 01:15:13 +0000 UTC
 
 Nodes:
-Name:                  koi-builder0
+Name:                  previewlane-builder0
 Endpoint:              unix:///var/run/docker.sock
-Driver Options:        cpu-quota="300000" memory="8g" network="koi-build"
+Driver Options:        cpu-quota="300000" memory="8g" network="previewlane-build"
 Status:                stopped
 `;
 
 describe('networkProblems', () => {
 	test('accepts the networks provisioning creates', () => {
-		expect(networkProblems(previews, network(true, confined('koi-previews0')))).toEqual([]);
-		expect(networkProblems(build, network(false, confined('koi-build0')))).toEqual([]);
+		expect(networkProblems(previews, network(true, confined('previewlane-previews0')))).toEqual([]);
+		expect(networkProblems(build, network(false, confined('previewlane-build0')))).toEqual([]);
 	});
 
 	test('refuses an automatic bridge name, which the firewall rule would not match', () => {
 		expect(
 			networkProblems(previews, network(true, { 'com.docker.network.bridge.enable_icc': 'false' })),
-		).toEqual(['network koi-previews has bridge (automatic), not koi-previews0']);
+		).toEqual(['network previewlane-previews has bridge (automatic), not previewlane-previews0']);
 	});
 
 	test('refuses inter-container traffic and the wrong reach', () => {
@@ -60,16 +60,16 @@ describe('networkProblems', () => {
 			networkProblems(
 				previews,
 				network(false, {
-					...confined('koi-previews0'),
+					...confined('previewlane-previews0'),
 					'com.docker.network.bridge.enable_icc': 'true',
 				}),
 			),
 		).toEqual([
-			'network koi-previews is not internal',
-			'network koi-previews lets its containers reach each other (enable_icc is not false)',
+			'network previewlane-previews is not internal',
+			'network previewlane-previews lets its containers reach each other (enable_icc is not false)',
 		]);
-		expect(networkProblems(build, network(true, confined('koi-build0')))).toEqual([
-			'network koi-build is internal',
+		expect(networkProblems(build, network(true, confined('previewlane-build0')))).toEqual([
+			'network previewlane-build is internal',
 		]);
 	});
 
@@ -77,15 +77,15 @@ describe('networkProblems', () => {
 		const odd = JSON.stringify({
 			Driver: 'bridge',
 			Internal: 'true',
-			Options: confined('koi-previews0'),
+			Options: confined('previewlane-previews0'),
 		});
 		const problems = networkProblems(previews, odd);
 		expect(problems).toHaveLength(1);
 		expect(problems[0]).toStartWith(
-			'network koi-previews: docker network inspect printed what koid cannot read: Internal: ',
+			'network previewlane-previews: docker network inspect printed what previewlaned cannot read: Internal: ',
 		);
 		expect(networkProblems(previews, 'Error: no such network')).toEqual([
-			'network koi-previews: docker network inspect printed something other than JSON',
+			'network previewlane-previews: docker network inspect printed something other than JSON',
 		]);
 	});
 });
@@ -101,13 +101,13 @@ describe('builderProblems', () => {
 				spec.builder,
 				builderOutput
 					.replace('Driver:        docker-container', 'Driver:        docker')
-					.replace('cpu-quota="300000" memory="8g" network="koi-build"', 'network="bridge"'),
+					.replace('cpu-quota="300000" memory="8g" network="previewlane-build"', 'network="bridge"'),
 			),
 		).toEqual([
-			'buildx builder koi-builder does not use the docker-container driver',
-			'buildx builder koi-builder is not on network koi-build',
-			'buildx builder koi-builder has no memory limit',
-			'buildx builder koi-builder has no cpu-quota limit',
+			'buildx builder previewlane-builder does not use the docker-container driver',
+			'buildx builder previewlane-builder is not on network previewlane-build',
+			'buildx builder previewlane-builder has no memory limit',
+			'buildx builder previewlane-builder has no cpu-quota limit',
 		]);
 	});
 });
@@ -122,8 +122,8 @@ describe('verifyHost', () => {
 
 	test('passes when every network and the builder are as provisioning made them', async () => {
 		const problems = await verifyHost(spec, async (cmd) => {
-			if (cmd.includes('koi-previews')) return answer(0, network(true, confined('koi-previews0')));
-			if (cmd.includes('koi-build')) return answer(0, network(false, confined('koi-build0')));
+			if (cmd.includes('previewlane-previews')) return answer(0, network(true, confined('previewlane-previews0')));
+			if (cmd.includes('previewlane-build')) return answer(0, network(false, confined('previewlane-build0')));
 			return answer(0, builderOutput);
 		});
 		expect(problems).toEqual([]);
@@ -134,25 +134,25 @@ describe('verifyHost', () => {
 		const containers = Object.fromEntries(
 			Array.from({ length: 2000 }, (_, i) => [
 				`${i}`.padStart(64, '0'),
-				{ Name: `koi-preview-${i}`, IPv4Address: '172.19.0.2/16', MacAddress: '02:42:ac:13:00:02' },
+				{ Name: `previewlane-preview-${i}`, IPv4Address: '172.19.0.2/16', MacAddress: '02:42:ac:13:00:02' },
 			]),
 		);
-		const dir = await mkdtemp(join(tmpdir(), 'koid-host-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlaned-host-'));
 		const printed = async (text: string, options: Parameters<typeof exec>[1]) => {
 			const file = join(dir, `${Math.random()}`);
 			await writeFile(file, text);
 			return exec(['cat', file], options);
 		};
 		const problems = await verifyHost(spec, async (cmd, options) => {
-			if (cmd.includes('koi-previews')) {
+			if (cmd.includes('previewlane-previews')) {
 				const text = JSON.stringify({
-					...JSON.parse(network(true, confined('koi-previews0'))),
+					...JSON.parse(network(true, confined('previewlane-previews0'))),
 					Containers: containers,
 				});
 				expect(text.length).toBeGreaterThan(256 * 1024);
 				return printed(text, options);
 			}
-			if (cmd.includes('koi-build')) return answer(0, network(false, confined('koi-build0')));
+			if (cmd.includes('previewlane-build')) return answer(0, network(false, confined('previewlane-build0')));
 			return answer(0, builderOutput);
 		});
 		expect(problems).toEqual([]);
@@ -160,22 +160,22 @@ describe('verifyHost', () => {
 
 	test('reports what is missing, and errors other than missing', async () => {
 		const problems = await verifyHost(spec, async (cmd) => {
-			if (cmd.includes('koi-previews'))
-				return answer(1, '', 'Error response from daemon: network koi-previews not found');
-			if (cmd.includes('koi-build'))
+			if (cmd.includes('previewlane-previews'))
+				return answer(1, '', 'Error response from daemon: network previewlane-previews not found');
+			if (cmd.includes('previewlane-build'))
 				return answer(1, '', 'Cannot connect to the Docker daemon at unix:///var/run/docker.sock');
-			return answer(1, '', 'ERROR: no builder "koi-builder" found');
+			return answer(1, '', 'ERROR: no builder "previewlane-builder" found');
 		});
 		expect(problems).toEqual([
-			'network koi-previews does not exist',
-			'cannot inspect network koi-build: Cannot connect to the Docker daemon at unix:///var/run/docker.sock',
-			'buildx builder koi-builder does not exist',
+			'network previewlane-previews does not exist',
+			'cannot inspect network previewlane-build: Cannot connect to the Docker daemon at unix:///var/run/docker.sock',
+			'buildx builder previewlane-builder does not exist',
 		]);
 	});
 });
 
 describe('the slice', () => {
-	const sliced = { ...spec, slice: 'koi.slice' };
+	const sliced = { ...spec, slice: 'previewlane.slice' };
 	const id = 'c0ffee'.repeat(10).slice(0, 64);
 	const answer = (code: number, stdout: string, stderr = ''): ExecResult => ({
 		code,
@@ -190,17 +190,17 @@ describe('the slice', () => {
 			const line = cmd.join(' ');
 			const changed = change(line);
 			if (changed !== undefined) return changed;
-			if (line.startsWith('docker network inspect') && line.endsWith(' koi-previews'))
-				return answer(0, network(true, confined('koi-previews0')));
-			if (line.startsWith('docker network inspect') && line.endsWith(' koi-build'))
-				return answer(0, network(false, confined('koi-build0')));
+			if (line.startsWith('docker network inspect') && line.endsWith(' previewlane-previews'))
+				return answer(0, network(true, confined('previewlane-previews0')));
+			if (line.startsWith('docker network inspect') && line.endsWith(' previewlane-build'))
+				return answer(0, network(false, confined('previewlane-build0')));
 			if (line === 'docker info --format {{.CgroupDriver}}') return answer(0, 'systemd\n');
-			if (line === 'systemctl show --property=ActiveState,MemoryMax koi.slice')
+			if (line === 'systemctl show --property=ActiveState,MemoryMax previewlane.slice')
 				return answer(0, 'MemoryMax=13369344000\nActiveState=active\n');
-			if (line === 'docker buildx inspect --bootstrap koi-builder') return answer(0, builderOutput);
-			if (line.endsWith('buildx_buildkit_koi-builder0')) return answer(0, `${id} true\n`);
+			if (line === 'docker buildx inspect --bootstrap previewlane-builder') return answer(0, builderOutput);
+			if (line.endsWith('buildx_buildkit_previewlane-builder0')) return answer(0, `${id} true\n`);
 			if (line === `systemctl show --property=Slice --value docker-${id}.scope`)
-				return answer(0, 'koi.slice\n');
+				return answer(0, 'previewlane.slice\n');
 			throw new Error(`unexpected command: ${line}`);
 		};
 
@@ -214,7 +214,7 @@ describe('the slice', () => {
 			box((line) => (line.startsWith('docker info') ? answer(0, 'cgroupfs\n') : undefined)),
 		);
 		expect(problems).toEqual([
-			'docker uses the cgroupfs cgroup driver, not systemd, so its containers are not in koi.slice',
+			'docker uses the cgroupfs cgroup driver, not systemd, so its containers are not in previewlane.slice',
 		]);
 	});
 
@@ -228,8 +228,8 @@ describe('the slice', () => {
 			),
 		);
 		expect(missing).toEqual([
-			'koi.slice is not active',
-			'koi.slice has no memory ceiling (MemoryMax)',
+			'previewlane.slice is not active',
+			'previewlane.slice has no memory ceiling (MemoryMax)',
 		]);
 		const unlimited = await verifyHost(
 			sliced,
@@ -239,7 +239,7 @@ describe('the slice', () => {
 					: undefined,
 			),
 		);
-		expect(unlimited).toEqual(['koi.slice has no memory ceiling (MemoryMax)']);
+		expect(unlimited).toEqual(['previewlane.slice has no memory ceiling (MemoryMax)']);
 	});
 
 	test('refuses a builder that runs outside the slice, or that it cannot see', async () => {
@@ -248,18 +248,18 @@ describe('the slice', () => {
 			box((line) => (line.includes('--property=Slice') ? answer(0, 'system.slice\n') : undefined)),
 		);
 		expect(outside).toEqual([
-			'buildx builder koi-builder runs in system.slice, not koi.slice; set cgroup-parent in /etc/docker/daemon.json and restart docker',
+			'buildx builder previewlane-builder runs in system.slice, not previewlane.slice; set cgroup-parent in /etc/docker/daemon.json and restart docker',
 		]);
 		const stopped = await verifyHost(
 			sliced,
 			box((line) => (line.includes('buildx_buildkit_') ? answer(0, `${id} false\n`) : undefined)),
 		);
 		expect(stopped).toEqual([
-			'buildx builder koi-builder is not running in buildx_buildkit_koi-builder0, so koid cannot see its slice',
+			'buildx builder previewlane-builder is not running in buildx_buildkit_previewlane-builder0, so previewlaned cannot see its slice',
 		]);
 	});
 
-	test('checks nothing about slices when koid runs without one', async () => {
+	test('checks nothing about slices when previewlaned runs without one', async () => {
 		const asked: string[] = [];
 		const run = box();
 		expect(
@@ -272,8 +272,8 @@ describe('the slice', () => {
 	});
 
 	test('reads the builder node from buildx inspect', () => {
-		expect(builderNode(builderOutput, 'koi-builder')).toBe('koi-builder0');
-		expect(builderNode('Name: koi-builder\n', 'koi-builder')).toBe('koi-builder0');
+		expect(builderNode(builderOutput, 'previewlane-builder')).toBe('previewlane-builder0');
+		expect(builderNode('Name: previewlane-builder\n', 'previewlane-builder')).toBe('previewlane-builder0');
 	});
 });
 
@@ -302,20 +302,20 @@ describe('verificationCapability', () => {
 	const verifierImage = `sha256:${'8'.repeat(64)}`;
 	const spec = {
 		pool: '10.213.0.0/20',
-		helper: '/usr/local/libexec/koi-verify-net',
-		slice: 'koi.slice',
+		helper: '/usr/local/libexec/previewlane-verify-net',
+		slice: 'previewlane.slice',
 		recorderImage,
-		recorderSeccomp: '/usr/local/share/koi/recorder-seccomp.json',
+		recorderSeccomp: '/usr/local/share/previewlane/recorder-seccomp.json',
 		verifierImage,
 	};
 	const installed: FileStat = async () => ({ isFile: true, uid: 0, gid: 0, mode: 0o755 });
-	// The probe has a name of its own each time: koi-sandbox-probe- and 12 hex digits.
+	// The probe has a name of its own each time: previewlane-sandbox-probe- and 12 hex digits.
 	const probeName = (line: string) => line.split(' ')[4] ?? '';
 	const isProbe = (line: string) =>
-		/^koi-sandbox-probe-[0-9a-f]{12}$/.test(probeName(line)) &&
+		/^previewlane-sandbox-probe-[0-9a-f]{12}$/.test(probeName(line)) &&
 		line === sandboxProbeArgs(probeName(line), recorderImage, spec.recorderSeccomp).join(' ');
 	const leftover = `docker ps --all --filter label=${SANDBOX_PROBE_LABEL} --format {{.Names}}`;
-	const removal = /^docker rm --force koi-sandbox-probe-[0-9a-f]{12}$/;
+	const removal = /^docker rm --force previewlane-sandbox-probe-[0-9a-f]{12}$/;
 	// The box as provisioning and deploy leave it, with `change` answering first.
 	const box =
 		(change: (cmd: string) => ExecResult | undefined = () => undefined) =>
@@ -323,7 +323,7 @@ describe('verificationCapability', () => {
 			const line = cmd.join(' ');
 			const changed = change(line);
 			if (changed !== undefined) return changed;
-			if (line === 'sudo -n /usr/local/libexec/koi-verify-net attest')
+			if (line === 'sudo -n /usr/local/libexec/previewlane-verify-net attest')
 				return answer(0, `${JSON.stringify(attestation)}\n`);
 			if (line === `docker image inspect --format {{.Id}} ${recorderImage}`)
 				return answer(0, `${recorderImage}\n`);
@@ -335,7 +335,7 @@ describe('verificationCapability', () => {
 			if (removal.test(line))
 				return answer(1, '', 'Error response from daemon: No such container\n');
 			if (line === 'docker info --format {{.CgroupDriver}}') return answer(0, 'systemd\n');
-			if (line === 'systemctl show --property=ActiveState,MemoryMax koi.slice')
+			if (line === 'systemctl show --property=ActiveState,MemoryMax previewlane.slice')
 				return answer(0, 'MemoryMax=13369344000\nActiveState=active\n');
 			throw new Error(`unexpected command: ${line}`);
 		};
@@ -362,7 +362,7 @@ describe('verificationCapability', () => {
 				installed,
 			);
 		const why = (said: string) =>
-			`Chromium's sandbox cannot start in the recorder image under its confinement: ${said}. Copy host/recorder/seccomp.json to /usr/local/share/koi/recorder-seccomp.json again; if that is current, this host's AppArmor policy keeps Docker's containers from making a user namespace`;
+			`Chromium's sandbox cannot start in the recorder image under its confinement: ${said}. Copy host/recorder/seccomp.json to /usr/local/share/previewlane/recorder-seccomp.json again; if that is current, this host's AppArmor policy keeps Docker's containers from making a user namespace`;
 		// A seccomp file from before chroot was allowed.
 		expect(
 			await judge(
@@ -404,7 +404,7 @@ describe('verificationCapability', () => {
 			),
 		).toEqual({
 			available: false,
-			reason: `the recorder image ${recorderImage} has no dist/probe.js, so koid cannot check that Chromium's sandbox starts in it; rebuild it from host/recorder and set KOI_RECORDER_IMAGE to the new id`,
+			reason: `the recorder image ${recorderImage} has no dist/probe.js, so previewlaned cannot check that Chromium's sandbox starts in it; rebuild it from host/recorder and set PREVIEWLANE_RECORDER_IMAGE to the new id`,
 		});
 		expect(asked).toHaveLength(5);
 	});
@@ -427,12 +427,12 @@ describe('verificationCapability', () => {
 						return answer(
 							0,
 							[
-								'koi-sandbox-probe-0123456789ab',
-								'koi-sandbox-probe-ba9876543210',
-								'koi-sandbox-probe-abcdefghijklmnopqrst',
-								'koi-sandbox-probe-0123456789abc',
-								'koi-sandbox-probe-0123456789ag',
-								'koi-hello-abcdefghij0123456789',
+								'previewlane-sandbox-probe-0123456789ab',
+								'previewlane-sandbox-probe-ba9876543210',
+								'previewlane-sandbox-probe-abcdefghijklmnopqrst',
+								'previewlane-sandbox-probe-0123456789abc',
+								'previewlane-sandbox-probe-0123456789ag',
+								'previewlane-hello-abcdefghij0123456789',
 								'',
 							].join('\n'),
 						);
@@ -449,7 +449,7 @@ describe('verificationCapability', () => {
 			const name = probeName(asked[2] ?? '');
 			expect(asked).toEqual([
 				leftover,
-				'docker rm --force koi-sandbox-probe-0123456789ab koi-sandbox-probe-ba9876543210',
+				'docker rm --force previewlane-sandbox-probe-0123456789ab previewlane-sandbox-probe-ba9876543210',
 				sandboxProbeArgs(name, recorderImage, spec.recorderSeccomp).join(' '),
 				`docker rm --force ${name}`,
 			]);
@@ -457,7 +457,7 @@ describe('verificationCapability', () => {
 	});
 
 	test('counts a probe it could not list, remove, or see gone as a reason, and sweeps before it judges the images', async () => {
-		const probeLine = 'koi-sandbox-probe-0123456789ab\n';
+		const probeLine = 'previewlane-sandbox-probe-0123456789ab\n';
 		const judge = (
 			answers: { listing?: ExecResult; leftover?: ExecResult; own?: ExecResult },
 			files: FileStat = installed,
@@ -470,7 +470,7 @@ describe('verificationCapability', () => {
 						asked.push('list');
 						return answers.listing ?? answer(0, probeLine);
 					}
-					if (line === 'docker rm --force koi-sandbox-probe-0123456789ab') {
+					if (line === 'docker rm --force previewlane-sandbox-probe-0123456789ab') {
 						asked.push('remove leftover');
 						return answers.leftover ?? answer(0, '');
 					}
@@ -494,7 +494,7 @@ describe('verificationCapability', () => {
 		expect(await t.judged).toEqual({
 			available: false,
 			reason:
-				'removing the sandbox probes koi-sandbox-probe-0123456789ab left behind: Error response from daemon: device or resource busy',
+				'removing the sandbox probes previewlane-sandbox-probe-0123456789ab left behind: Error response from daemon: device or resource busy',
 		});
 		// Gone already is removed.
 		t = judge({ leftover: answer(1, '', 'Error response from daemon: No such container: x\n') });
@@ -504,7 +504,7 @@ describe('verificationCapability', () => {
 		expect(await t.judged).toMatchObject({
 			available: false,
 			reason: expect.stringMatching(
-				/^the sandbox probe koi-sandbox-probe-[0-9a-f]{12} was not removed: no answer in 30 seconds; the next start removes it$/,
+				/^the sandbox probe previewlane-sandbox-probe-[0-9a-f]{12} was not removed: no answer in 30 seconds; the next start removes it$/,
 			),
 		});
 		// A box that has lost its seccomp file still loses its old probe.
@@ -538,7 +538,7 @@ describe('verificationCapability', () => {
 			const judged = await verificationCapability(
 				spec,
 				box((line) => {
-					if (line === leftover) return answer(0, 'koi-sandbox-probe-0123456789ab\n');
+					if (line === leftover) return answer(0, 'previewlane-sandbox-probe-0123456789ab\n');
 					if (line.startsWith('docker rm ')) {
 						asked.push(line);
 						return answer(0, '');
@@ -549,7 +549,7 @@ describe('verificationCapability', () => {
 				files,
 			);
 			expect(judged.available).toBe(false);
-			expect(asked).toEqual(['docker rm --force koi-sandbox-probe-0123456789ab']);
+			expect(asked).toEqual(['docker rm --force previewlane-sandbox-probe-0123456789ab']);
 		}
 		const judged = await verificationCapability(
 			spec,
@@ -561,14 +561,14 @@ describe('verificationCapability', () => {
 		expect(judged).toEqual({
 			available: false,
 			reason:
-				'looking for sandbox probes left behind: Cannot connect to the Docker daemon; /usr/local/libexec/koi-verify-net is not installed; scripts/deploy-host.sh installs it',
+				'looking for sandbox probes left behind: Cannot connect to the Docker daemon; /usr/local/libexec/previewlane-verify-net is not installed; scripts/deploy-host.sh installs it',
 		});
 		// A later step that throws keeps the sweep's reason beside its own.
 		const busy = (line: string) =>
 			line.startsWith('docker rm ')
 				? answer(1, '', 'Error response from daemon: device or resource busy\n')
 				: line === leftover
-					? answer(0, 'koi-sandbox-probe-0123456789ab\n')
+					? answer(0, 'previewlane-sandbox-probe-0123456789ab\n')
 					: undefined;
 		const unreadable: FileStat = async (path) => {
 			throw new Error(`EACCES: permission denied, stat '${path}'`);
@@ -576,7 +576,7 @@ describe('verificationCapability', () => {
 		expect(await verificationCapability(spec, box(busy), unreadable)).toEqual({
 			available: false,
 			reason:
-				"removing the sandbox probes koi-sandbox-probe-0123456789ab left behind: Error response from daemon: device or resource busy; checking /usr/local/libexec/koi-verify-net: EACCES: permission denied, stat '/usr/local/libexec/koi-verify-net'",
+				"removing the sandbox probes previewlane-sandbox-probe-0123456789ab left behind: Error response from daemon: device or resource busy; checking /usr/local/libexec/previewlane-verify-net: EACCES: permission denied, stat '/usr/local/libexec/previewlane-verify-net'",
 		});
 		const noSudo = await verificationCapability(
 			spec,
@@ -589,7 +589,7 @@ describe('verificationCapability', () => {
 		expect(noSudo).toEqual({
 			available: false,
 			reason:
-				'removing the sandbox probes koi-sandbox-probe-0123456789ab left behind: Error response from daemon: device or resource busy; running sudo -n /usr/local/libexec/koi-verify-net attest: spawn sudo ENOENT',
+				'removing the sandbox probes previewlane-sandbox-probe-0123456789ab left behind: Error response from daemon: device or resource busy; running sudo -n /usr/local/libexec/previewlane-verify-net attest: spawn sudo ENOENT',
 		});
 	});
 
@@ -599,21 +599,21 @@ describe('verificationCapability', () => {
 		).toEqual({
 			available: false,
 			reason:
-				'KOI_RECORDER_IMAGE is not set; build host/recorder on the box and set it to the image id in /etc/koi/verify/env',
+				'PREVIEWLANE_RECORDER_IMAGE is not set; build host/recorder on the box and set it to the image id in /etc/previewlane/verify/env',
 		});
 		expect(
 			await verificationCapability({ ...spec, verifierImage: undefined }, box(), installed),
 		).toEqual({
 			available: false,
 			reason:
-				'KOI_VERIFIER_IMAGE is not set; build host/verifier on the box and set it to the image id in /etc/koi/verify/env',
+				'PREVIEWLANE_VERIFIER_IMAGE is not set; build host/verifier on the box and set it to the image id in /etc/previewlane/verify/env',
 		});
 		const noSeccomp: FileStat = async (path) =>
 			path === spec.recorderSeccomp ? undefined : { isFile: true, uid: 0, gid: 0, mode: 0o755 };
 		expect(await verificationCapability(spec, box(), noSeccomp)).toEqual({
 			available: false,
 			reason:
-				'/usr/local/share/koi/recorder-seccomp.json is not installed; copy host/recorder/seccomp.json there (KOI_RECORDER_SECCOMP)',
+				'/usr/local/share/previewlane/recorder-seccomp.json is not installed; copy host/recorder/seccomp.json there (PREVIEWLANE_RECORDER_SECCOMP)',
 		});
 		const missing = await verificationCapability(
 			spec,
@@ -652,12 +652,12 @@ describe('verificationCapability', () => {
 		expect(await verificationCapability({ ...spec, pool: undefined }, run, installed)).toEqual({
 			available: false,
 			reason:
-				'KOI_VERIFY_POOL is not set; provisioning writes it to /etc/koi/verify/env (scripts/provision-host.sh)',
+				'PREVIEWLANE_VERIFY_POOL is not set; provisioning writes it to /etc/previewlane/verify/env (scripts/provision-host.sh)',
 		});
 		expect(await verificationCapability({ ...spec, slice: undefined }, run, installed)).toEqual({
 			available: false,
 			reason:
-				'koid runs without a slice, and the recorder and verifier must share one with previews',
+				'previewlaned runs without a slice, and the recorder and verifier must share one with previews',
 		});
 		expect(asked).toEqual([]);
 	});
@@ -669,7 +669,7 @@ describe('verificationCapability', () => {
 			return answer(0, '');
 		};
 		const rule =
-			'it must be an IPv4 network between a /16 and a /28 with its host bits clear, as in 10.213.0.0/20 (var.verify_pool in infra/, which provisioning writes to /etc/koi/verify/env)';
+			'it must be an IPv4 network between a /16 and a /28 with its host bits clear, as in 10.213.0.0/20 (var.verify_pool in infra/, which provisioning writes to /etc/previewlane/verify/env)';
 		for (const [pool, problem] of [
 			['10.213.0.1/20', 'has host bits set'],
 			['10.0.0.0/8', 'must be between a /16 and a /28'],
@@ -679,7 +679,7 @@ describe('verificationCapability', () => {
 		] as const) {
 			expect(await verificationCapability({ ...spec, pool }, run, installed)).toEqual({
 				available: false,
-				reason: `KOI_VERIFY_POOL is ${pool}, which ${problem}; ${rule}`,
+				reason: `PREVIEWLANE_VERIFY_POOL is ${pool}, which ${problem}; ${rule}`,
 			});
 		}
 		expect(asked).toEqual([]);
@@ -697,25 +697,25 @@ describe('verificationCapability', () => {
 		expect(await verificationCapability(spec, run, async () => undefined)).toEqual({
 			available: false,
 			reason:
-				'/usr/local/libexec/koi-verify-net is not installed; scripts/deploy-host.sh installs it',
+				'/usr/local/libexec/previewlane-verify-net is not installed; scripts/deploy-host.sh installs it',
 		});
 		expect(
 			(await verificationCapability(spec, run, file({ uid: 1001 }))).available === false &&
 				(await verificationCapability(spec, run, file({ uid: 1001 }))),
 		).toMatchObject({
-			reason: '/usr/local/libexec/koi-verify-net is owned by 1001:0, not root',
+			reason: '/usr/local/libexec/previewlane-verify-net is owned by 1001:0, not root',
 		});
 		expect(await verificationCapability(spec, run, file({ mode: 0o775 }))).toEqual({
 			available: false,
-			reason: '/usr/local/libexec/koi-verify-net has mode 0775, not 0755',
+			reason: '/usr/local/libexec/previewlane-verify-net has mode 0775, not 0755',
 		});
 		expect(await verificationCapability(spec, run, file({ mode: 0o4755 }))).toEqual({
 			available: false,
-			reason: '/usr/local/libexec/koi-verify-net has mode 4755, not 0755',
+			reason: '/usr/local/libexec/previewlane-verify-net has mode 4755, not 0755',
 		});
 		expect(await verificationCapability(spec, run, file({ isFile: false }))).toEqual({
 			available: false,
-			reason: '/usr/local/libexec/koi-verify-net is not a regular file',
+			reason: '/usr/local/libexec/previewlane-verify-net is not a regular file',
 		});
 		// Only the sweep of earlier probes asks the box: it goes first, whatever
 		// the helper is.
@@ -733,18 +733,18 @@ describe('verificationCapability', () => {
 		expect(refused).toEqual({
 			available: false,
 			reason:
-				'sudo -n /usr/local/libexec/koi-verify-net attest exited 1: sudo: a password is required; provisioning installs the sudoers rule for it',
+				'sudo -n /usr/local/libexec/previewlane-verify-net attest exited 1: sudo: a password is required; provisioning installs the sudoers rule for it',
 		});
 		const odd = await verificationCapability(
 			spec,
 			box((line) =>
-				line.startsWith('sudo') ? answer(0, 'usage: koi-verify-net ...\n') : undefined,
+				line.startsWith('sudo') ? answer(0, 'usage: previewlane-verify-net ...\n') : undefined,
 			),
 			installed,
 		);
 		expect(odd).toEqual({
 			available: false,
-			reason: 'koi-verify-net attest printed something other than JSON',
+			reason: 'previewlane-verify-net attest printed something other than JSON',
 		});
 	});
 
@@ -758,13 +758,13 @@ describe('verificationCapability', () => {
 				jump: true,
 				defaults: false,
 				permits: false,
-				problems: ['chain KOI-VERIFY does not exist'],
+				problems: ['chain PREVIEWLANE-VERIFY does not exist'],
 			},
 			ipv6: { defaults: false, problems: ['ip6tables INPUT has no rule -i kv+ -j DROP'] },
 			bridge: {
 				guard: false,
 				pins: true,
-				problems: ['ebtables chain KOI-VERIFY-L2 does not exist'],
+				problems: ['ebtables chain PREVIEWLANE-VERIFY-L2 does not exist'],
 			},
 			sysctl: {
 				br_netfilter: true,
@@ -781,11 +781,11 @@ describe('verificationCapability', () => {
 		expect(result).toEqual({
 			available: false,
 			reason: [
-				'the helper installs policy version 1, and koid expects 2',
-				"the helper's pool is 10.0.0.0/20 and KOI_VERIFY_POOL is 10.213.0.0/20; both come from /etc/koi/verify/env",
-				'chain KOI-VERIFY does not exist',
+				'the helper installs policy version 1, and previewlaned expects 2',
+				"the helper's pool is 10.0.0.0/20 and PREVIEWLANE_VERIFY_POOL is 10.213.0.0/20; both come from /etc/previewlane/verify/env",
+				'chain PREVIEWLANE-VERIFY does not exist',
 				'ip6tables INPUT has no rule -i kv+ -j DROP',
-				'ebtables chain KOI-VERIFY-L2 does not exist',
+				'ebtables chain PREVIEWLANE-VERIFY-L2 does not exist',
 				'net.bridge.bridge-nf-call-iptables is not 1',
 				'net.bridge.bridge-nf-filter-vlan-tagged is not 1',
 			].join('; '),
@@ -804,7 +804,7 @@ describe('verificationCapability', () => {
 		);
 		expect(result).toEqual({
 			available: false,
-			reason: 'koi.slice has no memory ceiling (MemoryMax)',
+			reason: 'previewlane.slice has no memory ceiling (MemoryMax)',
 		});
 	});
 
@@ -817,7 +817,7 @@ describe('verificationCapability', () => {
 			...attestation.ipv4,
 			jump: false,
 			problems: [
-				'chain DOCKER-USER does not start with -j KOI-VERIFY: its first rule is -A DOCKER-USER -j KOI-VERIFY-NEW',
+				'chain DOCKER-USER does not start with -j PREVIEWLANE-VERIFY: its first rule is -A DOCKER-USER -j PREVIEWLANE-VERIFY-NEW',
 			],
 		},
 	};
@@ -876,7 +876,7 @@ describe('verificationCapability', () => {
 			),
 		).toEqual({
 			available: false,
-			reason: `${swapped.ipv4.problems.join('; ')}; KOI_RECORDER_IMAGE is not set; build host/recorder on the box and set it to the image id in /etc/koi/verify/env`,
+			reason: `${swapped.ipv4.problems.join('; ')}; PREVIEWLANE_RECORDER_IMAGE is not set; build host/recorder on the box and set it to the image id in /etc/previewlane/verify/env`,
 		});
 		expect(noImage.calls.n).toBe(1);
 
@@ -898,7 +898,7 @@ describe('verificationCapability', () => {
 	});
 
 	// A failure of the recorder checks is a reason too, never an error that
-	// would stop koid.
+	// would stop previewlaned.
 	test('is unavailable, naming the step, when the recorder checks throw', async () => {
 		const unreadable: FileStat = async (path) => {
 			if (path === spec.recorderSeccomp) throw new Error('EACCES: permission denied');
@@ -906,7 +906,7 @@ describe('verificationCapability', () => {
 		};
 		expect(await verificationCapability(spec, box(), unreadable)).toEqual({
 			available: false,
-			reason: 'checking /usr/local/share/koi/recorder-seccomp.json: EACCES: permission denied',
+			reason: 'checking /usr/local/share/previewlane/recorder-seccomp.json: EACCES: permission denied',
 		});
 		const noDocker = box((line) => {
 			if (line.startsWith('docker image inspect')) throw new Error('spawn docker ENOENT');
@@ -940,7 +940,7 @@ describe('verificationCapability', () => {
 		).toEqual({
 			available: false,
 			reason:
-				'/usr/local/libexec/koi-verify-net is not installed; scripts/deploy-host.sh installs it',
+				'/usr/local/libexec/previewlane-verify-net is not installed; scripts/deploy-host.sh installs it',
 		});
 		const refused = await verificationCapability(
 			{ ...spec, cleanup },
@@ -952,7 +952,7 @@ describe('verificationCapability', () => {
 		expect(refused).toEqual({
 			available: false,
 			reason:
-				'sudo -n /usr/local/libexec/koi-verify-net attest exited 1: sudo: a password is required; provisioning installs the sudoers rule for it',
+				'sudo -n /usr/local/libexec/previewlane-verify-net attest exited 1: sudo: a password is required; provisioning installs the sudoers rule for it',
 		});
 		expect(calls.n).toBe(0);
 	});
@@ -989,7 +989,7 @@ describe('verificationCapability', () => {
 			return { isFile: true, uid: 0, gid: 0, mode: 0o755 };
 		};
 		const seccomp =
-			'checking /usr/local/share/koi/recorder-seccomp.json: EACCES: permission denied';
+			'checking /usr/local/share/previewlane/recorder-seccomp.json: EACCES: permission denied';
 
 		test('a throwing recorder check keeps the cleanup failure', async () => {
 			expect(await verificationCapability({ ...spec, cleanup }, box(), unreadable)).toEqual({
@@ -1025,7 +1025,7 @@ describe('verificationCapability', () => {
 			});
 			expect(await verificationCapability({ ...spec, cleanup }, noSystemctl, unreadable)).toEqual({
 				available: false,
-				reason: [left, 'checking koi.slice: spawn systemctl ENOENT', seccomp].join('; '),
+				reason: [left, 'checking previewlane.slice: spawn systemctl ENOENT', seccomp].join('; '),
 			});
 		});
 
@@ -1039,15 +1039,15 @@ describe('verificationCapability', () => {
 			});
 			expect(await verificationCapability({ ...spec, cleanup }, sudoGone, installed)).toEqual({
 				available: false,
-				reason: `${left}; running sudo -n /usr/local/libexec/koi-verify-net attest: spawn sudo ENOENT`,
+				reason: `${left}; running sudo -n /usr/local/libexec/previewlane-verify-net attest: spawn sudo ENOENT`,
 			});
 		});
 	});
 
 	// A failure of the check itself is a reason, never an error out of it:
-	// koid logs it and keeps serving previews.
+	// previewlaned logs it and keeps serving previews.
 	test('is unavailable, naming the step, when the helper cannot be checked', async () => {
-		// KOI_VERIFY_HELPER under a directory the koi user may not search:
+		// PREVIEWLANE_VERIFY_HELPER under a directory the previewlane user may not search:
 		// stat fails with EACCES, which is not a missing file.
 		const { calls, cleanup } = counting();
 		const asked: string[] = [];
@@ -1066,19 +1066,19 @@ describe('verificationCapability', () => {
 		).toEqual({
 			available: false,
 			reason:
-				"checking /usr/local/libexec/koi-verify-net: EACCES: permission denied, stat '/usr/local/libexec/koi-verify-net'",
+				"checking /usr/local/libexec/previewlane-verify-net: EACCES: permission denied, stat '/usr/local/libexec/previewlane-verify-net'",
 		});
 		expect(asked).toEqual([leftover]);
 		expect(calls.n).toBe(0);
 	});
 
 	test.skipIf(process.getuid?.() === 0)(
-		'a helper under a directory koi cannot search is such a case, with the real stat',
+		'a helper under a directory previewlane cannot search is such a case, with the real stat',
 		async () => {
-			const dir = await mkdtemp(join(tmpdir(), 'koid-helper-'));
+			const dir = await mkdtemp(join(tmpdir(), 'previewlaned-helper-'));
 			const locked = join(dir, 'locked');
 			await mkdir(locked, { mode: 0o000 });
-			const helper = join(locked, 'koi-verify-net');
+			const helper = join(locked, 'previewlane-verify-net');
 			try {
 				const result = await verificationCapability({ ...spec, helper }, box());
 				expect(result.available).toBe(false);
@@ -1101,7 +1101,7 @@ describe('verificationCapability', () => {
 		expect(await verificationCapability({ ...spec, cleanup }, noSudo, installed)).toEqual({
 			available: false,
 			reason:
-				'running sudo -n /usr/local/libexec/koi-verify-net attest: Executable not found in $PATH: "sudo"',
+				'running sudo -n /usr/local/libexec/previewlane-verify-net attest: Executable not found in $PATH: "sudo"',
 		});
 		expect(calls.n).toBe(0);
 		// With the real exec: spawning a binary that is not there throws,
@@ -1113,7 +1113,7 @@ describe('verificationCapability', () => {
 		const result = await verificationCapability(spec, missing, installed);
 		expect(result.available).toBe(false);
 		expect(result.available === false && result.reason).toMatch(
-			/^running sudo -n \/usr\/local\/libexec\/koi-verify-net attest: .+/,
+			/^running sudo -n \/usr\/local\/libexec\/previewlane-verify-net attest: .+/,
 		);
 	});
 
@@ -1127,7 +1127,7 @@ describe('verificationCapability', () => {
 			);
 		expect(await verificationCapability({ ...spec, cleanup }, hung(''), installed)).toEqual({
 			available: false,
-			reason: 'sudo -n /usr/local/libexec/koi-verify-net attest gave no answer in 60 seconds',
+			reason: 'sudo -n /usr/local/libexec/previewlane-verify-net attest gave no answer in 60 seconds',
 		});
 		expect(
 			await verificationCapability(
@@ -1138,7 +1138,7 @@ describe('verificationCapability', () => {
 		).toEqual({
 			available: false,
 			reason:
-				'sudo -n /usr/local/libexec/koi-verify-net attest gave no answer in 60 seconds: waiting for the xtables lock',
+				'sudo -n /usr/local/libexec/previewlane-verify-net attest gave no answer in 60 seconds: waiting for the xtables lock',
 		});
 		expect(calls.n).toBe(0);
 	});
@@ -1156,7 +1156,7 @@ describe('verificationCapability', () => {
 		);
 		expect(result).toEqual({
 			available: false,
-			reason: 'checking koi.slice: Executable not found in $PATH: "systemctl"',
+			reason: 'checking previewlane.slice: Executable not found in $PATH: "systemctl"',
 		});
 	});
 });
@@ -1168,10 +1168,10 @@ describe('host/cloud-init.sh', () => {
 			script,
 		)?.[1] ?? '';
 
-	test('koid starts only after the firewall, and stops with it', () => {
-		const koid = unit('koid.service');
-		expect(koid).toMatch(/^Requires=.*\bkoi-firewall\.service\b/m);
-		expect(koid).toMatch(/^After=.*\bkoi-firewall\.service\b/m);
+	test('previewlaned starts only after the firewall, and stops with it', () => {
+		const previewlaned = unit('previewlaned.service');
+		expect(previewlaned).toMatch(/^Requires=.*\bpreviewlane-firewall\.service\b/m);
+		expect(previewlaned).toMatch(/^After=.*\bpreviewlane-firewall\.service\b/m);
 	});
 
 	test('the box powers off after 10 idle minutes', () => {
@@ -1179,26 +1179,26 @@ describe('host/cloud-init.sh', () => {
 		expect(script).toContain('limit=$(( IDLE_MINUTES * 60 ))');
 	});
 
-	test('koid starts only once the slice is up, and stops with it', () => {
-		const koid = unit('koid.service');
-		expect(koid).toMatch(/^Requires=.*\bkoi\.slice\b/m);
-		expect(koid).toMatch(/^After=.*\bkoi\.slice\b/m);
+	test('previewlaned starts only once the slice is up, and stops with it', () => {
+		const previewlaned = unit('previewlaned.service');
+		expect(previewlaned).toMatch(/^Requires=.*\bpreviewlane\.slice\b/m);
+		expect(previewlaned).toMatch(/^After=.*\bpreviewlane\.slice\b/m);
 	});
 
 	test('the slice leaves 2.5 to 3 GiB of a 16 GiB box to the host', () => {
-		const slice = unit('koi.slice');
+		const slice = unit('previewlane.slice');
 		const percent = Number(/^MemoryMax=(\d+)%$/m.exec(slice)?.[1]);
 		const left = (16 * (100 - percent)) / 100;
 		expect(left).toBeGreaterThanOrEqual(2.5);
 		expect(left).toBeLessThanOrEqual(3);
 	});
 
-	test('the slice koid uses by default is the one provisioning makes, before docker runs', () => {
+	test('the slice previewlaned uses by default is the one provisioning makes, before docker runs', () => {
 		const { slice } = loadConfig({
-			KOI_UPLOADS_BUCKET: 'koi-uploads',
-			KOI_DOMAIN: 'previews.example.net',
+			PREVIEWLANE_UPLOADS_BUCKET: 'previewlane-uploads',
+			PREVIEWLANE_DOMAIN: 'previews.example.net',
 		});
-		expect(slice).toBe('koi.slice');
+		expect(slice).toBe('previewlane.slice');
 		expect(script).toContain(`cat > /etc/systemd/system/${slice} <<'UNIT'`);
 		expect(script).toContain(`'. + {"cgroup-parent": "${slice}"}'`);
 		const started = script.indexOf(`systemctl start ${slice}`);
@@ -1208,49 +1208,49 @@ describe('host/cloud-init.sh', () => {
 	});
 
 	test('the firewall drops new connections to the host from both bridges', () => {
-		expect(script).toContain('for bridge in koi-previews0 koi-build0; do');
+		expect(script).toContain('for bridge in previewlane-previews0 previewlane-build0; do');
 		expect(script).toContain('rule=(INPUT -i "$bridge" -m conntrack --ctstate NEW -j DROP)');
 	});
 
-	test('provisioning makes the networks and builder koid checks for', () => {
+	test('provisioning makes the networks and builder previewlaned checks for', () => {
 		for (const n of spec.networks) {
 			expect(script).toContain(`ensure_network ${n.name} ${n.bridge} ${n.internal}\n`);
 		}
 		expect(script).toContain(
-			'--driver-opt network=koi-build --driver-opt memory=8g --driver-opt cpu-quota=300000',
+			'--driver-opt network=previewlane-build --driver-opt memory=8g --driver-opt cpu-quota=300000',
 		);
 	});
 
 	describe('verification', () => {
 		const helper = loadConfig({
-			KOI_UPLOADS_BUCKET: 'koi-uploads',
-			KOI_DOMAIN: 'previews.example.net',
+			PREVIEWLANE_UPLOADS_BUCKET: 'previewlane-uploads',
+			PREVIEWLANE_DOMAIN: 'previews.example.net',
 		}).verifyHelper;
 
-		test('lets koi run exactly the helper as root, after visudo has accepted the rule', () => {
-			expect(script).toContain(`koi ALL=(root:root) NOPASSWD: ${helper}\n`);
-			const check = script.indexOf('visudo -cf /etc/sudoers.d/.koi-verify-net.new');
+		test('lets previewlane run exactly the helper as root, after visudo has accepted the rule', () => {
+			expect(script).toContain(`previewlane ALL=(root:root) NOPASSWD: ${helper}\n`);
+			const check = script.indexOf('visudo -cf /etc/sudoers.d/.previewlane-verify-net.new');
 			expect(check).toBeGreaterThan(0);
 			expect(check).toBeLessThan(
-				script.indexOf('mv -f /etc/sudoers.d/.koi-verify-net.new /etc/sudoers.d/koi-verify-net'),
+				script.indexOf('mv -f /etc/sudoers.d/.previewlane-verify-net.new /etc/sudoers.d/previewlane-verify-net'),
 			);
-			expect(script).toContain('chmod 0440 /etc/sudoers.d/.koi-verify-net.new');
+			expect(script).toContain('chmod 0440 /etc/sudoers.d/.previewlane-verify-net.new');
 		});
 
-		test("writes the pool where koid and the helper read it, with a default outside Docker's pools", () => {
-			expect(script).toMatch(/^KOI_VERIFY_POOL=\$\{KOI_VERIFY_POOL:-10\.213\.0\.0\/20\}$/m);
+		test("writes the pool where previewlaned and the helper read it, with a default outside Docker's pools", () => {
+			expect(script).toMatch(/^PREVIEWLANE_VERIFY_POOL=\$\{PREVIEWLANE_VERIFY_POOL:-10\.213\.0\.0\/20\}$/m);
 			expect(script).toContain(
-				`printf 'KOI_VERIFY_POOL=%s\\n' "$KOI_VERIFY_POOL" > /etc/koi/verify/env`,
+				`printf 'PREVIEWLANE_VERIFY_POOL=%s\\n' "$PREVIEWLANE_VERIFY_POOL" > /etc/previewlane/verify/env`,
 			);
-			expect(unit('koid.service')).toContain('EnvironmentFile=-/etc/koi/verify/env');
+			expect(unit('previewlaned.service')).toContain('EnvironmentFile=-/etc/previewlane/verify/env');
 			// The infra variable and the provisioning script hand it over like the domain.
 			const box = readFileSync(resolve(import.meta.dir, '../../../infra/box.tf'), 'utf8');
-			expect(box).toContain(['"KOI_VERIFY_POOL=$', '{var.verify_pool}",'].join(''));
+			expect(box).toContain(['"PREVIEWLANE_VERIFY_POOL=$', '{var.verify_pool}",'].join(''));
 			const provision = readFileSync(
 				resolve(import.meta.dir, '../../../scripts/provision-host.sh'),
 				'utf8',
 			);
-			expect(provision).toContain('KOI_VERIFY_POOL=%s');
+			expect(provision).toContain('PREVIEWLANE_VERIFY_POOL=%s');
 			const variables = readFileSync(
 				resolve(import.meta.dir, '../../../infra/variables.tf'),
 				'utf8',
@@ -1265,15 +1265,15 @@ describe('host/cloud-init.sh', () => {
 		});
 
 		test('loads br_netfilter and keeps the bridge sysctls on across boots', () => {
-			expect(script).toContain("printf 'br_netfilter\\n' > /etc/modules-load.d/koi-verify.conf");
+			expect(script).toContain("printf 'br_netfilter\\n' > /etc/modules-load.d/previewlane-verify.conf");
 			expect(script).toContain('net.bridge.bridge-nf-call-iptables = 1');
 			expect(script).toContain('net.bridge.bridge-nf-call-ip6tables = 1');
 			// A VLAN-tagged frame reaches iptables only with this one on.
 			expect(script).toContain('net.bridge.bridge-nf-filter-vlan-tagged = 1');
-			expect(script).toContain('sysctl -q -p /etc/sysctl.d/90-koi-verify.conf');
-			// And in the firewall unit, which runs before koid.
+			expect(script).toContain('sysctl -q -p /etc/sysctl.d/90-previewlane-verify.conf');
+			// And in the firewall unit, which runs before previewlaned.
 			const firewall =
-				/cat > \/usr\/local\/sbin\/koi-firewall <<'FW'\n([\s\S]*?)\nFW\n/.exec(script)?.[1] ?? '';
+				/cat > \/usr\/local\/sbin\/previewlane-firewall <<'FW'\n([\s\S]*?)\nFW\n/.exec(script)?.[1] ?? '';
 			expect(firewall).toContain('modprobe br_netfilter');
 			expect(firewall).toContain(
 				'sysctl -q -w net.bridge.bridge-nf-call-iptables=1 net.bridge.bridge-nf-call-ip6tables=1 net.bridge.bridge-nf-filter-vlan-tagged=1',
@@ -1282,11 +1282,11 @@ describe('host/cloud-init.sh', () => {
 
 		test('the firewall leaves the kv+ chains, their denies and their jumps to the helper', () => {
 			const firewall =
-				/cat > \/usr\/local\/sbin\/koi-firewall <<'FW'\n([\s\S]*?)\nFW\n/.exec(script)?.[1] ?? '';
+				/cat > \/usr\/local\/sbin\/previewlane-firewall <<'FW'\n([\s\S]*?)\nFW\n/.exec(script)?.[1] ?? '';
 			// Called when installed; a box before its first deploy says so instead.
-			expect(firewall).toContain('KOI_VERIFY_NET=/usr/local/libexec/koi-verify-net');
+			expect(firewall).toContain('PREVIEWLANE_VERIFY_NET=/usr/local/libexec/previewlane-verify-net');
 			expect(firewall).toContain(
-				'if [ -x "$KOI_VERIFY_NET" ]; then\n\t"$KOI_VERIFY_NET" provision',
+				'if [ -x "$PREVIEWLANE_VERIFY_NET" ]; then\n\t"$PREVIEWLANE_VERIFY_NET" provision',
 			);
 			expect(firewall).toContain(
 				'is not installed yet; the verification chains come with the first deploy',
@@ -1296,14 +1296,14 @@ describe('host/cloud-init.sh', () => {
 			const commands = firewall.split('\n').filter((l) => /^\s*(ip6?tables|xargs)/.test(l));
 			expect(commands.length).toBeGreaterThan(0);
 			for (const line of commands) {
-				expect(line).not.toContain('KOI-VERIFY');
+				expect(line).not.toContain('PREVIEWLANE-VERIFY');
 				expect(line).not.toContain('kv+');
 			}
 			expect(script).not.toContain('reset_defaults');
 			// The preview rules are as they were.
-			expect(firewall).toContain('for bridge in koi-previews0 koi-build0; do');
+			expect(firewall).toContain('for bridge in previewlane-previews0 previewlane-build0; do');
 			expect(firewall).toContain(
-				'accept=(INPUT -i koi-previews0 -p tcp --dport 3128 -m conntrack --ctstate NEW -j ACCEPT)',
+				'accept=(INPUT -i previewlane-previews0 -p tcp --dport 3128 -m conntrack --ctstate NEW -j ACCEPT)',
 			);
 			// The installer provisions too, so a box that gets the helper for
 			// the first time gets the chains with it.
@@ -1320,7 +1320,7 @@ describe('host/cloud-init.sh', () => {
 				resolve(import.meta.dir, '../../../scripts/deploy-host.sh'),
 				'utf8',
 			);
-			expect(deploy).toContain('bash /usr/local/share/koi/verify/install.sh');
+			expect(deploy).toContain('bash /usr/local/share/previewlane/verify/install.sh');
 			const install = readFileSync(
 				resolve(import.meta.dir, '../../../host/verify/install.sh'),
 				'utf8',
@@ -1333,21 +1333,21 @@ describe('host/cloud-init.sh', () => {
 
 // The firewall script as its unit runs it, in bash, with iptables, ip6tables,
 // modprobe and sysctl replaced by functions that log their calls and the
-// helper by a script of this test's. koid.service Requires= the unit, so an
-// exit other than 0 here keeps koid and every preview from starting.
-describe('koi-firewall, run in bash', () => {
+// helper by a script of this test's. previewlaned.service Requires= the unit, so an
+// exit other than 0 here keeps previewlaned and every preview from starting.
+describe('previewlane-firewall, run in bash', () => {
 	const script = readFileSync(resolve(import.meta.dir, '../../../host/cloud-init.sh'), 'utf8');
 	const firewall =
-		/cat > \/usr\/local\/sbin\/koi-firewall <<'FW'\n([\s\S]*?)\nFW\n/.exec(script)?.[1] ?? '';
-	const helperLine = 'KOI_VERIFY_NET=/usr/local/libexec/koi-verify-net';
+		/cat > \/usr\/local\/sbin\/previewlane-firewall <<'FW'\n([\s\S]*?)\nFW\n/.exec(script)?.[1] ?? '';
+	const helperLine = 'PREVIEWLANE_VERIFY_NET=/usr/local/libexec/previewlane-verify-net';
 
 	// `helper` is the body of the fake helper, undefined for none installed.
 	// A -C or -D that fails means the rule is not there, as on a new box, so
 	// the script inserts every rule and the -D loop ends.
 	async function runFirewall(helper: string | undefined, stubs = '') {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-firewall-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-firewall-'));
 		const calls = join(dir, 'calls');
-		const path = join(dir, 'koi-verify-net');
+		const path = join(dir, 'previewlane-verify-net');
 		if (helper !== undefined) {
 			const body = `#!/bin/bash\necho "helper $*" >> '${calls}'\n${helper}\n`;
 			await writeFile(path, body, { mode: 0o755 });
@@ -1363,7 +1363,7 @@ describe('koi-firewall, run in bash', () => {
 				'modprobe() { echo "modprobe $*" >> "$calls"; }',
 				'sysctl() { echo "sysctl $*" >> "$calls"; }',
 				stubs,
-				firewall.replace(helperLine, `KOI_VERIFY_NET='${path}'`),
+				firewall.replace(helperLine, `PREVIEWLANE_VERIFY_NET='${path}'`),
 			].join('\n'),
 		);
 		const r = await exec(['bash', file], { timeoutMs: 30_000 });
@@ -1374,9 +1374,9 @@ describe('koi-firewall, run in bash', () => {
 	const previewRules = [
 		'ip6tables -I DOCKER-USER -d fd00:ec2::254 -j DROP',
 		'iptables -I DOCKER-USER -d 169.254.169.254 -j DROP',
-		'iptables -I INPUT -i koi-build0 -m conntrack --ctstate NEW -j DROP',
-		'iptables -I INPUT -i koi-previews0 -m conntrack --ctstate NEW -j DROP',
-		'iptables -I INPUT -i koi-previews0 -p tcp --dport 3128 -m conntrack --ctstate NEW -j ACCEPT',
+		'iptables -I INPUT -i previewlane-build0 -m conntrack --ctstate NEW -j DROP',
+		'iptables -I INPUT -i previewlane-previews0 -m conntrack --ctstate NEW -j DROP',
+		'iptables -I INPUT -i previewlane-previews0 -p tcp --dport 3128 -m conntrack --ctstate NEW -j ACCEPT',
 	];
 	const inserted = (calls: string[]) => calls.filter((c) => / -I /.test(c)).sort();
 
@@ -1394,8 +1394,8 @@ describe('koi-firewall, run in bash', () => {
 
 	test('the provision call cannot end the script, however the helper fails', async () => {
 		const failures = [
-			['refused', 'echo "koi-verify-net: refused: no pool" >&2\nexit 2', 'exit 2'],
-			['failed', 'echo "koi-verify-net: iptables exited 4" >&2\nexit 1', 'exit 1'],
+			['refused', 'echo "previewlane-verify-net: refused: no pool" >&2\nexit 2', 'exit 2'],
+			['failed', 'echo "previewlane-verify-net: iptables exited 4" >&2\nexit 1', 'exit 1'],
 			['killed', 'kill -9 $$', 'exit 137'],
 		] as const;
 		for (const [name, helper, exit] of failures) {
@@ -1403,7 +1403,7 @@ describe('koi-firewall, run in bash', () => {
 			expect([name, run.code]).toEqual([name, 0]);
 			expect(inserted(run.calls)).toEqual(previewRules);
 			expect(run.calls.at(-1)).toBe('helper provision');
-			expect(run.stderr).toContain(`koi: ${run.path} provision (${exit}) failed.`);
+			expect(run.stderr).toContain(`previewlane: ${run.path} provision (${exit}) failed.`);
 			expect(run.stderr).toContain('Previews are not affected');
 		}
 	});
@@ -1419,8 +1419,8 @@ describe('koi-firewall, run in bash', () => {
 		expect(run.code).toBe(0);
 		expect(inserted(run.calls)).toEqual(previewRules);
 		expect(run.calls.at(-1)).toBe('helper provision');
-		expect(run.stderr).toContain('koi: modprobe br_netfilter failed.');
-		expect(run.stderr).toContain('koi: setting the bridge sysctls failed.');
+		expect(run.stderr).toContain('previewlane: modprobe br_netfilter failed.');
+		expect(run.stderr).toContain('previewlane: setting the bridge sysctls failed.');
 	});
 
 	test('a box before its first deploy says the helper is not installed, and passes', async () => {
@@ -1431,7 +1431,7 @@ describe('koi-firewall, run in bash', () => {
 	});
 
 	test('a preview rule that cannot be installed still fails the script', async () => {
-		// The mandatory half stays mandatory: koid must not run without it.
+		// The mandatory half stays mandatory: previewlaned must not run without it.
 		const run = await runFirewall(
 			'exit 0',
 			'iptables() { echo "iptables $*" >> "$calls"; return 4; }',
@@ -1459,8 +1459,8 @@ describe('provisioning steps, run in bash', () => {
 			[
 				'set -euo pipefail',
 				`DOCKER_ETC=${dir}/docker`,
-				'DOCKER_RESTART_PENDING=$DOCKER_ETC/koi-restart-pending',
-				'BUILDER_CONTAINER=buildx_buildkit_koi-builder0',
+				'DOCKER_RESTART_PENDING=$DOCKER_ETC/previewlane-restart-pending',
+				'BUILDER_CONTAINER=buildx_buildkit_previewlane-builder0',
 				`calls=${dir}/calls`,
 				': > "$calls"',
 				'systemctl() { echo "systemctl $*" >> "$calls"; }',
@@ -1480,19 +1480,19 @@ describe('provisioning steps, run in bash', () => {
 	const daemonJson = async (dir: string) =>
 		JSON.parse(await readFile(join(dir, 'docker', 'daemon.json'), 'utf8')) as unknown;
 	const pending = (dir: string) =>
-		stat(join(dir, 'docker', 'koi-restart-pending')).then(
+		stat(join(dir, 'docker', 'previewlane-restart-pending')).then(
 			() => true,
 			() => false,
 		);
 
 	test('a run that fails after changing daemon.json still restarts Docker on the next run', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-provision-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-provision-'));
 		// The first run writes daemon.json, then fails (a download, say)
 		// before it restarts Docker.
 		const first = await provision(dir, 'configure_docker\nexit 1');
 		expect(first.code).toBe(1);
 		expect(first.calls).toEqual([]);
-		expect(await daemonJson(dir)).toEqual({ 'cgroup-parent': 'koi.slice' });
+		expect(await daemonJson(dir)).toEqual({ 'cgroup-parent': 'previewlane.slice' });
 		expect(await pending(dir)).toBe(true);
 		const second = await provision(dir, 'configure_docker\nrestart_docker_if_pending');
 		expect(second.code).toBe(0);
@@ -1503,7 +1503,7 @@ describe('provisioning steps, run in bash', () => {
 	});
 
 	test('keeps the rest of an existing daemon.json, and keeps the restart pending when it fails', async () => {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-provision-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-provision-'));
 		await mkdir(join(dir, 'docker'));
 		await writeFile(join(dir, 'docker', 'daemon.json'), '{"log-driver": "local"}\n');
 		const failing = await provision(
@@ -1512,7 +1512,7 @@ describe('provisioning steps, run in bash', () => {
 			'systemctl() { echo "systemctl $*" >> "$calls"; return 1; }',
 		);
 		expect(failing.code).not.toBe(0);
-		expect(await daemonJson(dir)).toEqual({ 'cgroup-parent': 'koi.slice', 'log-driver': 'local' });
+		expect(await daemonJson(dir)).toEqual({ 'cgroup-parent': 'previewlane.slice', 'log-driver': 'local' });
 		expect(await pending(dir)).toBe(true);
 		const again = await provision(dir, 'configure_docker\nrestart_docker_if_pending');
 		expect(again.calls).toEqual(['systemctl restart docker.service']);
@@ -1546,7 +1546,7 @@ systemctl() {
 }`;
 
 	async function boxWith(entries: Record<string, string>) {
-		const dir = await mkdtemp(join(tmpdir(), 'koi-provision-'));
+		const dir = await mkdtemp(join(tmpdir(), 'previewlane-provision-'));
 		await mkdir(join(dir, 'state'));
 		for (const [name, line] of Object.entries(entries)) {
 			await writeFile(join(dir, 'state', name), `${line}\n`);
@@ -1556,47 +1556,47 @@ systemctl() {
 	const stateOf = (dir: string, name: string) =>
 		readFile(join(dir, 'state', name), 'utf8').then((t) => t.trim());
 
-	test('moves a builder that kept running through the restart into the slice, and leaves previews to koid', async () => {
+	test('moves a builder that kept running through the restart into the slice, and leaves previews to previewlaned', async () => {
 		// As live-restore leaves them: Docker restarted with the new default,
 		// and the containers running where they were.
 		const dir = await boxWith({
-			'buildx_buildkit_koi-builder0': 'true system.slice builder',
-			'koi-a': 'true system.slice preview',
+			'buildx_buildkit_previewlane-builder0': 'true system.slice builder',
+			'previewlane-a': 'true system.slice preview',
 		});
-		const run = await provision(dir, 'starts_in=koi.slice\nmove_builder_into_slice', containers);
+		const run = await provision(dir, 'starts_in=previewlane.slice\nmove_builder_into_slice', containers);
 		expect(run.stderr).toBe('');
 		expect(run.code).toBe(0);
 		const changes = run.calls.filter((c) => /^docker (restart|stop)/.test(c));
-		expect(changes).toEqual(['docker restart buildx_buildkit_koi-builder0']);
-		expect(await stateOf(dir, 'buildx_buildkit_koi-builder0')).toBe('true koi.slice builder');
-		// koid takes a preview out of Caddy's routes before it stops one.
-		expect(await stateOf(dir, 'koi-a')).toBe('true system.slice preview');
+		expect(changes).toEqual(['docker restart buildx_buildkit_previewlane-builder0']);
+		expect(await stateOf(dir, 'buildx_buildkit_previewlane-builder0')).toBe('true previewlane.slice builder');
+		// previewlaned takes a preview out of Caddy's routes before it stops one.
+		expect(await stateOf(dir, 'previewlane-a')).toBe('true system.slice preview');
 		expect(run.stdout).toContain(
-			'restarting buildx_buildkit_koi-builder0, which runs in system.slice',
+			'restarting buildx_buildkit_previewlane-builder0, which runs in system.slice',
 		);
 	});
 
 	test('changes nothing when the builder is in the slice, or not running', async () => {
-		for (const builder of ['true koi.slice builder', 'false system.slice builder']) {
-			const dir = await boxWith({ 'buildx_buildkit_koi-builder0': builder });
-			const run = await provision(dir, 'starts_in=koi.slice\nmove_builder_into_slice', containers);
+		for (const builder of ['true previewlane.slice builder', 'false system.slice builder']) {
+			const dir = await boxWith({ 'buildx_buildkit_previewlane-builder0': builder });
+			const run = await provision(dir, 'starts_in=previewlane.slice\nmove_builder_into_slice', containers);
 			expect(run.code).toBe(0);
 			expect(run.calls.filter((c) => /^docker (restart|stop)/.test(c))).toEqual([]);
 		}
 	});
 
 	test('stops provisioning when Docker still starts the builder outside the slice', async () => {
-		const dir = await boxWith({ 'buildx_buildkit_koi-builder0': 'true system.slice builder' });
+		const dir = await boxWith({ 'buildx_buildkit_previewlane-builder0': 'true system.slice builder' });
 		const run = await provision(dir, 'starts_in=system.slice\nmove_builder_into_slice', containers);
 		expect(run.code).not.toBe(0);
 		expect(run.stderr).toContain(
-			'koi: buildx_buildkit_koi-builder0 runs in system.slice, not koi.slice; check cgroup-parent',
+			'previewlane: buildx_buildkit_previewlane-builder0 runs in system.slice, not previewlane.slice; check cgroup-parent',
 		);
 	});
 
 	test('provisioning moves the builder into the slice after Docker and the builder are set up', () => {
 		const at = (text: string) => script.lastIndexOf(text);
 		expect(at('\nmove_builder_into_slice\n')).toBeGreaterThan(at('\nrestart_docker_if_pending\n'));
-		expect(at('\nmove_builder_into_slice\n')).toBeGreaterThan(at('as_koi docker buildx create'));
+		expect(at('\nmove_builder_into_slice\n')).toBeGreaterThan(at('as_previewlane docker buildx create'));
 	});
 });

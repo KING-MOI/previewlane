@@ -47,7 +47,7 @@ import {
 	TEXT_MAX,
 	VERIFICATION_REPLY_MAX_BYTES,
 	type VerifyAttestation,
-} from '@koi/shared';
+} from '@previewlane/shared';
 import type { Box, CtlResult } from '../../cli/src/box.ts';
 import { exportEvidence, formatStatus } from '../../cli/src/verify.ts';
 import { LeaseError, NoSuchLeaseError } from '../src/deployer.ts';
@@ -92,7 +92,7 @@ import { PNG_STRIPPED } from './png.ts';
 
 const LABEL = 'hello-pr-7';
 const DEPLOYMENT = 'd'.repeat(20);
-const APP = `koi-${LABEL}-aaaaaaaaaaaaaaaa1`;
+const APP = `previewlane-${LABEL}-aaaaaaaaaaaaaaaa1`;
 const IMAGE = `sha256:${'1'.repeat(64)}`;
 const RECORDER_IMAGE = `sha256:${'5'.repeat(64)}`;
 const VERIFIER_IMAGE = `sha256:${'6'.repeat(64)}`;
@@ -126,9 +126,9 @@ claim: The home page says hello.
 select:
   paths: [Dockerfile]
 run:
-  command: [sh, .koi/runners/home.sh]
+  command: [sh, .previewlane/runners/home.sh]
 cleanup:
-  command: [sh, .koi/runners/home.sh]
+  command: [sh, .previewlane/runners/home.sh]
 assertions:
   - name: home-says-hello
     description: GET / answers 200.
@@ -140,7 +140,7 @@ claim: Search finds what was saved.
 select:
   paths: ['src/search/**']
 run:
-  command: [sh, .koi/runners/home.sh]
+  command: [sh, .previewlane/runners/home.sh]
 assertions:
   - name: finds
     description: The result lists the saved item.
@@ -153,7 +153,7 @@ select:
   always: true
   paths: ['src/boot/**']
 run:
-  command: [sh, .koi/runners/home.sh]
+  command: [sh, .previewlane/runners/home.sh]
 assertions:
   - name: boots
     description: The app answers.
@@ -170,7 +170,7 @@ requires:
   network: dns
   fixtures: [fixtures/probe.txt]
 run:
-  command: [sh, .koi/runners/home.sh]
+  command: [sh, .previewlane/runners/home.sh]
 assertions:
   - name: answers
     description: An answer comes back.
@@ -271,14 +271,14 @@ class FakeRecorder implements RecorderApi {
 	onClose: (() => unknown) | undefined;
 	// The address an open answers with, when set.
 	openUrl: string | undefined;
-	// What the recorder has seen, for koid's next read of its events (say).
+	// What the recorder has seen, for previewlaned's next read of its events (say).
 	private feed: RecorderEventsPage['events'] = [];
 	// Fails every events read with this, when set, from the read numbered
 	// `eventsFailFrom` on (the first read is 1).
 	eventsError: Error | undefined;
 	eventsFailFrom = 1;
 	eventsCalls = 0;
-	ariaText = 'heading "hello from koi"\n';
+	ariaText = 'heading "hello from previewlane"\n';
 	// Screenshots that are not PNGs, which the sanitizer withholds.
 	badPng = false;
 	// The signal each capture was given, so a test can see it is bounded.
@@ -351,7 +351,7 @@ class FakeRecorder implements RecorderApi {
 	async read(contextId: string, r: ReadRequest): Promise<RecorderCapture> {
 		this.calls.push(`read ${contextId} ${r.method} ${r.path}`);
 		if (this.captureError !== undefined) throw this.captureError;
-		const body = '<h1>hello from koi</h1>';
+		const body = '<h1>hello from previewlane</h1>';
 		const bytes = new TextEncoder().encode(
 			JSON.stringify({
 				request: { method: r.method, url: `http://app.${this.runId}.invalid:8080${r.path}` },
@@ -404,7 +404,7 @@ class FakeRecorder implements RecorderApi {
 		const events = this.feed.filter((e) => e.seq > after);
 		return { events, next: events.at(-1)?.seq ?? after, dropped: 0 };
 	}
-	// One event for koid's next read, as a page or the recorder said it.
+	// One event for previewlaned's next read, as a page or the recorder said it.
 	say(type: string, fields: Record<string, unknown>) {
 		this.feed.push({ seq: this.feed.length + 1, at: AT, type, ...fields });
 	}
@@ -442,7 +442,7 @@ function runner(
 	return async (v) => {
 		await v.nextLine();
 		v.out(supervisorLine({ event: 'started' }));
-		const point = v.env.KOI_POINT_ID ?? '';
+		const point = v.env.PREVIEWLANE_POINT_ID ?? '';
 		const evidence: string[] = [];
 		for (const [event, label] of [
 			[{ type: 'capture', kind: 'screenshot' }, 'shot'],
@@ -492,7 +492,7 @@ interface SetupOptions {
 	// What the startup check said, when verification is not available.
 	unavailableReason?: string;
 	planGlobs?: VerificationDeps['planGlobs'];
-	// KOI_VERIFIER_IMAGES.
+	// PREVIEWLANE_VERIFIER_IMAGES.
 	allowed?: string[];
 	// References on the box besides the usual ones, each naming the curl image.
 	boxImages?: string[];
@@ -509,7 +509,7 @@ interface SetupOptions {
 }
 
 async function setup(options: SetupOptions = {}) {
-	const root = await mkdtemp(join(tmpdir(), 'koid-verification-'));
+	const root = await mkdtemp(join(tmpdir(), 'previewlaned-verification-'));
 	const stateDir = join(root, 'state');
 	await mkdir(stateDir, { recursive: true });
 	let clock = Date.parse(AT);
@@ -525,24 +525,24 @@ async function setup(options: SetupOptions = {}) {
 	// The source tree as the build had it, snapshotted as the deployer does.
 	const src = join(root, 'src');
 	for (const dir of ['points', 'runners', 'fixtures', 'proofs']) {
-		await mkdir(join(src, '.koi', dir), { recursive: true });
+		await mkdir(join(src, '.previewlane', dir), { recursive: true });
 	}
 	await writeFile(join(src, 'Dockerfile'), 'FROM scratch\n');
-	await writeFile(join(src, '.koi/verify.yaml'), options.manifest ?? MANIFEST);
+	await writeFile(join(src, '.previewlane/verify.yaml'), options.manifest ?? MANIFEST);
 	for (const [name, text] of Object.entries(options.files ?? POINTS)) {
-		await writeFile(join(src, '.koi/points', name), text);
+		await writeFile(join(src, '.previewlane/points', name), text);
 	}
-	await writeFile(join(src, '.koi/runners/home.sh'), 'curl "$KOI_PREVIEW_URL"\n');
-	await writeFile(join(src, '.koi/fixtures/probe.txt'), 'probe');
-	await writeFile(join(src, '.koi/required.yaml'), REQUIRED);
-	await writeFile(join(src, '.koi/proofs/hello.home.yaml'), PROOF);
+	await writeFile(join(src, '.previewlane/runners/home.sh'), 'curl "$PREVIEWLANE_PREVIEW_URL"\n');
+	await writeFile(join(src, '.previewlane/fixtures/probe.txt'), 'probe');
+	await writeFile(join(src, '.previewlane/required.yaml'), REQUIRED);
+	await writeFile(join(src, '.previewlane/proofs/hello.home.yaml'), PROOF);
 	for (const [name, text] of Object.entries(options.extra ?? {})) {
 		await mkdir(join(src, name, '..'), { recursive: true });
 		await writeFile(join(src, name), text);
 	}
-	await mkdir(join(src, '.koi-runtime'), { recursive: true });
+	await mkdir(join(src, '.previewlane-runtime'), { recursive: true });
 	const changed = options.changed ?? ['Dockerfile', 'src/search/index.ts', 'README.md'];
-	await writeFile(join(src, '.koi-runtime/changed-files.txt'), `${changed.join('\n')}\n`);
+	await writeFile(join(src, '.previewlane-runtime/changed-files.txt'), `${changed.join('\n')}\n`);
 	const tarball = join(root, 'source.tar.gz');
 	await writeFile(tarball, 'tarball');
 	const upRequest = request({
@@ -588,7 +588,7 @@ async function setup(options: SetupOptions = {}) {
 			imageDigest: IMAGE,
 			commit: upRequest.commit,
 			...(upRequest.merge !== undefined ? { merge: upRequest.merge } : {}),
-			image: 'koi-preview/hello:1',
+			image: 'previewlane-preview/hello:1',
 			container: APP,
 			port: 8080,
 			healthPath: '/',
@@ -658,11 +658,11 @@ async function setup(options: SetupOptions = {}) {
 	const docker = new FakeDocker();
 	await docker.run({
 		name: APP,
-		image: 'koi-preview/hello:1',
-		network: 'koi-previews',
+		image: 'previewlane-preview/hello:1',
+		network: 'previewlane-previews',
 		user: '65534:65534',
 		env: {},
-		labels: { 'koi.preview': LABEL, 'koi.request': upRequest.id },
+		labels: { 'previewlane.preview': LABEL, 'previewlane.request': upRequest.id },
 	});
 	const pool = '10.213.0.0/26';
 	const helper = new FakeHelper(pool, docker.events);
@@ -671,16 +671,16 @@ async function setup(options: SetupOptions = {}) {
 		docker,
 		helper,
 		pool,
-		previewNetwork: 'koi-previews',
+		previewNetwork: 'previewlane-previews',
 		stateDir,
-		slice: 'koi.slice',
+		slice: 'previewlane.slice',
 		linkExists: async () => false,
 		now,
 		log: (m) => logs.push(m),
 	});
 	const capability: VerificationCapability =
 		options.available === false
-			? { available: false, reason: options.unavailableReason ?? 'KOI_VERIFY_POOL is not set' }
+			? { available: false, reason: options.unavailableReason ?? 'PREVIEWLANE_VERIFY_POOL is not set' }
 			: {
 					available: true,
 					attestation: attestation(pool),
@@ -797,7 +797,7 @@ async function setup(options: SetupOptions = {}) {
 		network: capability.available ? network : undefined,
 		docker,
 		recorderImage: capability.available ? RECORDER_IMAGE : undefined,
-		recorderSeccomp: '/etc/koi/seccomp.json',
+		recorderSeccomp: '/etc/previewlane/seccomp.json',
 		verifierImages: options.allowed ?? ['curlimages/curl:8.11.1'],
 		verifierPollMs: 5,
 		recorderApi: (baseUrl) => {
@@ -832,7 +832,7 @@ async function setup(options: SetupOptions = {}) {
 		stateDir,
 		evidence,
 		verification,
-		// A new koid over the same state, as a restart makes.
+		// A new previewlaned over the same state, as a restart makes.
 		restarted: () => new Verification(deps),
 		secrets: deps.secrets,
 		record,
@@ -927,7 +927,7 @@ async function refusal(promise: Promise<unknown>): Promise<VerificationError> {
 
 describe('planning', () => {
 	test('a script the manifest names in runner.command is in every planned point and its verifier', async () => {
-		const wrapper = '.koi/runners/wrapper.py';
+		const wrapper = '.previewlane/runners/wrapper.py';
 		const t = await setup({
 			manifest: MANIFEST.replace(
 				'image: curlimages/curl:8.11.1',
@@ -996,7 +996,7 @@ describe('planning', () => {
 		const plan = await t.plan();
 		expect(plan.points).toEqual([]);
 		expect(plan.blocked.map((b) => b.id)).toEqual(['hello.home', 'app.always', 'app.search']);
-		expect(plan.blocked[0]?.reason).toBe('verification_unavailable: KOI_VERIFY_POOL is not set');
+		expect(plan.blocked[0]?.reason).toBe('verification_unavailable: PREVIEWLANE_VERIFY_POOL is not set');
 	});
 
 	describe('runtime text that reaches a plan', () => {
@@ -1008,7 +1008,7 @@ describe('planning', () => {
 				planning: await readFile(join(dir, 'planning.json'), 'utf8'),
 			};
 		};
-		// The digest over the plan on disk, and the read koid makes of it.
+		// The digest over the plan on disk, and the read previewlaned makes of it.
 		const expectDigestHolds = async (t: Awaited<ReturnType<typeof setup>>, plan: PlanReply) => {
 			const { plan: text } = await filesOf(t, plan.planId);
 			const { planDigest, ...rest } = PlanSchema.parse(JSON.parse(text));
@@ -1046,11 +1046,11 @@ describe('planning', () => {
 			const t = await setup({
 				available: false,
 				unavailableReason: `docker: no such network ${VALUE}`,
-				extra: { '.koi/required.yaml': POLICY_ERROR, '.koi/proofs/broken.yaml': PROOF_ERROR },
+				extra: { '.previewlane/required.yaml': POLICY_ERROR, '.previewlane/proofs/broken.yaml': PROOF_ERROR },
 				changed: Array.from({ length: 3000 }, (_, i) => `src/f${i}.ts`),
 				planGlobs: {
 					onTurn: () => {
-						// During a yield inside matching, which is the point: koid knew nothing of the
+						// During a yield inside matching, which is the point: previewlaned knew nothing of the
 						// value when matching began.
 						turns += 1;
 						if (turns === 1) t.secrets.add(VALUE);
@@ -1096,8 +1096,8 @@ describe('planning', () => {
 		});
 
 		test.each<[string, Record<string, string>]>([
-			['the required policy', { '.koi/required.yaml': `version: 1\nrequired: []\n${VALUE}: 1\n` }],
-			['a proof record', { '.koi/proofs/broken.yaml': `${PROOF}${VALUE}: 1\n` }],
+			['the required policy', { '.previewlane/required.yaml': `version: 1\nrequired: []\n${VALUE}: 1\n` }],
+			['a proof record', { '.previewlane/proofs/broken.yaml': `${PROOF}${VALUE}: 1\n` }],
 		])('an error from reading %s is scrubbed, on disk and in the reply', async (_what, extra) => {
 			const before = await setup({ extra });
 			expect(JSON.stringify(await before.plan())).toContain(VALUE);
@@ -1118,7 +1118,7 @@ describe('planning', () => {
 			// A mask is longer than this value, so a note at its limit would grow past the schema.
 			const short = 'privat12';
 			const t = await setup({
-				extra: { '.koi/proofs/broken.yaml': `${PROOF}${short.repeat(100)}: 1\n` },
+				extra: { '.previewlane/proofs/broken.yaml': `${PROOF}${short.repeat(100)}: 1\n` },
 			});
 			const plan = await t.plan();
 			expect(plan.notes.some((note) => note.includes(short))).toBe(true);
@@ -1128,7 +1128,7 @@ describe('planning', () => {
 			for (const note of page.notes) expect(note.length).toBeLessThanOrEqual(PLAN_NOTE_MAX);
 		});
 
-		test("a registered word changes neither koid's notes nor a reason that names what is declared", async () => {
+		test("a registered word changes neither previewlaned's notes nor a reason that names what is declared", async () => {
 			const t = await setup();
 			const plan = await t.plan('matrix');
 			t.secrets.add('aria snapshot');
@@ -1253,12 +1253,12 @@ describe('planning', () => {
 			});
 			const err = await refusal(t.plan());
 			expect(err.code).toBe('verify_invalid');
-			expect(err.message).toContain('.koi/points/search.yaml');
+			expect(err.message).toContain('.previewlane/points/search.yaml');
 			expect(err.message).toContain('[ is not supported');
 			await expectNothingWritten(t);
 		});
 
-		test('koid goes on answering during a large plan that is allowed, and the plan is whole', async () => {
+		test('previewlaned goes on answering during a large plan that is allowed, and the plan is whole', async () => {
 			const changed = names(3000);
 			const last = changed.at(-1) as string;
 			let turns = 0;
@@ -1277,7 +1277,7 @@ describe('planning', () => {
 			let at = performance.now();
 			const others = (async () => {
 				while (planning) {
-					// What a route of koid does: a read, and an answer.
+					// What a route of previewlaned does: a read, and an answer.
 					const err = await refusal(t.verification.planPage('n'.repeat(20), undefined));
 					expect(err.code).toBe('no_such_plan');
 					answers += 1;
@@ -1312,7 +1312,7 @@ describe('planning', () => {
 		expect(plan.policy).toEqual({
 			source: 'none',
 			advisory: {
-				path: '.koi/required.yaml',
+				path: '.previewlane/required.yaml',
 				required: [
 					{ id: 'hello.home', revision: 2 },
 					{ id: 'app.always', revision: 3 },
@@ -1338,7 +1338,7 @@ describe('planning', () => {
 		expect(stored.planDigest).toBe(plan.planDigest);
 		expect(stored.points.map((p) => p.id)).toEqual(['hello.home', 'app.always', 'app.search']);
 		expect(stored.points[0]?.runners).toEqual([
-			{ path: '.koi/runners/home.sh', digest: sha('curl "$KOI_PREVIEW_URL"\n') },
+			{ path: '.previewlane/runners/home.sh', digest: sha('curl "$PREVIEWLANE_PREVIEW_URL"\n') },
 		]);
 		const page = await t.verification.planPage(plan.planId, 'blocked:0');
 		expect(page.points).toEqual([]);
@@ -1384,7 +1384,7 @@ select:
   paths:
 ${paths.map((path) => `    - ${JSON.stringify(path)}`).join('\n')}
 run:
-  command: [sh, .koi/runners/home.sh]
+  command: [sh, .previewlane/runners/home.sh]
 assertions:
   - name: holds
     description: The app answers.
@@ -1411,7 +1411,7 @@ assertions:
 			expect(why).toStartWith('changed: src/aaa');
 			expect(why).toContain('first-end.ts matches src/aaa');
 			expect(why).toEndWith('first-end.ts');
-			expect(why).toContain('[cut by koid]');
+			expect(why).toContain('[cut by previewlaned]');
 			expect(plan.points.find((p) => p.id === 'app.long')?.why).toBe(why);
 			const accepted = await t.run(plan);
 			await t.verification.settled(accepted.runId);
@@ -1457,10 +1457,10 @@ assertions:
 
 	test('a snapshot file that changed since it was taken refuses the plan and the run, whichever it is', async () => {
 		const files: Array<[string, string]> = [
-			['.koi/fixtures/probe.txt', 'probe!'],
-			['.koi/required.yaml', REQUIRED.replace('revision: 2', 'revision: 3')],
-			['.koi/proofs/hello.home.yaml', PROOF.replace('revision: 2', 'revision: 3')],
-			['.koi-runtime/changed-files.txt', 'Dockerfile\nsrc/other.ts\n'],
+			['.previewlane/fixtures/probe.txt', 'probe!'],
+			['.previewlane/required.yaml', REQUIRED.replace('revision: 2', 'revision: 3')],
+			['.previewlane/proofs/hello.home.yaml', PROOF.replace('revision: 2', 'revision: 3')],
+			['.previewlane-runtime/changed-files.txt', 'Dockerfile\nsrc/other.ts\n'],
 		];
 		for (const [path, text] of files) {
 			const t = await setup();
@@ -1477,7 +1477,7 @@ assertions:
 		// Same bytes, so the same plan: a rewrite that changes nothing passes.
 		const same = await setup();
 		await writeFile(
-			join(same.evidence.inputsDir(DEPLOYMENT), 'source/.koi/fixtures/probe.txt'),
+			join(same.evidence.inputsDir(DEPLOYMENT), 'source/.previewlane/fixtures/probe.txt'),
 			'probe',
 		);
 		expect((await same.plan()).counts.selected).toBe(3);
@@ -1539,14 +1539,14 @@ assertions:
 		// The schema refuses the key by name, so the error quotes all of it.
 		const key = 'k'.repeat(900);
 		const t = await setup({
-			extra: { '.koi/required.yaml': `version: 1\nrequired: []\n${key}: true\n` },
+			extra: { '.previewlane/required.yaml': `version: 1\nrequired: []\n${key}: true\n` },
 		});
 		const plan = await t.plan();
 		const error = plan.policy.advisory?.error;
 		expect(error).toContain(key);
-		const note = plan.notes.find((n) => n.startsWith('.koi/required.yaml: '));
+		const note = plan.notes.find((n) => n.startsWith('.previewlane/required.yaml: '));
 		expect(note).toBeDefined();
-		expect(note).toEndWith(' [cut by koid]');
+		expect(note).toEndWith(' [cut by previewlaned]');
 		expect(plan.notes.every((n) => n.length <= PLAN_NOTE_MAX)).toBe(true);
 		// The whole error stays in the policy, and the record reads back.
 		expect((error as string).length).toBeGreaterThan(PLAN_NOTE_MAX);
@@ -1665,7 +1665,7 @@ describe('running', () => {
 
 		// Each point got a verifier of its own from the allowed runner image,
 		// with the point's identity, the frozen inputs and the supervisor.
-		expect(t.docker.verifiers.map((v) => v.env.KOI_POINT_ID)).toEqual([
+		expect(t.docker.verifiers.map((v) => v.env.PREVIEWLANE_POINT_ID)).toEqual([
 			'hello.home',
 			'app.always',
 			'app.search',
@@ -1673,28 +1673,28 @@ describe('running', () => {
 		const first = t.docker.verifiers[0] as FakeVerifier;
 		expect(first.options.image).toBe(CURL_IMAGE);
 		expect(first.options.entrypoint).toBe('python3');
-		expect(first.options.command).toEqual(['-I', '/koi/supervisor.py', '/koi/point.json']);
+		expect(first.options.command).toEqual(['-I', '/previewlane/supervisor.py', '/previewlane/point.json']);
 		expect(first.options.workdir).toBe('/workspace');
-		expect(first.env.KOI_RUN_ID).toBe(runId);
-		expect(first.env.KOI_PREVIEW_URL).toBe(`http://app.${runId}.invalid:8080`);
-		expect(first.env.KOI_RECORDER_WS).toMatch(/^ws:\/\/10\.213\.0\.3:4317\/[0-9a-f]{64}$/);
-		expect(first.env.KOI_TIMEOUT_SECONDS).toBe('600');
-		expect(first.files.get('koi/supervisor.py')?.content).toContain('def main(');
-		expect(JSON.parse(first.files.get('koi/point.json')?.content ?? '')).toEqual({
+		expect(first.env.PREVIEWLANE_RUN_ID).toBe(runId);
+		expect(first.env.PREVIEWLANE_PREVIEW_URL).toBe(`http://app.${runId}.invalid:8080`);
+		expect(first.env.PREVIEWLANE_RECORDER_WS).toMatch(/^ws:\/\/10\.213\.0\.3:4317\/[0-9a-f]{64}$/);
+		expect(first.env.PREVIEWLANE_TIMEOUT_SECONDS).toBe('600');
+		expect(first.files.get('previewlane/supervisor.py')?.content).toContain('def main(');
+		expect(JSON.parse(first.files.get('previewlane/point.json')?.content ?? '')).toEqual({
 			version: 1,
 			runner: null,
 			steps: {
 				setup: null,
-				run: ['sh', '.koi/runners/home.sh'],
-				cleanup: ['sh', '.koi/runners/home.sh'],
+				run: ['sh', '.previewlane/runners/home.sh'],
+				cleanup: ['sh', '.previewlane/runners/home.sh'],
 			},
 			timeoutSeconds: 600,
 		});
-		expect(first.files.get('workspace/.koi/runners/home.sh')?.content).toBe(
-			'curl "$KOI_PREVIEW_URL"\n',
+		expect(first.files.get('workspace/.previewlane/runners/home.sh')?.content).toBe(
+			'curl "$PREVIEWLANE_PREVIEW_URL"\n',
 		);
-		expect(first.files.get('workspace/.koi/points/home.yaml')?.mode).toBe(0o444);
-		expect(first.files.get('workspace/.koi')?.mode).toBe(0o555);
+		expect(first.files.get('workspace/.previewlane/points/home.yaml')?.mode).toBe(0o444);
+		expect(first.files.get('workspace/.previewlane')?.mode).toBe(0o555);
 
 		// The bundle: run, plan, execution, controller, result, report, manifest.
 		const dir = t.evidence.runDir(runId);
@@ -1727,7 +1727,7 @@ describe('running', () => {
 		expect(controller.completion).toBe('evaluated');
 		expect(controller.lease.leaseId).toBe('l'.repeat(20));
 		const report = await readFile(join(dir, 'report.md'), 'utf8');
-		expect(report).toStartWith(`<!-- koi-verification:${runId} -->\n## koi verification: passed\n`);
+		expect(report).toStartWith(`<!-- previewlane-verification:${runId} -->\n## previewlane verification: passed\n`);
 		expect(report).toContain(
 			'| hello.home | pass | - | recorder:screenshot:1, recorder:aria:2, recorder:http-response:3 |',
 		);
@@ -1774,18 +1774,18 @@ describe('running', () => {
 		expect(types).toContain('runner-assertion');
 		expect(types).toContain('supervisor-exit');
 		expect(types).toContain('verifier-stopped');
-		const token = first.env.KOI_RECORDER_WS?.split('/').at(-1) ?? 'none';
+		const token = first.env.PREVIEWLANE_RECORDER_WS?.split('/').at(-1) ?? 'none';
 		expect(await readFile(join(dir, 'events.ndjson'), 'utf8')).not.toContain(token);
 
 		// Each point's verifier was created, started, stopped and removed; the
 		// network and the recorder went last, in order.
-		const verifier = `koi-verify-${runId}-verifier`;
+		const verifier = `previewlane-verify-${runId}-verifier`;
 		expect(t.docker.events.filter((e) => e.startsWith(`started ${verifier}`))).toHaveLength(3);
 		expect(t.docker.events.filter((e) => e === `removed ${verifier}`)).toHaveLength(4);
 		expect(t.docker.events.filter((e) => e === `apply ${runId}`)).toHaveLength(5);
-		expect(t.docker.events.at(-1)).toBe(`removed network koi-v-${runId}`);
+		expect(t.docker.events.at(-1)).toBe(`removed network previewlane-v-${runId}`);
 		expect(t.docker.events.indexOf(`revoke ${runId}`)).toBeGreaterThan(
-			t.docker.events.indexOf(`stopped koi-verify-${runId}-recorder`),
+			t.docker.events.indexOf(`stopped previewlane-verify-${runId}-recorder`),
 		);
 		expect(await t.network.record(runId)).toBeUndefined();
 	});
@@ -1867,7 +1867,7 @@ describe('running', () => {
 		expect(plan.points).toEqual([]);
 		expect(plan.blocked.map((b) => b.id)).toEqual(['hello.home', 'app.always', 'app.search']);
 		expect(plan.blocked[0]?.reason).toBe(
-			`image_not_allowed: curlimages/curl:8.11.1 (${CURL_IMAGE}) is not on this host's allowlist (KOI_VERIFIER_IMAGES)`,
+			`image_not_allowed: curlimages/curl:8.11.1 (${CURL_IMAGE}) is not on this host's allowlist (PREVIEWLANE_VERIFIER_IMAGES)`,
 		);
 		// A plan that took no point can still run: each point is blocked with
 		// the plan's reason, and no verifier starts.
@@ -1971,7 +1971,7 @@ describe('running', () => {
 	test('the default image is always allowed, by its name in the manifest', async () => {
 		const t = await setup({
 			allowed: [],
-			manifest: MANIFEST.replace('image: curlimages/curl:8.11.1', 'image: koi-verifier'),
+			manifest: MANIFEST.replace('image: curlimages/curl:8.11.1', 'image: previewlane-verifier'),
 		});
 		const { status } = await t.runToEnd();
 		expect(status.outcome).toBe('passed');
@@ -1994,7 +1994,7 @@ describe('running', () => {
 		t.docker.verifierScript = async (v) => {
 			await v.nextLine();
 			v.out(supervisorLine({ event: 'started' }));
-			if (v.env.KOI_POINT_ID === 'hello.home') {
+			if (v.env.PREVIEWLANE_POINT_ID === 'hello.home') {
 				// The runner hangs; the clock passes the point's budget.
 				t.advance(620_000);
 				await v.stopped;
@@ -2089,7 +2089,7 @@ budgets:
 			expect(manifest.artifacts.every((a) => a.availability === 'available')).toBe(true);
 			ExecutionDescriptorSchema.parse(JSON.parse(await read('execution.json')));
 			const report = await read('report.md');
-			expect(report).toContain('## koi verification: failed');
+			expect(report).toContain('## previewlane verification: failed');
 			expect(report).toContain('| hello.home | pass |');
 			expect(report).toContain('| app.search | fail |');
 			// A failing assertion reads as failed in its own observations, by field.
@@ -2188,7 +2188,7 @@ budgets:
 			t.docker.verifierScript = async (v) => {
 				await v.nextLine();
 				v.out(supervisorLine({ event: 'started' }));
-				const point = v.env.KOI_POINT_ID ?? '';
+				const point = v.env.PREVIEWLANE_POINT_ID ?? '';
 				await ask(v, { type: 'capture', kind: 'screenshot' }, label);
 				const read = await ask(v, { type: 'read', path: '/' }, 'state');
 				for (const name of files[point] ?? []) {
@@ -2242,7 +2242,7 @@ budgets:
 			const { runId } = await t.run(plan);
 			await t.verification.settled(runId);
 			const dir = t.evidence.runDir(runId);
-			// A record is written once: this one was on disk before koid knew.
+			// A record is written once: this one was on disk before previewlaned knew.
 			const text = await readFile(join(dir, 'points/app.search/observations.json'), 'utf8');
 			expect(JSON.parse(text).asserted[0].detail).toBe(`saw ${secret}`);
 			const status = await t.verification.status(runId);
@@ -2259,8 +2259,8 @@ budgets:
 		let token = '';
 		t.docker.verifierScript = async (v) => {
 			await v.nextLine();
-			token = (v.env.KOI_RECORDER_WS ?? '').split('/').at(-1) ?? '';
-			const point = v.env.KOI_POINT_ID ?? '';
+			token = (v.env.PREVIEWLANE_RECORDER_WS ?? '').split('/').at(-1) ?? '';
+			const point = v.env.PREVIEWLANE_POINT_ID ?? '';
 			if (point === 'hello.home') {
 				v.out(`{"type":"capture","kind":"screenshot","label":"${token}"}`);
 				await v.nextLine();
@@ -2308,7 +2308,7 @@ budgets:
 		t.docker.verifierScript = async (v) => {
 			await v.nextLine();
 			v.out(supervisorLine({ event: 'started' }));
-			if (v.env.KOI_POINT_ID === 'hello.home') {
+			if (v.env.PREVIEWLANE_POINT_ID === 'hello.home') {
 				const steps = declaredSteps(v).map((s) =>
 					s.step === 'run' ? { step: 'run', status: 'timeout', seconds: 270 } : s,
 				);
@@ -2390,7 +2390,7 @@ budgets:
 	test('a plan whose inputs changed since is stale', async () => {
 		const t = await setup();
 		const plan = await t.plan();
-		const point = join(t.evidence.inputsDir(DEPLOYMENT), 'source/.koi/points/home.yaml');
+		const point = join(t.evidence.inputsDir(DEPLOYMENT), 'source/.previewlane/points/home.yaml');
 		await writeFile(point, (await readFile(point, 'utf8')).replace('revision: 2', 'revision: 3'));
 		const err = await refusal(t.run(plan));
 		// The snapshot's own digests no longer match either, which is found first.
@@ -2682,7 +2682,7 @@ budgets:
 		const pageSays = (t: Awaited<ReturnType<typeof setup>>, text: string) =>
 			t.prepareRecorder((r) => {
 				r.onOpen = (pointId) => {
-					// As the real recorder does: its event names the point koid told it.
+					// As the real recorder does: its event names the point previewlaned told it.
 					r.say('context-opened', { contextId: 'x1', pointId, attempt: 1 });
 					r.say('console', { level: 'log', text: `the page said ${text}` });
 				};
@@ -2700,7 +2700,7 @@ budgets:
 		});
 
 		describe.each<[string, string, 'masked' | 'not registered']>([
-			['a directory of runner paths', '.koi/runners', 'masked'],
+			['a directory of runner paths', '.previewlane/runners', 'masked'],
 			['the browser name', 'chromium', 'masked'],
 			['the word in the mask', 'redacted', 'not registered'],
 			['the mask', '[redacted]', 'not registered'],
@@ -2749,7 +2749,7 @@ budgets:
 					// The plan is written as it was made, and both digests hold.
 					const { plan: stored, execution } = await expectOwnDigests(t, accepted.runId);
 					expect(stored.planDigest).toBe(plan.planDigest);
-					expect(stored.points[0]?.runners[0]?.path).toBe('.koi/runners/home.sh');
+					expect(stored.points[0]?.runners[0]?.path).toBe('.previewlane/runners/home.sh');
 					expect(execution.browser.name).toBe('chromium');
 					expect(execution.runnerImage.reference).toBe('curlimages/curl:8.11.1');
 					expect(status.executionDigest).toBe(execution.executionDigest);
@@ -2760,7 +2760,7 @@ budgets:
 					expect(controller.profile).toBe(PROFILE);
 					expect(controller.points.map((p) => p.id)).toEqual(status.points.map((p) => p.id));
 					expect(controller.uncovered).toEqual(['docs/redacted.md', 'README.md']);
-					expect(controller.policy.advisory?.path).toBe('.koi/required.yaml');
+					expect(controller.policy.advisory?.path).toBe('.previewlane/required.yaml');
 					expect(result?.points[0]?.id).toBe('hello.home');
 					expect(result?.uncovered).toEqual(['docs/redacted.md', 'README.md']);
 					expect(report).toContain('| hello.home | pass |');
@@ -2836,7 +2836,7 @@ budgets:
 			planning.policy = {
 				source: 'base-branch',
 				advisory: {
-					path: '.koi/required.yaml',
+					path: '.previewlane/required.yaml',
 					required: [
 						{ id: 'hello.home', revision: 2 },
 						{ id: 'app.always', revision: 3 },
@@ -2892,7 +2892,7 @@ budgets:
 				'image/png',
 				'text/plain; charset=utf-8',
 				'hello.home',
-				'.koi/required.yaml',
+				'.previewlane/required.yaml',
 				plan.planDigest,
 				t.identity.imageDigest,
 				t.identity.commit,
@@ -2989,7 +2989,7 @@ budgets:
 			// Scrubbed wherever it went. A fixed field that took it would still hold it.
 			expect(await holders(t, accepted.runId, value)).toEqual([]);
 			await expectNoReplyHolds(t.verification, accepted.runId, plan.planId, value);
-			// The envelope is koid's: the point it opened, and the source it read from.
+			// The envelope is previewlaned's: the point it opened, and the source it read from.
 			const { events } = await t.verification.events(accepted.runId);
 			const said = events.filter((e) => e.type === 'console');
 			expect(said.map((e) => [e.source, e.pointId, e.attempt])[0]).toEqual([
@@ -3002,7 +3002,7 @@ budgets:
 			await expectDigestsHold(t, accepted.runId);
 		});
 
-		describe('the search for a runtime secret, by when koid learns it', () => {
+		describe('the search for a runtime secret, by when previewlaned learns it', () => {
 			// A value no pattern finds, so only the registry can mask it.
 			const LEAK = 'Zq81xW0pLmN4vT7yRs2K';
 
@@ -3103,7 +3103,7 @@ budgets:
 				expect(before).toContain('status.json');
 				open();
 				await t.verification.settled(accepted.runId);
-				// The events were appended before koid knew, and an event is never rewritten.
+				// The events were appended before previewlaned knew, and an event is never rewritten.
 				// status.json is written again as it changes, and that write scrubs it.
 				expect(await holders(t, accepted.runId, LEAK)).toEqual(['events.ndjson']);
 				await expectNoReplyHolds(t.verification, accepted.runId, plan.planId, LEAK);
@@ -3195,7 +3195,7 @@ budgets:
 				const { gate, open } = saying(t);
 				const accepted = await t.run(plan);
 				await gate.reached;
-				// As a crash leaves it: a point open, and its files written before koid knew.
+				// As a crash leaves it: a point open, and its files written before previewlaned knew.
 				t.secrets.add(LEAK);
 				const before = await holders(t, accepted.runId, LEAK);
 				expect(before).toContain('events.ndjson');
@@ -3230,7 +3230,7 @@ budgets:
 				const dir = t.evidence.runDir(accepted.runId);
 				const before = await readFile(join(dir, 'controller.json'), 'utf8');
 				t.secrets.add(LEAK);
-				// Ask a new koid too: nothing it holds in memory helps it.
+				// Ask a new previewlaned too: nothing it holds in memory helps it.
 				for (const api of [t.verification, t.restarted()]) {
 					await expectNoReplyHolds(api, accepted.runId, plan.planId, LEAK);
 					expect((await api.status(accepted.runId)).finalized).toBe(true);
@@ -3243,7 +3243,7 @@ budgets:
 			});
 		});
 
-		test('an artifact keeps its bytes when koid learns a secret after the capture, and its reply returns them', async () => {
+		test('an artifact keeps its bytes when previewlaned learns a secret after the capture, and its reply returns them', async () => {
 			// The one reply that is not masked: its bytes must hash to the manifest.
 			const leak = 'Zq81xW0pLmN4vT7yRs2K';
 			const t = await setup();
@@ -3274,7 +3274,7 @@ budgets:
 				const before = await readFile(join(dir, 'controller.json'), 'utf8');
 				const statusBefore = await readFile(join(dir, 'status.json'), 'utf8');
 				// A word the record holds in its runtime text.
-				t.secrets.add('koid_restarted');
+				t.secrets.add('previewlaned_restarted');
 				const status = await next.status(runId);
 				expect(status.interruption).toContain('[redacted]');
 				expect(status.points[2]?.id).toBe('app.search');
@@ -3299,7 +3299,7 @@ budgets:
 				expect(await t.evidence.readManifest(runId)).toBeDefined();
 			});
 
-			test('of a plan page answers as ever, whatever koid learns, and a run of it still runs', async () => {
+			test('of a plan page answers as ever, whatever previewlaned learns, and a run of it still runs', async () => {
 				const t = await setup();
 				const plan = await t.plan();
 				// In a point id, a changed file's name and the plan's text.
@@ -3325,7 +3325,7 @@ budgets:
 			});
 		});
 
-		test('a retried request gets its acceptance as it was, whatever koid learned', async () => {
+		test('a retried request gets its acceptance as it was, whatever previewlaned learned', async () => {
 			const t = await setup({ baseBranch: 'release-candidate' });
 			const plan = await t.plan();
 			const ask = () =>
@@ -3346,7 +3346,7 @@ budgets:
 			expect((await t.verification.status(first.runId)).freshness).toBe('current');
 		});
 
-		test('a run the last koid left comes back with its ids and its other records as written', async () => {
+		test('a run the last previewlaned left comes back with its ids and its other records as written', async () => {
 			const t = await setup();
 			const plan = await t.plan();
 			const runId = 'q'.repeat(20);
@@ -3414,7 +3414,7 @@ budgets:
 				'report.md',
 				'result.json',
 			]);
-			// A later koid finds nothing to do, and the record stays as it was left.
+			// A later previewlaned finds nothing to do, and the record stays as it was left.
 			const third = t.restarted();
 			expect(await third.recover({ releaseLeases: true })).toEqual([]);
 			expect((await third.status(runId)).points[1]?.id).toBe('app.always');
@@ -3482,7 +3482,7 @@ budgets:
 					expect(status.outcome).toBe('failed');
 					expect(status.finalized).toBe(true);
 					expect(status.problemCount).toBe(0);
-					expect(t.docker.verifiers.map((v) => v.env.KOI_POINT_ID)).toEqual(ids);
+					expect(t.docker.verifiers.map((v) => v.env.PREVIEWLANE_POINT_ID)).toEqual(ids);
 					expect(status.points[0]?.evidence).toEqual([
 						'recorder:screenshot:1',
 						'recorder:aria:2',
@@ -3503,7 +3503,7 @@ budgets:
 						expect((await exported(t, runId)).report.complete).toBe(true);
 					}
 
-					// Project text and koid's own values stay as they are.
+					// Project text and previewlaned's own values stay as they are.
 					const observed = async (id: string) =>
 						JSON.parse(
 							await readFile(
@@ -3519,7 +3519,7 @@ budgets:
 					expect(result?.points.map((p) => p.id)).toEqual(ids);
 					expect(execution.browser.name).toBe('chromium');
 					expect(execution.runnerImage.reference).toBe('curlimages/curl:8.11.1');
-					expect(stored.points[0]?.runners[0]?.path).toBe('.koi/runners/home.sh');
+					expect(stored.points[0]?.runners[0]?.path).toBe('.previewlane/runners/home.sh');
 					expect(report).toContain('| hello.home | pass |');
 					expect(report).toContain(`--profile ${PROFILE}`);
 					expect(passing.pointId).toBe('hello.home');
@@ -3566,7 +3566,7 @@ budgets:
 					expect(controller.outcome).toBe('failed');
 					expect(result?.outcome).toBe('failed');
 					expect(result?.points[2]?.outcome).toBe('fail');
-					expect(report).toContain('## koi verification: failed');
+					expect(report).toContain('## previewlane verification: failed');
 					expect(report).toContain('| app.search | fail |');
 					expect(report).not.toContain('| app.search | pass');
 					expect(formatStatus(status)).toContain('  app.search  fail');
@@ -3584,7 +3584,7 @@ budgets:
 			t.docker.verifierScript = async (v) => {
 				await v.nextLine();
 				v.out(supervisorLine({ event: 'started' }));
-				const point = v.env.KOI_POINT_ID ?? '';
+				const point = v.env.PREVIEWLANE_POINT_ID ?? '';
 				v.out(`a log line that says ${secret}`);
 				v.err(`a stderr line that says ${secret}`);
 				v.out(JSON.stringify({ type: 'note', text: `a note that says ${secret}` }));
@@ -3665,7 +3665,7 @@ budgets:
 				});
 			const NAME = 'ZQ81XW0PLMN4VT7Y';
 
-			test('is said with what koid knows masked, before the digest and in every reply', async () => {
+			test('is said with what previewlaned knows masked, before the digest and in every reply', async () => {
 				const t = await setup();
 				declaring(t, NAME);
 				t.secrets.add(NAME);
@@ -3726,7 +3726,7 @@ budgets:
 				},
 			);
 
-			test('an origin that is not the address koid gave it stops the run the same way', async () => {
+			test('an origin that is not the address previewlaned gave it stops the run the same way', async () => {
 				const t = await setup();
 				t.prepareRecorder((r) => {
 					const health = r.health.bind(r);
@@ -3783,7 +3783,7 @@ budgets:
 				}
 			};
 
-			test('koi verify status shows each control character as an escape', async () => {
+			test('previewlane verify status shows each control character as an escape', async () => {
 				const { status } = await runIt();
 				// It reached the reply as the runner sent it: --json is for a program.
 				expect(status.points[0]?.reason).toContain(HOSTILE);
@@ -3897,17 +3897,17 @@ budgets:
 			[
 				'the runner image',
 				{ manifest: MANIFEST.replace('curlimages/curl:8.11.1', `ghcr.io/acme/${KEY}:1`) },
-				'.koi/verify.yaml, field runner.image',
+				'.previewlane/verify.yaml, field runner.image',
 			],
 			[
 				'the runner command',
 				{ manifest: `${MANIFEST.replace('runner:\n', `runner:\n  command: [run, ${KEY}]\n`)}` },
-				'.koi/verify.yaml, field runner.command[1]',
+				'.previewlane/verify.yaml, field runner.command[1]',
 			],
 			[
 				'a profile name, by its position',
-				{ manifest: MANIFEST.replace('matrix:', `${'koi-a1b2c3d4a1b2c3d4a1b2c3d4'}:`) },
-				'.koi/verify.yaml, field profiles[1].name',
+				{ manifest: MANIFEST.replace('matrix:', `${'previewlane-a1b2c3d4a1b2c3d4a1b2c3d4'}:`) },
+				'.previewlane/verify.yaml, field profiles[1].name',
 			],
 			[
 				"a point's claim",
@@ -3928,8 +3928,8 @@ budgets:
 					files: {
 						...POINTS,
 						'home.yaml': (POINTS['home.yaml'] as string).replace(
-							'run:\n  command: [sh, .koi/runners/home.sh]',
-							`run:\n  command: [sh, .koi/runners/home.sh, "--api-key=${KEY}"]`,
+							'run:\n  command: [sh, .previewlane/runners/home.sh]',
+							`run:\n  command: [sh, .previewlane/runners/home.sh, "--api-key=${KEY}"]`,
 						),
 					},
 				},
@@ -3975,8 +3975,8 @@ budgets:
 				'a required id',
 				{
 					extra: {
-						'.koi/required.yaml':
-							'version: 1\nrequired:\n  - id: koi-a1b2c3d4a1b2c3d4a1b2c3d4\n    revision: 1\n',
+						'.previewlane/required.yaml':
+							'version: 1\nrequired:\n  - id: previewlane-a1b2c3d4a1b2c3d4a1b2c3d4\n    revision: 1\n',
 					},
 				},
 				'the required policy, field required[0].id',
@@ -3988,7 +3988,7 @@ budgets:
 			expect(err.message).toContain(where);
 			expect(err.message).not.toContain(KEY);
 			expect(err.message).not.toContain(KEY.slice(0, 16));
-			expect(err.message).not.toContain('koi-a1b2c3d4');
+			expect(err.message).not.toContain('previewlane-a1b2c3d4');
 			await expectNothingWritten(t);
 		});
 
@@ -4012,7 +4012,7 @@ budgets:
 		});
 
 		test('in a claim, and in a file name a prefix hides from the patterns: the refusal quotes neither', async () => {
-			const login = 'koi-a1b2c3d4a1b2c3d4a1b2c3d4';
+			const login = 'previewlane-a1b2c3d4a1b2c3d4a1b2c3d4';
 			const t = await setup({
 				files: {
 					...POINTS,
@@ -4028,7 +4028,7 @@ budgets:
 			);
 			expect(err.message).not.toContain(login);
 			expect(err.message).not.toContain('prefix');
-			expect(err.message).not.toContain('.koi/points');
+			expect(err.message).not.toContain('.previewlane/points');
 			await expectNothingWritten(t);
 		});
 
@@ -4040,12 +4040,12 @@ budgets:
 			expect(plan.runnerImage).toBe(reference);
 			const err = await refusal((await image('ghcr.io/acme/token:AKIAIOSFODNN7EXAMPLE')).plan());
 			expect(err.code).toBe('declared_credential');
-			expect(err.message).toContain('.koi/verify.yaml, field runner.image');
+			expect(err.message).toContain('.previewlane/verify.yaml, field runner.image');
 		});
 
 		test('in a broken policy file, whose error would quote it, refuses too', async () => {
 			const t = await setup({
-				extra: { '.koi/required.yaml': `version: 1\nrequired: []\n${KEY}: 1\n` },
+				extra: { '.previewlane/required.yaml': `version: 1\nrequired: []\n${KEY}: 1\n` },
 			});
 			const err = await refusal(t.plan());
 			expect(err.code).toBe('declared_credential');
@@ -4062,7 +4062,7 @@ budgets:
 				`ghcr.io/acme/token-runner@sha256:${digest}`,
 			)
 				.replace('matrix:', 'sk-learn-regression-checks:')
-				.replace('runner:\n', 'runner:\n  command: [run, "--token=$KOI_TOKEN"]\n');
+				.replace('runner:\n', 'runner:\n  command: [run, "--token=$PREVIEWLANE_TOKEN"]\n');
 			const t = await setup({
 				manifest,
 				files: {
@@ -4074,8 +4074,8 @@ budgets:
 							'paths: [Dockerfile, src/auth/token.ts, docs/secret/**]',
 						)
 						.replace(
-							'run:\n  command: [sh, .koi/runners/home.sh]',
-							`run:\n  command: [sh, .koi/runners/home.sh, "Authorization: Bearer $TOKEN", "--pin=${commit}", "sha256:${digest}"]`,
+							'run:\n  command: [sh, .previewlane/runners/home.sh]',
+							`run:\n  command: [sh, .previewlane/runners/home.sh, "Authorization: Bearer $TOKEN", "--pin=${commit}", "sha256:${digest}"]`,
 						),
 					'xai.yaml': (POINTS['search.yaml'] as string).replace(
 						'id: app.search',
@@ -4108,7 +4108,7 @@ budgets:
 
 		test('a word someone registered is no credential, so it cannot stop a plan', async () => {
 			const t = await setup();
-			for (const word of ['hello.home', 'home-says-hello', '.koi/runners', 'curlimages/curl']) {
+			for (const word of ['hello.home', 'home-says-hello', '.previewlane/runners', 'curlimages/curl']) {
 				t.secrets.add(word);
 			}
 			expect((await t.plan()).points[0]?.id).toBe('hello.home');
@@ -4120,7 +4120,7 @@ budgets:
 		const t = await setup({ changed: ['Dockerfile', name] });
 		const plan = await t.plan();
 		expect(plan.uncovered[0]).toHaveLength(TEXT_MAX);
-		expect(plan.uncovered[0]).toContain('[cut by koid]');
+		expect(plan.uncovered[0]).toContain('[cut by previewlaned]');
 		expect(plan.uncovered[0]).toEndWith('.md');
 		const accepted = await t.run(plan);
 		await t.verification.settled(accepted.runId);
@@ -4201,7 +4201,7 @@ budgets:
 			const { gate, applies } = holdingThirdApply(t);
 			t.docker.verifierScript = async (v) => {
 				// Another change takes the network's lock first, as another run's can.
-				void t.network.reapply(v.env.KOI_RUN_ID ?? '').catch(() => {});
+				void t.network.reapply(v.env.PREVIEWLANE_RUN_ID ?? '').catch(() => {});
 				await gate.reached;
 				t.advance(610_000);
 				await v.stopped;
@@ -4424,7 +4424,7 @@ budgets:
 			expect(t.calls.some((c) => c.startsWith('release '))).toBe(true);
 			expect(await t.network.record(runId)).toBeUndefined();
 			expect(await t.docker.listRun()).toEqual([]);
-			expect(t.docker.events.at(-1)).toBe(`removed network koi-v-${runId}`);
+			expect(t.docker.events.at(-1)).toBe(`removed network previewlane-v-${runId}`);
 		};
 		const expectEndsInterrupted = (status: Awaited<ReturnType<Verification['status']>>) => {
 			expect(status.state).toBe('completed');
@@ -4438,7 +4438,7 @@ budgets:
 			expect(status.readiness.eligibleForMergeGate).toBe(false);
 		};
 		// When the writes come back, they change nothing a reader can see, on this
-		// koid or the next.
+		// previewlaned or the next.
 		const expectLateWritesChangeNothing = async (
 			t: Awaited<ReturnType<typeof setup>>,
 			runId: string,
@@ -4841,7 +4841,7 @@ budgets:
 		});
 		const usual = t.docker.verifierScript;
 		t.docker.verifierScript = async (v) => {
-			if (v.env.KOI_POINT_ID !== 'hello.home') return (usual as VerifierScript)(v);
+			if (v.env.PREVIEWLANE_POINT_ID !== 'hello.home') return (usual as VerifierScript)(v);
 			await v.nextLine();
 			v.out(supervisorLine({ event: 'started' }));
 			v.out(
@@ -4871,7 +4871,7 @@ budgets:
 		const told = new Map<string, unknown>();
 		t.docker.verifierScript = async (v) => {
 			const start = JSON.parse(await v.nextLine()) as { timeoutSeconds: unknown };
-			told.set(v.env.KOI_POINT_ID ?? '', [start.timeoutSeconds, v.env.KOI_TIMEOUT_SECONDS]);
+			told.set(v.env.PREVIEWLANE_POINT_ID ?? '', [start.timeoutSeconds, v.env.PREVIEWLANE_TIMEOUT_SECONDS]);
 			for (const line of supervisorExit(declaredSteps(v))) v.out(line);
 			return 0;
 		};
@@ -4894,7 +4894,7 @@ budgets:
 		const { status } = await t.runToEnd();
 		expect(status.points[0]?.outcome).toBe('blocked');
 		expect(status.points[0]?.reason).toContain('point_timeout: ');
-		expect(t.docker.verifiers.map((v) => v.env.KOI_POINT_ID)).not.toContain('hello.home');
+		expect(t.docker.verifiers.map((v) => v.env.PREVIEWLANE_POINT_ID)).not.toContain('hello.home');
 		expect(status.points[1]?.outcome).toBe('pass');
 	});
 
@@ -4936,12 +4936,12 @@ budgets:
 			'point_timeout: the point reached its budget of 1 seconds before the runner ended',
 		);
 		expect(status.points[1]?.reason).toContain('run_deadline');
-		expect(t.docker.verifiers[0]?.env.KOI_TIMEOUT_SECONDS).toBe('1');
+		expect(t.docker.verifiers[0]?.env.PREVIEWLANE_TIMEOUT_SECONDS).toBe('1');
 		expect(status.completion).toBe('evaluated');
 		expect(status.problems).toEqual([]);
 	});
 
-	test('a recorder still holding a context koid could not name ends the run, not each later point', async () => {
+	test('a recorder still holding a context previewlaned could not name ends the run, not each later point', async () => {
 		// The first open never answers, and the recorder keeps its context and
 		// refuses the next open, as it does while one stands.
 		const t = await setup({ files: withPointBudget(1) });
@@ -5162,7 +5162,7 @@ budgets:
 		expect(status.cleanup).toBe('succeeded');
 		expect(t.record.lease).toBeUndefined();
 		expect(await t.network.record(accepted.runId)).toBeUndefined();
-		expect(t.docker.events.at(-1)).toBe(`removed network koi-v-${accepted.runId}`);
+		expect(t.docker.events.at(-1)).toBe(`removed network previewlane-v-${accepted.runId}`);
 		// The run is over for admission too: once the disk takes writes
 		// again, the label takes a new run.
 		t.failing.writes = undefined;
@@ -5213,8 +5213,8 @@ budgets:
 		expect(t.record.lease).toBeUndefined();
 		expect(await t.network.record(accepted.runId)).toBeUndefined();
 		expect(t.docker.events.filter((e) => e.startsWith('started '))).toEqual([]);
-		expect(t.docker.events).toContain(`created network koi-v-${accepted.runId}`);
-		expect(t.docker.events.at(-1)).toBe(`removed network koi-v-${accepted.runId}`);
+		expect(t.docker.events).toContain(`created network previewlane-v-${accepted.runId}`);
+		expect(t.docker.events.at(-1)).toBe(`removed network previewlane-v-${accepted.runId}`);
 		// The creation was given the run's budget as its signal.
 		expect(t.docker.networkSignals).toHaveLength(1);
 		expect(t.docker.networkSignals[0]).toBeInstanceOf(AbortSignal);
@@ -5240,7 +5240,7 @@ budgets:
 		]);
 		expect(status.executionDigest).toBeUndefined();
 		expect(status.cleanup).toBe('succeeded');
-		expect(t.docker.events).toContain(`stopped koi-verify-${accepted.runId}-recorder`);
+		expect(t.docker.events).toContain(`stopped previewlane-verify-${accepted.runId}-recorder`);
 		expect(await t.network.record(accepted.runId)).toBeUndefined();
 		expect(t.docker.networksMade.size).toBe(0);
 		expect(t.record.lease).toBeUndefined();
@@ -5257,7 +5257,7 @@ budgets:
 		const other = t.network
 			.create({
 				runId: 'z'.repeat(20),
-				appContainer: 'koi-other-app',
+				appContainer: 'previewlane-other-app',
 				appPort: 8080,
 				recorderImage: RECORDER_IMAGE,
 				verifierImage: RECORDER_IMAGE,
@@ -5288,7 +5288,7 @@ budgets:
 		expect(status.cleanup).toBe('succeeded');
 		expect(status.finalized).toBe(true);
 		expect(t.record.lease).toBeUndefined();
-		expect(t.docker.events).not.toContain(`created network koi-v-${accepted.runId}`);
+		expect(t.docker.events).not.toContain(`created network previewlane-v-${accepted.runId}`);
 		expect(await t.network.record(accepted.runId)).toBeUndefined();
 		expect(
 			t.logs.some((l) =>
@@ -5351,7 +5351,7 @@ budgets:
 		const answers: RunStatusReply[] = [];
 		t.docker.onStop = async (name) => {
 			if (!name.endsWith('-recorder') || answers.length > 0) return;
-			const runId = name.slice('koi-verify-'.length, -'-recorder'.length);
+			const runId = name.slice('previewlane-verify-'.length, -'-recorder'.length);
 			answers.push(await t.verification.cancel(runId));
 		};
 		return answers;
@@ -5418,7 +5418,7 @@ budgets:
 	});
 
 	test('what a failed creation left is taken down by the teardown, and the lease stays when that fails too', async () => {
-		// The recorder is created with a mount koi did not ask for, so the
+		// The recorder is created with a mount previewlane did not ask for, so the
 		// creation fails once the helper exists; its rollback fails at the
 		// revoke and leaves the record destroying with the helper in place.
 		const t = await setup();
@@ -5427,11 +5427,11 @@ budgets:
 		t.helper.revokeOnce = true;
 		const { accepted, status } = await t.runToEnd();
 		expect(status.completion).toBe('interrupted');
-		expect(status.interruption).toContain('mounts koi did not ask for');
+		expect(status.interruption).toContain('mounts previewlane did not ask for');
 		// The teardown found the record and the helper, and took them down.
 		expect(status.cleanup).toBe('succeeded');
 		expect(await t.network.record(accepted.runId)).toBeUndefined();
-		expect(t.docker.containers.has(`koi-verify-${accepted.runId}-recorder`)).toBe(false);
+		expect(t.docker.containers.has(`previewlane-verify-${accepted.runId}-recorder`)).toBe(false);
 		expect(t.docker.networksMade.size).toBe(0);
 		expect(t.record.lease).toBeUndefined();
 
@@ -5441,11 +5441,11 @@ budgets:
 		u.helper.revokeError = 'iptables is busy';
 		const again = await u.runToEnd();
 		expect(again.status.completion).toBe('interrupted');
-		expect(again.status.interruption).toContain('mounts koi did not ask for');
+		expect(again.status.interruption).toContain('mounts previewlane did not ask for');
 		expect(again.status.cleanup).toBe('failed');
 		expect(again.status.problems.map((p) => p.code)).toContain('teardown_failed');
 		expect((await u.network.record(again.accepted.runId))?.state).toBe('destroying');
-		expect(u.docker.containers.has(`koi-verify-${again.accepted.runId}-recorder`)).toBe(true);
+		expect(u.docker.containers.has(`previewlane-verify-${again.accepted.runId}-recorder`)).toBe(true);
 		expect(u.calls.filter((c) => c.startsWith('release'))).toEqual([]);
 		expect(u.record.lease?.holder).toBe(runLeaseHolder(again.accepted.runId));
 	});
@@ -5459,10 +5459,10 @@ budgets:
 				const name = helperName(runId, 'recorder');
 				await t.docker.createNetwork({
 					name: network,
-					bridge: 'koi-v-left',
+					bridge: 'previewlane-v-left',
 					subnet: '10.213.0.0/28',
 					gateway: '10.213.0.1',
-					labels: { 'koi.run': runId },
+					labels: { 'previewlane.run': runId },
 				});
 				await t.docker.createRecorder({
 					name,
@@ -5508,7 +5508,7 @@ budgets:
 		const other = t.network
 			.create({
 				runId: 'z'.repeat(20),
-				appContainer: 'koi-other-app',
+				appContainer: 'previewlane-other-app',
 				appPort: 8080,
 				recorderImage: RECORDER_IMAGE,
 				verifierImage: RECORDER_IMAGE,
@@ -5572,7 +5572,7 @@ budgets:
 		expect(evidence.finalized).toBe(false);
 		expect(evidence.status.evidence).toBe('incomplete');
 		expect((await t.verification.cancel(accepted.runId)).completion).toBe('finalize-failed');
-		expect(t.logs.some((l) => l.includes('kept in memory until koid restarts'))).toBe(true);
+		expect(t.logs.some((l) => l.includes('kept in memory until previewlaned restarts'))).toBe(true);
 	});
 
 	test('a terminal record already on disk is not what a reader gets when the finalize and its fallback both fail', async () => {
@@ -5727,21 +5727,21 @@ budgets:
 		t.helper.revokeError = undefined;
 		// The preview is redeployed under another container. The old record
 		// names the old one; the helper is still there and can reach the app.
-		const replacement = `koi-${LABEL}-bbbbbbbbbbbbbbbb2`;
+		const replacement = `previewlane-${LABEL}-bbbbbbbbbbbbbbbb2`;
 		await t.docker.run({
 			name: replacement,
-			image: 'koi-preview/hello:2',
-			network: 'koi-previews',
+			image: 'previewlane-preview/hello:2',
+			network: 'previewlane-previews',
 			user: '65534:65534',
 			env: {},
-			labels: { 'koi.preview': LABEL, 'koi.request': 'bbbbbbbbbbbbbbbb2' },
+			labels: { 'previewlane.preview': LABEL, 'previewlane.request': 'bbbbbbbbbbbbbbbb2' },
 		});
 		(t.record.deployment as NonNullable<PreviewRecord['deployment']>).container = replacement;
 		t.advance(3_600_000);
 		const err = await refusal(t.run(await t.plan()));
 		expect([err.status, err.code, err.retryable]).toEqual([409, 'preview_busy', true]);
 		expect(err.message).toContain(
-			`koi-verify-${first.accepted.runId}-verifier, the verifier of run ${first.accepted.runId}, still exists`,
+			`previewlane-verify-${first.accepted.runId}-verifier, the verifier of run ${first.accepted.runId}, still exists`,
 		);
 		expect(t.record.lease).toBeUndefined();
 	});
@@ -5869,7 +5869,7 @@ budgets:
 		t.docker.onStop = async (name) => {
 			if (done || !name.endsWith('-recorder')) return;
 			done = true;
-			const runId = name.slice('koi-verify-'.length, -'-recorder'.length);
+			const runId = name.slice('previewlane-verify-'.length, -'-recorder'.length);
 			await t.verification.cancel(runId);
 			await writeFile(
 				join(t.evidence.runDir(runId), 'artifacts', 'recorder:aria:8'),
@@ -6350,7 +6350,7 @@ describe('bounded replies', () => {
 			'Dockerfile',
 			...Array.from({ length: 20 }, (_, i) => `${C1.repeat(1999)}${i}`),
 		];
-		const t = await setup({ extra: { '.koi/required.yaml': required }, changed });
+		const t = await setup({ extra: { '.previewlane/required.yaml': required }, changed });
 		const first = await t.plan();
 		expect(bytes(first)).toBeLessThanOrEqual(VERIFICATION_REPLY_MAX_BYTES);
 		expect(first.counts.required).toBe(3000);
@@ -6365,7 +6365,7 @@ describe('bounded replies', () => {
 			next = page.next;
 		}
 		expect(all).toHaveLength(20);
-		expect(all.every((u) => u.endsWith(' [cut by koid]'))).toBe(true);
+		expect(all.every((u) => u.endsWith(' [cut by previewlaned]'))).toBe(true);
 	});
 });
 
@@ -6397,7 +6397,7 @@ describe('restart', () => {
 		expect(t.calls.filter((c) => c.startsWith('lease '))).toHaveLength(2);
 	});
 
-	test('a keyed run the last koid left running is found by its key, and stays interrupted', async () => {
+	test('a keyed run the last previewlaned left running is found by its key, and stays interrupted', async () => {
 		const t = await setup();
 		const plan = await t.plan();
 		const runId = 'q'.repeat(20);
@@ -6473,7 +6473,7 @@ describe('restart', () => {
 		).toBe(runId);
 	});
 
-	test('marks a run the last koid judged but did not finalize as finalize-failed, and leaves it so after', async () => {
+	test('marks a run the last previewlaned judged but did not finalize as finalize-failed, and leaves it so after', async () => {
 		const t = await setup();
 		const plan = await t.plan();
 		const runId = 'q'.repeat(20);
@@ -6576,7 +6576,7 @@ describe('restart', () => {
 		expect(status.state).toBe('completed');
 		expect(status.completion).toBe('interrupted');
 		expect(status.outcome).toBe('incomplete');
-		expect(status.interruption).toStartWith('koid_restarted');
+		expect(status.interruption).toStartWith('previewlaned_restarted');
 		expect(status.finalized).toBe(false);
 		expect(status.evidence).toBe('incomplete');
 		expect(status.readiness.eligibleForMergeGate).toBe(false);
@@ -6589,7 +6589,7 @@ describe('restart', () => {
 			JSON.parse(await readFile(join(dir, 'status.json'), 'utf8')),
 		);
 		expect(stored.state).toBe('failed');
-		expect(stored.problems.map((p) => p.code)).toEqual(['koid_restarted']);
+		expect(stored.problems.map((p) => p.code)).toEqual(['previewlaned_restarted']);
 		const run = RunSchema.parse(JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')));
 		expect(run.state).toBe('completed');
 		expect(t.record.lease).toBeUndefined();

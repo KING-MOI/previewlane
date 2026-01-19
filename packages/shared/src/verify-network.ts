@@ -2,13 +2,13 @@ import { z } from 'zod';
 import { VerifyIdSchema } from './verify.ts';
 
 // A verification run's private network (docs/verify.md, "Run network"):
-// what koid writes to disk for each run network it makes, what it sends the
-// root-owned firewall helper (host/verify/koi_verify_net.py), and what that
+// what previewlaned writes to disk for each run network it makes, what it sends the
+// root-owned firewall helper (host/verify/previewlane_verify_net.py), and what that
 // helper reports about the host. The helper checks the descriptor against
 // the same shape in Python; both refuse anything outside it.
 
-// The version of the helper's rules koid expects. The helper prints its own
-// in attest; another one means the host and koid disagree on the policy.
+// The version of the helper's rules previewlaned expects. The helper prints its own
+// in attest; another one means the host and previewlaned disagree on the policy.
 export const VERIFY_POLICY_VERSION = 2;
 
 // The bridge of a run network: kv and twelve hex digits. Interface names are
@@ -33,8 +33,8 @@ export const VerifyPoolSchema = Cidr4Schema.refine((cidr) => {
 }, 'must be between a /16 and a /28');
 
 // Why `pool` is not a pool run networks can be carved from, as a clause
-// after the value ("has host bits set"), or undefined when it is one. koid
-// keeps KOI_VERIFY_POOL as written and reports this with the variable's
+// after the value ("has host bits set"), or undefined when it is one. previewlaned
+// keeps PREVIEWLANE_VERIFY_POOL as written and reports this with the variable's
 // name as a reason verification is unavailable (daemon host.ts), so a
 // wrong value never stops it from serving previews.
 export function verifyPoolProblem(pool: string): string | undefined {
@@ -46,11 +46,11 @@ export function verifyPoolProblem(pool: string): string | undefined {
 
 const DockerNameSchema = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/);
 
-// The names koid gives a run's network, containers and input volumes.
+// The names previewlaned gives a run's network, containers and input volumes.
 // Cleanup trusts one as a run's only when its name and its labels agree: a
-// preview's image can carry any label, but koid alone names these.
+// preview's image can carry any label, but previewlaned alone names these.
 export function runNetworkName(runId: string): string {
-	return `koi-v-${runId}`;
+	return `previewlane-v-${runId}`;
 }
 
 export const HELPER_ROLES = ['recorder', 'verifier'] as const;
@@ -58,46 +58,46 @@ export const HELPER_ROLES = ['recorder', 'verifier'] as const;
 export type HelperRole = (typeof HELPER_ROLES)[number];
 
 export function helperName(runId: string, role: HelperRole): string {
-	return `koi-verify-${runId}-${role}`;
+	return `previewlane-verify-${runId}-${role}`;
 }
 
-// The containers koid names for a run: the two helpers, and the staging
+// The containers previewlaned names for a run: the two helpers, and the staging
 // container a point's inputs are copied through (verifier.ts). The staging
 // container is never started and is on no network.
-export type KoidContainerRole = HelperRole | 'staging';
+export type PreviewlanedContainerRole = HelperRole | 'staging';
 
 export function stagingName(runId: string): string {
-	return `koi-verify-${runId}-staging`;
+	return `previewlane-verify-${runId}-staging`;
 }
 
-// A point's inputs reach its verifier through three Docker volumes koid
+// A point's inputs reach its verifier through three Docker volumes previewlaned
 // creates for each point of the run, one per directory the verifier sees
-// read-only: /koi (the supervisor and the point file), /workspace (the input
+// read-only: /previewlane (the supervisor and the point file), /workspace (the input
 // snapshot) and /fixtures. The verifier's own root stays read-only, and
 // nothing of the host is bind-mounted.
-export const INPUT_VOLUME_PARTS = ['koi', 'workspace', 'fixtures'] as const;
+export const INPUT_VOLUME_PARTS = ['previewlane', 'workspace', 'fixtures'] as const;
 
 export type InputVolumePart = (typeof INPUT_VOLUME_PARTS)[number];
 
-// The koi.role label each of them carries, beside koi.run.
+// The previewlane.role label each of them carries, beside previewlane.run.
 export const INPUT_VOLUME_ROLE = 'inputs';
 
 export function inputVolumeName(runId: string, part: InputVolumePart): string {
-	return `koi-verify-${runId}-inputs-${part}`;
+	return `previewlane-verify-${runId}-inputs-${part}`;
 }
 
-const HELPER_NAME = /^koi-verify-([a-z0-9]{16,40})-(recorder|verifier|staging)$/;
-const INPUT_VOLUME_NAME = /^koi-verify-([a-z0-9]{16,40})-inputs-(koi|workspace|fixtures)$/;
-const RUN_NETWORK_NAME = /^koi-v-([a-z0-9]{16,40})$/;
+const HELPER_NAME = /^previewlane-verify-([a-z0-9]{16,40})-(recorder|verifier|staging)$/;
+const INPUT_VOLUME_NAME = /^previewlane-verify-([a-z0-9]{16,40})-inputs-(previewlane|workspace|fixtures)$/;
+const RUN_NETWORK_NAME = /^previewlane-v-([a-z0-9]{16,40})$/;
 
 // The run and role a container's name carries, or undefined for any other
 // name.
 export function parseHelperName(
 	name: string,
-): { runId: string; role: KoidContainerRole } | undefined {
+): { runId: string; role: PreviewlanedContainerRole } | undefined {
 	const match = HELPER_NAME.exec(name);
 	if (match?.[1] === undefined || match[2] === undefined) return undefined;
-	return { runId: match[1], role: match[2] as KoidContainerRole };
+	return { runId: match[1], role: match[2] as PreviewlanedContainerRole };
 }
 
 // The run and part an input volume's name carries, or undefined for any
@@ -128,7 +128,7 @@ export const RunNetworkEndpointSchema = z.strictObject({
 
 export type RunNetworkEndpoint = z.infer<typeof RunNetworkEndpointSchema>;
 
-// What koid hands the helper on apply: the run, its bridge and subnet, the
+// What previewlaned hands the helper on apply: the run, its bridge and subnet, the
 // app's port, and the three endpoints. The helper checks each endpoint
 // against Docker itself before it installs anything.
 export const RunNetworkDescriptorSchema = z
@@ -171,8 +171,8 @@ export const RunNetworkRecordSchema = z.strictObject({
 
 export type RunNetworkRecord = z.infer<typeof RunNetworkRecordSchema>;
 
-// What `koi-verify-net attest` prints. Not strict: a newer helper may say
-// more. koid reads the booleans and the problems: chains, that the three
+// What `previewlane-verify-net attest` prints. Not strict: a newer helper may say
+// more. previewlaned reads the booleans and the problems: chains, that the three
 // chains exist; defaults, that each ends in its default denies; jump, that
 // each is reached before any rule that could let kv+ traffic past; permits,
 // that nothing sits above the denies but the permits of recorded runs;
@@ -180,7 +180,7 @@ export type RunNetworkRecord = z.infer<typeof RunNetworkRecordSchema>;
 // that each running endpoint's MAC is pinned to its port and the recorder's
 // address to its MAC on the host, and nothing else is pinned. A helper from
 // before policy 2 prints no bridge and no bridge_nf_filter_vlan_tagged, and
-// koid counts both as missing.
+// previewlaned counts both as missing.
 export const VerifyAttestationSchema = z.object({
 	policy: z.number().int(),
 	pool: z.string().nullable(),
@@ -205,7 +205,7 @@ export const VerifyAttestationSchema = z.object({
 	// For each run it holds, the bridge port each endpoint's permits are
 	// bound to, by role, or null while the container has not run; null for
 	// a run whose state the helper could not read. A helper from before
-	// this field says nothing, and koid treats a port it needs as unbound.
+	// this field says nothing, and previewlaned treats a port it needs as unbound.
 	ports: z.record(z.string(), z.record(z.string(), z.string().nullable()).nullable()).optional(),
 });
 

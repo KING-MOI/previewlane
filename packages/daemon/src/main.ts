@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { verifyPoolProblem } from '@koi/shared';
+import { verifyPoolProblem } from '@previewlane/shared';
 import { Activity, hasEstablishedConnections, startLogSink } from './activity.ts';
 import { buildAdapters } from './adapters.ts';
 import { BuildLogs } from './buildlog.ts';
@@ -26,7 +26,7 @@ import { sudoHelper, VerificationNetwork } from './verification-network.ts';
 import { snapshotInputs } from './verification-snapshot.ts';
 import { EvidenceStore } from './verification-store.ts';
 
-// The exact secret values koid has seen while running: login keys, and the
+// The exact secret values previewlaned has seen while running: login keys, and the
 // keys and tokens of the keys page. In memory only; the sanitizers and the
 // log use them. Bounded (MAX_SECRET_VALUES): the keys page registers values
 // for anyone the egress proxy lets through, and past the bound the oldest
@@ -72,17 +72,17 @@ function configOrExit(): Config {
 	try {
 		return loadConfig();
 	} catch (err) {
-		log(`koid: ${errorText(err)}`);
+		log(`previewlaned: ${errorText(err)}`);
 		process.exit(1);
 	}
 }
 
 // Startup runs in this order, and nothing listens until it is done, so the
-// health endpoint answers only once koid is ready (scripts/deploy-host.sh
+// health endpoint answers only once previewlaned is ready (scripts/deploy-host.sh
 // waits for it):
 // 1. check the networks, builder and slice provisioning made, and exit if
-//    they are missing or wrong (systemd restarts koid);
-// 2. open the record store and the evidence store, and move build logs koid
+//    they are missing or wrong (systemd restarts previewlaned);
+// 2. open the record store and the evidence store, and move build logs previewlaned
 //    kept before logs were per attempt;
 // 3. reconcile records with what Docker has, and route what runs; remove
 //    what verification runs left behind, then check what verification
@@ -96,7 +96,7 @@ async function daemon(): Promise<void> {
 	const problems = await verifyHost(hostSpec(config));
 	if (problems.length > 0) {
 		log(
-			`koid: the box is not provisioned as koid needs; run scripts/provision-host.sh\n  ${problems.join('\n  ')}`,
+			`previewlaned: the box is not provisioned as previewlaned needs; run scripts/provision-host.sh\n  ${problems.join('\n  ')}`,
 		);
 		process.exit(1);
 	}
@@ -137,7 +137,7 @@ async function daemon(): Promise<void> {
 	log(egress === undefined ? 'egress proxy: none' : `egress proxy: ${config.egressProxy}`);
 	// The proxy's control socket: the keys page registers keys there, and the
 	// deployer tells it which preview each container address runs with every
-	// change of routes, so a koi token works only from its own preview.
+	// change of routes, so a previewlane token works only from its own preview.
 	const proxyControl = egressControl(config.egressControl);
 	const deployer = new Deployer({
 		domain: config.domain,
@@ -182,12 +182,12 @@ async function daemon(): Promise<void> {
 	// Verification is a capability, not a requirement: a box provisioned
 	// before it keeps serving previews and reports it unavailable. Run
 	// networks, their helpers and their firewall permits from before this
-	// start all go, since no run outlives koid. The check removes them once
+	// start all go, since no run outlives previewlaned. The check removes them once
 	// it has found the helper safe to call, and judges the box only after
 	// that; host.ts says why in that order. A leftover the cleanup could not
 	// remove is one of the reasons it reports. A pool of the wrong shape is
 	// another: no run network is made from it, and the capability check
-	// names the problem (host.ts) instead of koid stopping over it.
+	// names the problem (host.ts) instead of previewlaned stopping over it.
 	const pool =
 		config.verifyPool !== undefined && verifyPoolProblem(config.verifyPool) === undefined
 			? config.verifyPool
@@ -220,7 +220,7 @@ async function daemon(): Promise<void> {
 			: `verification: unavailable (${verification.reason})`,
 	);
 	// The run controller. Before anything can ask for a run: every run the
-	// last koid left running is marked interrupted; it never becomes passed.
+	// last previewlaned left running is marked interrupted; it never becomes passed.
 	// Its lease goes only when the cleanup above is known to have run.
 	const runs = new Verification({
 		evidence,
@@ -274,7 +274,7 @@ async function daemon(): Promise<void> {
 	const gid = await groupId(config.controlGroup);
 	if (gid === undefined) {
 		log(
-			`control socket: this host has no group ${config.controlGroup}, so only root and koi can open it`,
+			`control socket: this host has no group ${config.controlGroup}, so only root and previewlane can open it`,
 		);
 	}
 	await startControlServer(
@@ -291,7 +291,7 @@ async function daemon(): Promise<void> {
 		},
 		{ gid, log },
 	);
-	log(`koid listening on 127.0.0.1:${config.httpPort}, control ${config.controlSocket}`);
+	log(`previewlaned listening on 127.0.0.1:${config.httpPort}, control ${config.controlSocket}`);
 
 	// A preview container that dies on its own frees its address, which
 	// Docker gives to the next container it starts; a sync takes it out of
@@ -376,11 +376,11 @@ async function sweepEvidence(evidence: EvidenceStore): Promise<void> {
 	}
 }
 
-// `koid ctl <args>` for a person on the box; `koid ctl-b64 <blob>` for the
+// `previewlaned ctl <args>` for a person on the box; `previewlaned ctl-b64 <blob>` for the
 // CLI, through SSM.
 const args = process.argv.slice(2);
 if (args[0] === 'ctl' || args[0] === 'ctl-b64') {
-	const config = { socket: process.env.KOID_CONTROL_SOCKET ?? '/run/koi/control.sock' };
+	const config = { socket: process.env.PREVIEWLANED_CONTROL_SOCKET ?? '/run/previewlane/control.sock' };
 	const io: CtlIo = {
 		stdout: (t) => process.stdout.write(t),
 		stderr: (t) => process.stderr.write(t),
@@ -393,7 +393,7 @@ if (args[0] === 'ctl' || args[0] === 'ctl-b64') {
 	// Never the daemon: a second one would reconcile the box's containers
 	// before it failed to bind its ports.
 	process.stderr.write(
-		'koid: unknown command\nusage: koid | koid ctl <command> [args] | koid ctl-b64 <blob>\n',
+		'previewlaned: unknown command\nusage: previewlaned | previewlaned ctl <command> [args] | previewlaned ctl-b64 <blob>\n',
 	);
 	process.exitCode = 2;
 }

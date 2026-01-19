@@ -1,4 +1,4 @@
-# Source tarballs from `koi up`. Objects expire after a day; the box pulls them
+# Source tarballs from `previewlane up`. Objects expire after a day; the box pulls them
 # within seconds of upload.
 resource "aws_s3_bucket" "uploads" {
   bucket = local.uploads_name

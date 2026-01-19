@@ -1,6 +1,6 @@
 """A real proxy for end-to-end tests of the egress policy.
 
-The proxy is mitmproxy with koi_egress.py loaded as a script, as mitmdump
+The proxy is mitmproxy with previewlane_egress.py loaded as a script, as mitmdump
 loads it on the box, so hooks run in the same order as there. One local
 server stands in for every allowed host: a test addon added after the policy
 sends each upstream connection to it, so tests can CONNECT to pypi.org
@@ -30,10 +30,10 @@ from mitmproxy import addons, master, options
 from mitmproxy.certs import CertStore
 
 HERE = Path(__file__).parent
-ADDON = HERE.parent / "koi_egress.py"
+ADDON = HERE.parent / "previewlane_egress.py"
 # What the upstream's certificate covers: every name a test connects to.
 NAMES = ["pypi.org", "www.python.org", "files.pythonhosted.org"]
-# LLM provider APIs, where the policy swaps koi tokens for keys.
+# LLM provider APIs, where the policy swaps previewlane tokens for keys.
 NAMES += ["api.openai.com", "api.anthropic.com", "generativelanguage.googleapis.com", "api.groq.com", "openrouter.ai"]
 
 
@@ -233,23 +233,23 @@ class Logged(logging.Handler):
 
 
 class Proxy:
-    """mitmproxy started as koi-egress.service starts it: server off, script given.
+    """mitmproxy started as previewlane-egress.service starts it: server off, script given.
 
-    script is the policy file to load (koi_egress.py unless a test passes a
+    script is the policy file to load (previewlane_egress.py unless a test passes a
     copy to break); port is where it listens once the policy turns the server
     on (0: any free port). wait: return only once the policy is active.
-    policy_options are more of the policy's own options, such as koi_control;
-    koi_secret is the workdir's token secret (token_secret) unless given.
+    policy_options are more of the policy's own options, such as previewlane_control;
+    previewlane_secret is the workdir's token secret (token_secret) unless given.
     """
 
     def __init__(self, workdir, upstream, allow, script=ADDON, port=0, wait=True, **policy_options):
         self.workdir = workdir
         self.upstream = upstream
-        policy_options.setdefault("koi_secret", str(token_secret(workdir)))
+        policy_options.setdefault("previewlane_secret", str(token_secret(workdir)))
         self.flows = Flows()
         self.ca = workdir / "confdir" / "mitmproxy-ca-cert.pem"
         self.log = Logged()
-        for name in ("mitmproxy.addons.script", "koi_egress"):
+        for name in ("mitmproxy.addons.script", "previewlane_egress"):
             logging.getLogger(name).addHandler(self.log)
         started = threading.Event()
         self.thread = threading.Thread(
@@ -272,7 +272,7 @@ class Proxy:
                 server=False,
                 scripts=[str(script)],
             )
-            opts.update_defer(koi_allow=str(allow), **policy_options)
+            opts.update_defer(previewlane_allow=str(allow), **policy_options)
             started.set()
             await self.master.run()
 
@@ -282,7 +282,7 @@ class Proxy:
         deadline = time.monotonic() + timeout
         while self.policy() is None or not self.address():
             if time.monotonic() > deadline:
-                raise RuntimeError("the proxy did not load koi_egress.py")
+                raise RuntimeError("the proxy did not load previewlane_egress.py")
             time.sleep(0.05)
 
     def script(self):
@@ -322,7 +322,7 @@ class Proxy:
         return list(self.flows.flows)
 
     def policy(self):
-        return self.master.addons.get("koiegress")
+        return self.master.addons.get("previewlaneegress")
 
     def address(self):
         addrs = self.master.addons.get("proxyserver").listen_addrs()
@@ -331,7 +331,7 @@ class Proxy:
     def close(self):
         self.master.shutdown()
         self.thread.join(10)
-        for name in ("mitmproxy.addons.script", "koi_egress"):
+        for name in ("mitmproxy.addons.script", "previewlane_egress"):
             logging.getLogger(name).removeHandler(self.log)
 
     # Clients
@@ -355,8 +355,8 @@ class Proxy:
     def tls(self, sock, sni, alpn=("http/1.1",)):
         """TLS over a tunnel with the given server name (None sends none).
 
-        The client trusts koi's CA and the upstream's, as a preview trusts
-        koi's and the public ones.
+        The client trusts previewlane's CA and the upstream's, as a preview trusts
+        previewlane's and the public ones.
         """
         context = ssl.create_default_context(cafile=str(self.ca))
         context.load_verify_locations(cafile=str(self.upstream.ca))

@@ -2,7 +2,7 @@ import { createWriteStream } from 'node:fs';
 import type { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { GetObjectCommand, type S3Client } from '@aws-sdk/client-s3';
-import { requestKey, sourceKey, type UpRequest, UpRequestSchema } from '@koi/shared';
+import { requestKey, sourceKey, type UpRequest, UpRequestSchema } from '@previewlane/shared';
 
 // An upload store, from the daemon's side: read a request, fetch its source.
 // On AWS the store is the uploads bucket; on a plain host it is the spool
@@ -35,7 +35,7 @@ export function s3Uploads(bucket: string, client: S3Client): Uploads {
 			return request;
 		},
 		// The bucket's own rule expires objects (infra/uploads.tf) and nothing
-		// in koid deletes them, so there is nothing to hold or let go.
+		// in previewlaned deletes them, so there is nothing to hold or let go.
 		async claim() {},
 		async release() {},
 		async downloadSource(id, file) {

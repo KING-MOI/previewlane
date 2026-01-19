@@ -1,7 +1,7 @@
 import { createConnection } from 'node:net';
-import { type EgressReply, EgressReplySchema } from '@koi/shared';
+import { type EgressReply, EgressReplySchema } from '@previewlane/shared';
 
-// Client for the egress proxy's control socket (host/egress/koi_egress.py):
+// Client for the egress proxy's control socket (host/egress/previewlane_egress.py):
 // one JSON request per connection, one JSON line back. Keys pass through this
 // process's memory on their way to the proxy's; nothing here stores or logs
 // them.
@@ -101,7 +101,7 @@ function readReply(line: string): Accepted | Error {
 // The deployer's `previews` for a proxy reached through `control`. When
 // nothing listens on the control socket (no socket file, or one nobody
 // accepts on), no policy is loaded, and the address map went with the last
-// one: the socket closes as the policy unloads (koi_egress.py, done), and a
+// one: the socket closes as the policy unloads (previewlane_egress.py, done), and a
 // policy that loads again starts with no map. That is as safe as a map
 // without the address, so it counts as taken; the next sync tells the new
 // policy. Any other failure, such as a proxy that does not answer, leaves

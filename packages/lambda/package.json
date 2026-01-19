@@ -1,5 +1,5 @@
 {
-	"name": "@koi/lambda",
+	"name": "@previewlane/lambda",
 	"version": "0.0.0",
 	"private": true,
 	"license": "MIT",
@@ -10,6 +10,6 @@
 	"dependencies": {
 		"@aws-sdk/client-ec2": "^3.900.0",
 		"@aws-sdk/client-ssm": "^3.900.0",
-		"@koi/shared": "workspace:*"
+		"@previewlane/shared": "workspace:*"
 	}
 }

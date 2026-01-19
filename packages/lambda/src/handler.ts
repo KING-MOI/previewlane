@@ -1,6 +1,6 @@
 import { DescribeInstancesCommand, EC2Client, StartInstancesCommand } from '@aws-sdk/client-ec2';
 import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
-import { LivePreviewsSchema, labelFromHost, RESERVED_LABELS } from '@koi/shared';
+import { LivePreviewsSchema, labelFromHost, RESERVED_LABELS } from '@previewlane/shared';
 import { wakePage } from './wake-page.ts';
 
 // Lambda function URL event, reduced to what this handler reads.
@@ -38,7 +38,7 @@ export interface WakeConfig {
 	domain: string;
 }
 
-const PATH_PREFIX = '/__koi-wake';
+const PATH_PREFIX = '/__previewlane-wake';
 
 export function createHandler(deps: WakeDeps, config: WakeConfig) {
 	return async (event: FunctionUrlEvent): Promise<FunctionUrlResult> => {
@@ -82,7 +82,7 @@ export function createHandler(deps: WakeDeps, config: WakeConfig) {
 		if (label === null) {
 			return json(400, { known: false, error: 'host is not a preview address' });
 		}
-		// koi's own pages (the keys page) wake the box like any live preview.
+		// previewlane's own pages (the keys page) wake the box like any live preview.
 		const live = await deps.livePreviews();
 		if (!live.includes(label) && !(RESERVED_LABELS as readonly string[]).includes(label)) {
 			return json(404, { known: false });
@@ -155,8 +155,8 @@ export function awsDeps(
 let real: ((event: FunctionUrlEvent) => Promise<FunctionUrlResult>) | undefined;
 
 export async function handler(event: FunctionUrlEvent): Promise<FunctionUrlResult> {
-	real ??= createHandler(awsDeps(env('KOI_INSTANCE_ID'), env('KOI_PREVIEWS_PARAM')), {
-		domain: env('KOI_DOMAIN'),
+	real ??= createHandler(awsDeps(env('PREVIEWLANE_INSTANCE_ID'), env('PREVIEWLANE_PREVIEWS_PARAM')), {
+		domain: env('PREVIEWLANE_DOMAIN'),
 	});
 	return real(event);
 }

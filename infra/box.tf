@@ -14,7 +14,7 @@ data "aws_iam_policy_document" "box_assume" {
 }
 
 resource "aws_iam_role" "box" {
-  name               = "koi-box"
+  name               = "previewlane-box"
   assume_role_policy = data.aws_iam_policy_document.box_assume.json
 }
 
@@ -105,13 +105,13 @@ data "aws_iam_policy_document" "box" {
 }
 
 resource "aws_iam_role_policy" "box" {
-  name   = "koi-box"
+  name   = "previewlane-box"
   role   = aws_iam_role.box.id
   policy = data.aws_iam_policy_document.box.json
 }
 
 resource "aws_iam_instance_profile" "box" {
-  name = "koi-box"
+  name = "previewlane-box"
   role = aws_iam_role.box.name
 }
 
@@ -128,13 +128,13 @@ resource "aws_instance" "box" {
   # Runs once, at first boot. Changing it does not re-run it on this box; use
   # scripts/provision-host.sh to apply host changes to a running box. Gzipped,
   # because EC2 caps user data at 16 KiB and the script is larger; cloud-init
-  # unpacks it before running it. The script reads the domain from KOI_DOMAIN
-  # and the verification pool from KOI_VERIFY_POOL, set on the lines in front
+  # unpacks it before running it. The script reads the domain from PREVIEWLANE_DOMAIN
+  # and the verification pool from PREVIEWLANE_VERIFY_POOL, set on the lines in front
   # of it; provision-host.sh prepends the same lines.
   user_data_base64 = base64gzip(join("\n", [
     "#!/bin/bash",
-    "KOI_DOMAIN=${var.domain}",
-    "KOI_VERIFY_POOL=${var.verify_pool}",
+    "PREVIEWLANE_DOMAIN=${var.domain}",
+    "PREVIEWLANE_VERIFY_POOL=${var.verify_pool}",
     file("${path.module}/../host/cloud-init.sh"),
   ]))
   user_data_replace_on_change = false
@@ -156,7 +156,7 @@ resource "aws_instance" "box" {
   # The CLI finds the box by Name and reads the preview domain from Domain,
   # so a team needs no settings beyond an AWS profile.
   tags = {
-    Name   = "koi-box"
+    Name   = "previewlane-box"
     Domain = var.domain
   }
 
@@ -173,7 +173,7 @@ resource "aws_instance" "box" {
 resource "aws_eip" "box" {
   domain = "vpc"
   tags = {
-    Name = "koi-box"
+    Name = "previewlane-box"
   }
 }
 

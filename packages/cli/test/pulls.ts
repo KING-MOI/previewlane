@@ -16,7 +16,7 @@ import { type ExecOptions, type ExecResult, exec, execOk } from '../src/exec.ts'
 // The clone has main only. Fetching a pull request brings its commits over
 // the file:// transport, as from a real remote.
 export async function pullRequestOrigin() {
-	const author = await mkdtemp(join(tmpdir(), 'koi-author-'));
+	const author = await mkdtemp(join(tmpdir(), 'previewlane-author-'));
 	const git = async (...args: string[]) =>
 		(
 			await execOk([
@@ -38,7 +38,7 @@ export async function pullRequestOrigin() {
 	};
 	await git('init', '-q', '-b', 'main');
 	await writeFile(join(author, 'Dockerfile'), 'FROM scratch\n');
-	const init = await commit('koi.yaml', 'port: 8080\nbuild:\n  kind: dockerfile\n', 'init');
+	const init = await commit('previewlane.yaml', 'port: 8080\nbuild:\n  kind: dockerfile\n', 'init');
 	await git('checkout', '-q', '-b', 'feature');
 	const head7 = await commit('pr.txt', 'seven\n', 'pull request 7');
 	await git('checkout', '-q', 'main');
@@ -51,7 +51,7 @@ export async function pullRequestOrigin() {
 	await git('checkout', '-q', '-b', 'ninety', init);
 	const head90 = await commit('ninety.txt', '90\n', 'pull request 90');
 
-	const origin = await mkdtemp(join(tmpdir(), 'koi-origin-'));
+	const origin = await mkdtemp(join(tmpdir(), 'previewlane-origin-'));
 	await execOk(['git', 'init', '-q', '--bare', origin]);
 	await git(
 		'push',
@@ -63,7 +63,7 @@ export async function pullRequestOrigin() {
 		`${head8}:refs/pull/8/head`,
 		`${head90}:refs/pull/90/head`,
 	);
-	const user = join(await mkdtemp(join(tmpdir(), 'koi-user-')), 'checkout');
+	const user = join(await mkdtemp(join(tmpdir(), 'previewlane-user-')), 'checkout');
 	await execOk(['git', 'clone', '-q', `file://${origin}`, user]);
 	const userGit = async (...args: string[]) =>
 		(
@@ -86,7 +86,7 @@ export async function pullRequestOrigin() {
 // commit checked out is the shallow boundary, so its parents are not in the
 // repository and git's history walkers show it with none.
 export async function shallowCheckout(origin: string, ref: string): Promise<string> {
-	const dir = join(await mkdtemp(join(tmpdir(), 'koi-shallow-')), 'checkout');
+	const dir = join(await mkdtemp(join(tmpdir(), 'previewlane-shallow-')), 'checkout');
 	await execOk(['git', 'clone', '-q', '--depth', '1', `file://${origin}`, dir]);
 	const git = (...args: string[]) => execOk(['git', '-C', dir, ...args]);
 	await git('fetch', '-q', '--depth', '1', 'origin', `+${ref}:refs/remotes/origin/checkout`);
@@ -95,7 +95,7 @@ export async function shallowCheckout(origin: string, ref: string): Promise<stri
 }
 
 // exec, except that git names origin as GitHub would: the clone's real
-// origin is a local path, which koi cannot read a repository id from.
+// origin is a local path, which previewlane cannot read a repository id from.
 export function asGitHub(url = 'https://github.com/acme/hello.git') {
 	return (cmd: string[], options?: ExecOptions): Promise<ExecResult> =>
 		cmd[0] === 'git' && cmd.includes('get-url')

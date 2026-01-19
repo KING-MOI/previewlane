@@ -1,4 +1,4 @@
-# The recorder image: the browser koi records a verification run with
+# The recorder image: the browser previewlane records a verification run with
 # (docs/verify.md, "Recorder and evidence"). It starts from Microsoft's
 # Playwright image, pinned by digest, which carries Chromium and Node, and
 # adds the server in src/, compiled here. The server runs as uid 10001 on a
@@ -6,12 +6,12 @@
 # rest of the container's flags (packages/daemon/src/docker.ts, recorderArgs)
 # and starts it with seccomp.json, so Chromium's own sandbox can make the
 # user namespace it needs. Never --no-sandbox. dist/probe.js starts Chromium
-# the same way and exits; koid runs it before it calls verification available.
+# the same way and exits; previewlaned runs it before it calls verification available.
 #
-# Build it on the box and tell koid which image it is, by id:
-#   docker build -t koi-recorder:1 host/recorder
-#   docker image inspect --format '{{.Id}}' koi-recorder:1
-# and set KOI_RECORDER_IMAGE to that sha256 in /etc/koi/verify/env.
+# Build it on the box and tell previewlaned which image it is, by id:
+#   docker build -t previewlane-recorder:1 host/recorder
+#   docker image inspect --format '{{.Id}}' previewlane-recorder:1
+# and set PREVIEWLANE_RECORDER_IMAGE to that sha256 in /etc/previewlane/verify/env.
 #
 # Two lockfiles pin the same versions: bun.lock at the repository root
 # installs this package for type checking and tests, and package-lock.json
@@ -34,7 +34,7 @@ COPY --chown=0:0 package.json /app/package.json
 RUN chmod -R a-w,o+rX /app
 ENV NODE_ENV=production \
 	PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-	HOME=/tmp/koi-recorder/home \
+	HOME=/tmp/previewlane-recorder/home \
 	TMPDIR=/tmp
 USER 10001:10001
 WORKDIR /app

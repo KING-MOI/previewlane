@@ -1,8 +1,8 @@
-"""The hello example's runner, driven against a stand-in for Playwright and for koid's acknowledgments.
+"""The hello example's runner, driven against a stand-in for Playwright and for previewlaned's acknowledgments.
 
 The real page comes from the recorder's browser over the run network; here
 a stub module answers connect_over_cdp with one page whose heading the test
-chooses, and the test plays koid: reads the events the runner prints and
+chooses, and the test plays previewlaned: reads the events the runner prints and
 answers each capture and read.
 """
 
@@ -14,7 +14,7 @@ import textwrap
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-RUNNER = ROOT / "examples" / "hello" / ".koi" / "runners" / "home.py"
+RUNNER = ROOT / "examples" / "hello" / ".previewlane" / "runners" / "home.py"
 CLIENTS = ROOT / "host" / "verifier" / "clients"
 
 STUB = textwrap.dedent(
@@ -41,9 +41,9 @@ STUB = textwrap.dedent(
 
     class _Chromium:
         def connect_over_cdp(self, ws, timeout=None):
-            assert ws == os.environ["KOI_RECORDER_WS"], ws
+            assert ws == os.environ["PREVIEWLANE_RECORDER_WS"], ws
             heading = os.environ["STUB_HEADING"]
-            url = os.environ["KOI_PREVIEW_URL"] + "/"
+            url = os.environ["PREVIEWLANE_PREVIEW_URL"] + "/"
             if os.environ.get("STUB_NO_PAGE"):
                 return _Browser([])
             return _Browser([_Context([_Page("about:blank", ""), _Page(url, heading)])])
@@ -69,9 +69,9 @@ def run(tmp_path, heading, no_page=False):
     env = {
         "PATH": os.environ["PATH"],
         "PYTHONPATH": f"{tmp_path / 'stub'}{os.pathsep}{CLIENTS}",
-        "KOI_POINT_ID": "hello.home",
-        "KOI_PREVIEW_URL": "http://app.run.invalid:8080",
-        "KOI_RECORDER_WS": "ws://10.213.0.3:4317/token",
+        "PREVIEWLANE_POINT_ID": "hello.home",
+        "PREVIEWLANE_PREVIEW_URL": "http://app.run.invalid:8080",
+        "PREVIEWLANE_RECORDER_WS": "ws://10.213.0.3:4317/token",
         "STUB_HEADING": heading,
         **({"STUB_NO_PAGE": "1"} if no_page else {}),
     }
@@ -85,7 +85,7 @@ def run(tmp_path, heading, no_page=False):
     )
     events = []
     artifacts = iter(["recorder:screenshot:1", "recorder:http-response:2"])
-    # koid's side: answer each capture or read with the next artifact.
+    # previewlaned's side: answer each capture or read with the next artifact.
     while True:
         line = proc.stdout.readline()
         if not line:
@@ -101,7 +101,7 @@ def run(tmp_path, heading, no_page=False):
 
 
 def test_passes_when_the_heading_says_hello(tmp_path):
-    code, events, stderr = run(tmp_path, "hello from koi")
+    code, events, stderr = run(tmp_path, "hello from previewlane")
     assert code == 0, stderr
     assert [e["type"] for e in events] == ["capture", "read", "assertion"]
     assert events[0] == {"type": "capture", "kind": "screenshot", "label": "home"}
@@ -112,7 +112,7 @@ def test_passes_when_the_heading_says_hello(tmp_path):
         "name": "home-says-hello",
         "outcome": "pass",
         "evidence": ["recorder:screenshot:1", "recorder:http-response:2"],
-        "detail": 'the heading reads "hello from koi"',
+        "detail": 'the heading reads "hello from previewlane"',
     }
 
 
@@ -122,11 +122,11 @@ def test_fails_when_the_heading_says_something_else(tmp_path):
     assertion = events[-1]
     assert assertion["outcome"] == "fail"
     assert assertion["evidence"] == ["recorder:screenshot:1", "recorder:http-response:2"]
-    assert assertion["detail"] == 'the heading reads "hello from nobody", not "hello from koi"'
+    assert assertion["detail"] == 'the heading reads "hello from nobody", not "hello from previewlane"'
 
 
 def test_reports_blocked_without_a_page_of_the_app(tmp_path):
-    code, events, stderr = run(tmp_path, "hello from koi", no_page=True)
+    code, events, stderr = run(tmp_path, "hello from previewlane", no_page=True)
     assert code == 1, stderr
     assert events == [
         {

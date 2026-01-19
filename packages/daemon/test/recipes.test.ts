@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MAX_RECIPE_SLICE_BYTES } from '@koi/shared';
+import { MAX_RECIPE_SLICE_BYTES } from '@previewlane/shared';
 import { ZodError } from 'zod';
 import { loadBuiltinRecipe } from '../src/recipes.ts';
 import { recipeDockerfiles, sourceStages, stages, writableMounts } from './dockerfiles.ts';
@@ -10,7 +10,7 @@ import { recipeDockerfiles, sourceStages, stages, writableMounts } from './docke
 // A recipes directory with one recipe directory, `name`, holding `text` as
 // its recipe.json (or no recipe.json when text is undefined).
 async function recipes(name: string, text?: string): Promise<string> {
-	const root = await mkdtemp(join(tmpdir(), 'koid-recipes-'));
+	const root = await mkdtemp(join(tmpdir(), 'previewlaned-recipes-'));
 	await mkdir(join(root, name));
 	if (text !== undefined) await writeFile(join(root, name, 'recipe.json'), text);
 	return root;
@@ -80,7 +80,7 @@ describe('loadBuiltinRecipe', () => {
 			note: null,
 		};
 		const root = await recipes('hello', JSON.stringify({ ...hello, slice }));
-		// No defaults are filled in: koi does not know the shape.
+		// No defaults are filled in: previewlane does not know the shape.
 		expect((await loadBuiltinRecipe(root, 'hello')).recipe.slice).toEqual(slice);
 	});
 
