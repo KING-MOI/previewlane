@@ -98,3 +98,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - considered type narrowing; parked for now
 - flaky test observed while testing
 - edge case observed while testing
+- slow start observed while testing
