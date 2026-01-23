@@ -114,7 +114,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
 		network: env.PREVIEWLANE_PREVIEW_NETWORK ?? 'previewlane-previews',
 		buildNetwork: env.PREVIEWLANE_BUILD_NETWORK ?? 'previewlane-build',
 		builder: env.PREVIEWLANE_BUILDER ?? 'previewlane-builder',
-		slice: env.PREVIEWLANE_SLICE === '' ? undefined : (env.PREVIEWLANE_SLICE ?? 'previewlane.slice'),
+		slice:
+			env.PREVIEWLANE_SLICE === '' ? undefined : (env.PREVIEWLANE_SLICE ?? 'previewlane.slice'),
 		...chooseStores(env, stateDir),
 		region: env.AWS_REGION ?? 'us-east-1',
 		egressControl: env.PREVIEWLANE_EGRESS_CONTROL ?? '/run/previewlane-egress/control.sock',
@@ -123,7 +124,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
 		...(env.PREVIEWLANE_VERIFY_POOL ? { verifyPool: env.PREVIEWLANE_VERIFY_POOL } : {}),
 		verifyHelper: env.PREVIEWLANE_VERIFY_HELPER ?? '/usr/local/libexec/previewlane-verify-net',
 		...(env.PREVIEWLANE_RECORDER_IMAGE ? { recorderImage: env.PREVIEWLANE_RECORDER_IMAGE } : {}),
-		recorderSeccomp: env.PREVIEWLANE_RECORDER_SECCOMP ?? '/usr/local/share/previewlane/recorder-seccomp.json',
+		recorderSeccomp:
+			env.PREVIEWLANE_RECORDER_SECCOMP ?? '/usr/local/share/previewlane/recorder-seccomp.json',
 		...(env.PREVIEWLANE_VERIFIER_IMAGE ? { verifierImage: env.PREVIEWLANE_VERIFIER_IMAGE } : {}),
 		verifierImages: (env.PREVIEWLANE_VERIFIER_IMAGES ?? '').split(/[\s,]+/).filter((s) => s !== ''),
 	});
@@ -175,7 +177,9 @@ function chooseStores(env: Record<string, string | undefined>, stateDir: string)
 		}
 		for (const name of ['PREVIEWLANE_SPOOL_DIR', 'PREVIEWLANE_SPOOL_BUDGET_BYTES']) {
 			if (given(env[name]) !== undefined) {
-				throw new Error(`${name} is set but uploads come from S3 (PREVIEWLANE_UPLOADS_BUCKET); unset it.`);
+				throw new Error(
+					`${name} is set but uploads come from S3 (PREVIEWLANE_UPLOADS_BUCKET); unset it.`,
+				);
 			}
 		}
 		stores.uploadsBucket = bucket;
@@ -186,7 +190,8 @@ function chooseStores(env: Record<string, string | undefined>, stateDir: string)
 			);
 		}
 		stores.spoolDir = env.PREVIEWLANE_SPOOL_DIR ?? '/var/lib/previewlane/uploads';
-		stores.spoolBudgetBytes = env.PREVIEWLANE_SPOOL_BUDGET_BYTES ?? String(DEFAULT_SPOOL_BUDGET_BYTES);
+		stores.spoolBudgetBytes =
+			env.PREVIEWLANE_SPOOL_BUDGET_BYTES ?? String(DEFAULT_SPOOL_BUDGET_BYTES);
 	}
 
 	if (live === 'ssm') {

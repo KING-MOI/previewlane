@@ -71,7 +71,9 @@ describe('ssmLiveList', () => {
 
 	test('refuses a label that is not a preview label without calling SSM', async () => {
 		const c = client();
-		await expect(ssmLiveList('/previewlane/previews', c.ssm).publish(['Bad_Label'])).rejects.toThrow();
+		await expect(
+			ssmLiveList('/previewlane/previews', c.ssm).publish(['Bad_Label']),
+		).rejects.toThrow();
 		expect(c.sent).toEqual([]);
 	});
 

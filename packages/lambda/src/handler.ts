@@ -155,8 +155,11 @@ export function awsDeps(
 let real: ((event: FunctionUrlEvent) => Promise<FunctionUrlResult>) | undefined;
 
 export async function handler(event: FunctionUrlEvent): Promise<FunctionUrlResult> {
-	real ??= createHandler(awsDeps(env('PREVIEWLANE_INSTANCE_ID'), env('PREVIEWLANE_PREVIEWS_PARAM')), {
-		domain: env('PREVIEWLANE_DOMAIN'),
-	});
+	real ??= createHandler(
+		awsDeps(env('PREVIEWLANE_INSTANCE_ID'), env('PREVIEWLANE_PREVIEWS_PARAM')),
+		{
+			domain: env('PREVIEWLANE_DOMAIN'),
+		},
+	);
 	return real(event);
 }

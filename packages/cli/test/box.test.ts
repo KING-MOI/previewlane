@@ -2,7 +2,12 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { decodeCtlArgs, RepoRecipeSchema, type UpRequest, UpRequestSchema } from '@previewlane/shared';
+import {
+	decodeCtlArgs,
+	RepoRecipeSchema,
+	type UpRequest,
+	UpRequestSchema,
+} from '@previewlane/shared';
 import type { Clients } from '../src/box.ts';
 import {
 	awsBox,
@@ -244,14 +249,22 @@ describe('awsBox ctl', () => {
 			send: async (cmd: { constructor: { name: string } }) =>
 				cmd.constructor.name === 'SendCommandCommand'
 					? { Command: { CommandId: 'c' } }
-					: { Status: 'Failed', ResponseCode: 3, StandardErrorContent: 'cannot reach previewlaned' },
+					: {
+							Status: 'Failed',
+							ResponseCode: 3,
+							StandardErrorContent: 'cannot reach previewlaned',
+						},
 		} as never;
 		const box = awsBox(
 			settings,
 			{ s3: client, ec2: client, ssm: client, sts: client },
 			async () => {},
 		);
-		expect(await box.ctl(['ping'])).toEqual({ code: 3, stdout: '', stderr: 'cannot reach previewlaned' });
+		expect(await box.ctl(['ping'])).toEqual({
+			code: 3,
+			stdout: '',
+			stderr: 'cannot reach previewlaned',
+		});
 	});
 
 	test('refuses output that SSM cut at 24,000 characters', async () => {
@@ -494,7 +507,11 @@ function invalidInstance(): Error {
 }
 
 const OK = { code: 0, stdout: '{"ok":true}\n' };
-const DOWN = { code: 3, stdout: '', stderr: 'previewlaned ctl: cannot reach previewlaned: ENOENT\n' };
+const DOWN = {
+	code: 3,
+	stdout: '',
+	stderr: 'previewlaned ctl: cannot reach previewlaned: ENOENT\n',
+};
 
 describe('awsBox ensureAwake', () => {
 	test('asks previewlaned for a ping once SSM reports the box online', async () => {

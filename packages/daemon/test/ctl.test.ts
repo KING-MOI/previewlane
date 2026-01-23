@@ -228,7 +228,9 @@ describe('previewlaned ctl-b64', () => {
 			// daemon, which would touch the box's containers.
 			const unknown = previewlaned('ctl-json', '[]');
 			expect(await unknown.exited).toBe(2);
-			expect(await new Response(unknown.stderr).text()).toStartWith('previewlaned: unknown command');
+			expect(await new Response(unknown.stderr).text()).toStartWith(
+				'previewlaned: unknown command',
+			);
 			expect(paths).toEqual(['/previews/hello-pr-7']);
 		} finally {
 			server.stop(true);

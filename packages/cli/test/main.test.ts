@@ -133,7 +133,11 @@ describe('run', () => {
 	});
 
 	test('prints the version', async () => {
-		expect(await capture(['version'])).toEqual({ code: 0, stdout: `previewlane ${VERSION}\n`, stderr: '' });
+		expect(await capture(['version'])).toEqual({
+			code: 0,
+			stdout: `previewlane ${VERSION}\n`,
+			stderr: '',
+		});
 	});
 
 	test('prints the version as JSON with --json', async () => {
@@ -273,7 +277,9 @@ describe('run', () => {
 		expect(r.code).toBe(1);
 		expect(r.stdout).toBe('');
 		expect(r.stderr).toStartWith('previewlane  waking hello-pr-7\n');
-		expect(r.stderr).toContain('previewlane  still waiting for hello-pr-7 to start (HTTP 503 after 15s)\n');
+		expect(r.stderr).toContain(
+			'previewlane  still waiting for hello-pr-7 to start (HTTP 503 after 15s)\n',
+		);
 		expect(r.stderr).toEndWith(
 			'previewlane: hello-pr-7 did not start within 90 seconds; the last check of https://hello-pr-7.previews.example.net/__previewlane/health got HTTP 503. See previewlane list, or previewlane logs hello-pr-7\n',
 		);
@@ -1110,7 +1116,10 @@ describe('previewlane executable', () => {
 		'a .env cannot grant itself PREVIEWLANE_TRUST_CHECKOUT: on Linux only the shell can',
 		async () => {
 			const checkout = await mkdtemp(join(tmpdir(), 'previewlane-checkout-'));
-			await writeFile(join(checkout, '.env'), 'PREVIEWLANE_TRUST_CHECKOUT=1\nPREVIEWLANE_TARGET=evil\n');
+			await writeFile(
+				join(checkout, '.env'),
+				'PREVIEWLANE_TRUST_CHECKOUT=1\nPREVIEWLANE_TARGET=evil\n',
+			);
 			const env = { PATH: process.env.PATH ?? '', HOME: '/nonexistent' };
 			const result = Bun.spawnSync(
 				[process.execPath, join(repoRoot, 'packages/cli/src/main.ts'), 'config', 'show'],

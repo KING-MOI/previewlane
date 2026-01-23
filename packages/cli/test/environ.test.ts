@@ -74,7 +74,10 @@ describe('isCompiledBinary', () => {
 			const checkout = join(dir, 'checkout');
 			await Bun.write(join(checkout, '.env'), 'PREVIEWLANE_PROBE=from-dotenv\n');
 			await Bun.write(join(checkout, 'bunfig.toml'), 'preload = ["./preload.ts"]\n');
-			await Bun.write(join(checkout, 'preload.ts'), 'process.env.PREVIEWLANE_PROBE = "from-bunfig";\n');
+			await Bun.write(
+				join(checkout, 'preload.ts'),
+				'process.env.PREVIEWLANE_PROBE = "from-bunfig";\n',
+			);
 			const ran = Bun.spawnSync([join(dir, 'probe')], {
 				cwd: checkout,
 				env: { PATH: process.env.PATH ?? '' },
@@ -111,7 +114,9 @@ describe('autoloadFilesIn', () => {
 describe('parseEnviron', () => {
 	test('reads NUL-separated KEY=VALUE entries, the first of a name winning', () => {
 		expect(
-			parseEnviron('HOME=/home/u\0PREVIEWLANE_TARGET=a=b\0EMPTY=\0junk\0=nokey\0PREVIEWLANE_TARGET=c\0'),
+			parseEnviron(
+				'HOME=/home/u\0PREVIEWLANE_TARGET=a=b\0EMPTY=\0junk\0=nokey\0PREVIEWLANE_TARGET=c\0',
+			),
 		).toEqual({
 			HOME: '/home/u',
 			PREVIEWLANE_TARGET: 'a=b',

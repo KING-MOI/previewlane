@@ -82,7 +82,9 @@ describe('runArgs', () => {
 		// either way (isPreview); this keeps the label from claiming a role.
 		expect(args.filter((a) => a.startsWith('previewlane.role'))).toEqual(['previewlane.role=']);
 		expect(args[args.indexOf('previewlane.role=') - 1]).toBe('--label');
-		expect(args.filter((a) => a.startsWith('previewlane.preview'))).toEqual(['previewlane.preview=hello']);
+		expect(args.filter((a) => a.startsWith('previewlane.preview'))).toEqual([
+			'previewlane.preview=hello',
+		]);
 	});
 
 	test('confines the container', () => {
@@ -366,7 +368,9 @@ describe('run network and helper flags', () => {
 			// The name makes the helper no preview (isPreview); this keeps
 			// the label from saying otherwise, and cleanup takes it for
 			// previewlaned's (helperOf).
-			expect(args.filter((a) => a.startsWith('previewlane.preview'))).toEqual(['previewlane.preview=']);
+			expect(args.filter((a) => a.startsWith('previewlane.preview'))).toEqual([
+				'previewlane.preview=',
+			]);
 			expect(args[args.indexOf('previewlane.preview=') - 1]).toBe('--label');
 			for (const flag of [
 				'-p',
@@ -570,7 +574,9 @@ describe('parseInspect', () => {
 		expect(() => parseInspect(json, 'previewlane-previews')).toThrow(
 			/docker container inspect printed what previewlaned cannot read: State\.Running: .*; NetworkSettings\.Networks\.previewlane-previews\.IPAddress: /,
 		);
-		expect(() => parseInspect('{"State":', 'previewlane-previews')).toThrow('something other than JSON');
+		expect(() => parseInspect('{"State":', 'previewlane-previews')).toThrow(
+			'something other than JSON',
+		);
 	});
 });
 
@@ -689,9 +695,9 @@ describe('cliDocker', () => {
 		expect(calls).toEqual([
 			['docker', 'image', 'inspect', '--format', '{{.Id}}', 'previewlane-preview/hello:abc'],
 		]);
-		await expect(recorded('latest\n').docker.imageDigest('previewlane-preview/hello:abc')).rejects.toThrow(
-			'not a sha256 image id',
-		);
+		await expect(
+			recorded('latest\n').docker.imageDigest('previewlane-preview/hello:abc'),
+		).rejects.toThrow('not a sha256 image id');
 	});
 
 	test('trims the build cache of the previewlane builder', async () => {
@@ -734,7 +740,9 @@ describe('cliDocker', () => {
 				'',
 			].join('\n'),
 		);
-		expect(await previews.docker.list()).toEqual([{ name: 'previewlane-hello-abc', label: 'hello' }]);
+		expect(await previews.docker.list()).toEqual([
+			{ name: 'previewlane-hello-abc', label: 'hello' },
+		]);
 		expect(previews.calls[0]).toContain('label=previewlane.preview');
 		expect(previews.calls[0]?.at(-1)).toBe('{{.Names}}\t{{.Label "previewlane.preview"}}');
 	});
@@ -768,7 +776,10 @@ describe('cliDocker', () => {
 			},
 		});
 		expect(await docker.listRun()).toEqual([
-			{ name: 'previewlane-verify-r-recorder', labels: { 'previewlane.role': 'recorder', 'previewlane.run': 'r' } },
+			{
+				name: 'previewlane-verify-r-recorder',
+				labels: { 'previewlane.role': 'recorder', 'previewlane.run': 'r' },
+			},
 			{
 				name: 'previewlane-hello-abc',
 				labels: {
@@ -779,7 +790,14 @@ describe('cliDocker', () => {
 			},
 			{ name: 'bare', labels: {} },
 		]);
-		expect(calls[0]).toEqual(['docker', 'ps', '--all', '--quiet', '--filter', 'label=previewlane.run']);
+		expect(calls[0]).toEqual([
+			'docker',
+			'ps',
+			'--all',
+			'--quiet',
+			'--filter',
+			'label=previewlane.run',
+		]);
 		expect(calls[1]).toEqual([
 			'docker',
 			'container',
@@ -885,7 +903,10 @@ describe('cliDocker', () => {
 
 	test('makes, lists and removes volumes, and copies an archive to a path in a container', async () => {
 		const { calls, docker } = recorded();
-		await docker.createVolume('previewlane-verify-r-inputs-previewlane', { 'previewlane.run': 'r', 'previewlane.role': 'inputs' });
+		await docker.createVolume('previewlane-verify-r-inputs-previewlane', {
+			'previewlane.run': 'r',
+			'previewlane.role': 'inputs',
+		});
 		await docker.removeVolume('previewlane-verify-r-inputs-previewlane');
 		await docker.copyIn('s', new Uint8Array(0), '/');
 		expect(calls).toEqual([
@@ -945,7 +966,15 @@ describe('cliDocker', () => {
 		await docker.disconnect('previewlane-v-run', 'previewlane-app');
 		await docker.removeNetwork('previewlane-v-run');
 		expect(calls).toEqual([
-			['docker', 'network', 'connect', '--ip', '10.213.0.18', 'previewlane-v-run', 'previewlane-app'],
+			[
+				'docker',
+				'network',
+				'connect',
+				'--ip',
+				'10.213.0.18',
+				'previewlane-v-run',
+				'previewlane-app',
+			],
 			['docker', 'network', 'disconnect', 'previewlane-v-run', 'previewlane-app'],
 			['docker', 'network', 'rm', 'previewlane-v-run'],
 		]);
@@ -960,11 +989,14 @@ describe('cliDocker', () => {
 		await failing(
 			'Error response from daemon: container previewlane-app is not connected to network previewlane-v-run',
 		).disconnect('previewlane-v-run', 'previewlane-app');
-		await failing('Error: No such container: previewlane-app').disconnect('previewlane-v-run', 'previewlane-app');
+		await failing('Error: No such container: previewlane-app').disconnect(
+			'previewlane-v-run',
+			'previewlane-app',
+		);
 		await expect(
-			failing('Error response from daemon: network previewlane-v-run has active endpoints').removeNetwork(
-				'previewlane-v-run',
-			),
+			failing(
+				'Error response from daemon: network previewlane-v-run has active endpoints',
+			).removeNetwork('previewlane-v-run'),
 		).rejects.toThrow('active endpoints');
 		await expect(
 			failing('permission denied').connect('previewlane-v-run', 'previewlane-app', '10.213.0.18'),
@@ -1172,7 +1204,9 @@ describe('isPreview', () => {
 		// preview: the id after the last dash is 16 to 40 characters, never a
 		// role.
 		expect(isPreview(`previewlane-verify-${id}`, 'verify')).toBe(true);
-		expect(isPreview(`previewlane-verify-${run}-recorder-${id}`, `verify-${run}-recorder`)).toBe(true);
+		expect(isPreview(`previewlane-verify-${run}-recorder-${id}`, `verify-${run}-recorder`)).toBe(
+			true,
+		);
 		// A run's helper, by its name: previewlane.preview set to nothing, as previewlaned
 		// creates it, or a value its image forged.
 		expect(isPreview(`previewlane-verify-${run}-recorder`, '')).toBe(false);

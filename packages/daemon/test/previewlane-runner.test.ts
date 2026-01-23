@@ -94,24 +94,28 @@ const TEXTS: Array<[string, string]> = [
 describe.each(Object.keys(clients))('the %s client', (language) => {
 	const client = clients[language] as Client;
 
-	test.each(TEXTS)('%s reach previewlaned as events, cut only as far as they must', async (_name, text) => {
-		const { out, err, code } = await client([text]);
-		expect(err).toBe('');
-		expect(code).toBe(0);
-		const events = readAsPreviewlaned(out);
-		expect(events.map((e) => e.event.type)).toEqual(['assertion', 'note']);
-		for (const { event, bytes } of events) {
-			expect(bytes).toBeLessThanOrEqual(LINE);
-			const kept = event.type === 'assertion' ? event.detail : event.type === 'note' && event.text;
-			if (typeof kept !== 'string') throw new Error('no text');
-			expect(kept.length).toBeGreaterThan(0);
-			expect(text.startsWith(kept)).toBe(true);
-			// Half a surrogate pair is not text.
-			expect(kept.isWellFormed()).toBe(true);
-			// Stopped by one bound or the other, within a character of it.
-			expect(bytes > LINE - 12 || kept.length >= 3999 || kept === text).toBe(true);
-		}
-	});
+	test.each(TEXTS)(
+		'%s reach previewlaned as events, cut only as far as they must',
+		async (_name, text) => {
+			const { out, err, code } = await client([text]);
+			expect(err).toBe('');
+			expect(code).toBe(0);
+			const events = readAsPreviewlaned(out);
+			expect(events.map((e) => e.event.type)).toEqual(['assertion', 'note']);
+			for (const { event, bytes } of events) {
+				expect(bytes).toBeLessThanOrEqual(LINE);
+				const kept =
+					event.type === 'assertion' ? event.detail : event.type === 'note' && event.text;
+				if (typeof kept !== 'string') throw new Error('no text');
+				expect(kept.length).toBeGreaterThan(0);
+				expect(text.startsWith(kept)).toBe(true);
+				// Half a surrogate pair is not text.
+				expect(kept.isWellFormed()).toBe(true);
+				// Stopped by one bound or the other, within a character of it.
+				expect(bytes > LINE - 12 || kept.length >= 3999 || kept === text).toBe(true);
+			}
+		},
+	);
 
 	test('text that fits is kept whole', async () => {
 		const { out } = await client(['测试 under the bound']);

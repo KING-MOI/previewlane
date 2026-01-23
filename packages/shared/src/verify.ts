@@ -738,11 +738,17 @@ export async function loadVerifyConfig(
 	const manifestPath = `${PREVIEWLANE_DIR}/${VERIFY_MANIFEST}`;
 	const previewlane = join(root, PREVIEWLANE_DIR);
 	const previewlaneStat = await lstat(previewlane).catch(() => undefined);
-	if (previewlaneStat === undefined) throw new VerifyConfigError(manifestPath, undefined, 'not found');
+	if (previewlaneStat === undefined)
+		throw new VerifyConfigError(manifestPath, undefined, 'not found');
 	if (previewlaneStat.isSymbolicLink()) {
-		throw new VerifyConfigError(PREVIEWLANE_DIR, undefined, 'is a symlink; .previewlane/ must be a real directory');
+		throw new VerifyConfigError(
+			PREVIEWLANE_DIR,
+			undefined,
+			'is a symlink; .previewlane/ must be a real directory',
+		);
 	}
-	if (!previewlaneStat.isDirectory()) throw new VerifyConfigError(PREVIEWLANE_DIR, undefined, 'is not a directory');
+	if (!previewlaneStat.isDirectory())
+		throw new VerifyConfigError(PREVIEWLANE_DIR, undefined, 'is not a directory');
 	const files = await listFiles(previewlane);
 	const digests: Record<string, string> = {};
 	const read = async (relative: string): Promise<Uint8Array> => {
@@ -876,7 +882,11 @@ function prefixFiles(manifestPath: string, command: string[], files: Set<string>
 			);
 		}
 		if (!files.has(inside.data)) {
-			throw new VerifyConfigError(manifestPath, field, `no file ${inside.data} under ${PREVIEWLANE_DIR}/`);
+			throw new VerifyConfigError(
+				manifestPath,
+				field,
+				`no file ${inside.data} under ${PREVIEWLANE_DIR}/`,
+			);
 		}
 		found.push(inside.data);
 	}

@@ -87,7 +87,8 @@ export function inputVolumeName(runId: string, part: InputVolumePart): string {
 }
 
 const HELPER_NAME = /^previewlane-verify-([a-z0-9]{16,40})-(recorder|verifier|staging)$/;
-const INPUT_VOLUME_NAME = /^previewlane-verify-([a-z0-9]{16,40})-inputs-(previewlane|workspace|fixtures)$/;
+const INPUT_VOLUME_NAME =
+	/^previewlane-verify-([a-z0-9]{16,40})-inputs-(previewlane|workspace|fixtures)$/;
 const RUN_NETWORK_NAME = /^previewlane-v-([a-z0-9]{16,40})$/;
 
 // The run and role a container's name carries, or undefined for any other

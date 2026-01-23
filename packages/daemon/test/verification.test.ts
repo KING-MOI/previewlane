@@ -680,7 +680,10 @@ async function setup(options: SetupOptions = {}) {
 	});
 	const capability: VerificationCapability =
 		options.available === false
-			? { available: false, reason: options.unavailableReason ?? 'PREVIEWLANE_VERIFY_POOL is not set' }
+			? {
+					available: false,
+					reason: options.unavailableReason ?? 'PREVIEWLANE_VERIFY_POOL is not set',
+				}
 			: {
 					available: true,
 					attestation: attestation(pool),
@@ -996,7 +999,9 @@ describe('planning', () => {
 		const plan = await t.plan();
 		expect(plan.points).toEqual([]);
 		expect(plan.blocked.map((b) => b.id)).toEqual(['hello.home', 'app.always', 'app.search']);
-		expect(plan.blocked[0]?.reason).toBe('verification_unavailable: PREVIEWLANE_VERIFY_POOL is not set');
+		expect(plan.blocked[0]?.reason).toBe(
+			'verification_unavailable: PREVIEWLANE_VERIFY_POOL is not set',
+		);
 	});
 
 	describe('runtime text that reaches a plan', () => {
@@ -1046,7 +1051,10 @@ describe('planning', () => {
 			const t = await setup({
 				available: false,
 				unavailableReason: `docker: no such network ${VALUE}`,
-				extra: { '.previewlane/required.yaml': POLICY_ERROR, '.previewlane/proofs/broken.yaml': PROOF_ERROR },
+				extra: {
+					'.previewlane/required.yaml': POLICY_ERROR,
+					'.previewlane/proofs/broken.yaml': PROOF_ERROR,
+				},
 				changed: Array.from({ length: 3000 }, (_, i) => `src/f${i}.ts`),
 				planGlobs: {
 					onTurn: () => {
@@ -1096,7 +1104,10 @@ describe('planning', () => {
 		});
 
 		test.each<[string, Record<string, string>]>([
-			['the required policy', { '.previewlane/required.yaml': `version: 1\nrequired: []\n${VALUE}: 1\n` }],
+			[
+				'the required policy',
+				{ '.previewlane/required.yaml': `version: 1\nrequired: []\n${VALUE}: 1\n` },
+			],
 			['a proof record', { '.previewlane/proofs/broken.yaml': `${PROOF}${VALUE}: 1\n` }],
 		])('an error from reading %s is scrubbed, on disk and in the reply', async (_what, extra) => {
 			const before = await setup({ extra });
@@ -1673,7 +1684,11 @@ describe('running', () => {
 		const first = t.docker.verifiers[0] as FakeVerifier;
 		expect(first.options.image).toBe(CURL_IMAGE);
 		expect(first.options.entrypoint).toBe('python3');
-		expect(first.options.command).toEqual(['-I', '/previewlane/supervisor.py', '/previewlane/point.json']);
+		expect(first.options.command).toEqual([
+			'-I',
+			'/previewlane/supervisor.py',
+			'/previewlane/point.json',
+		]);
 		expect(first.options.workdir).toBe('/workspace');
 		expect(first.env.PREVIEWLANE_RUN_ID).toBe(runId);
 		expect(first.env.PREVIEWLANE_PREVIEW_URL).toBe(`http://app.${runId}.invalid:8080`);
@@ -1727,7 +1742,9 @@ describe('running', () => {
 		expect(controller.completion).toBe('evaluated');
 		expect(controller.lease.leaseId).toBe('l'.repeat(20));
 		const report = await readFile(join(dir, 'report.md'), 'utf8');
-		expect(report).toStartWith(`<!-- previewlane-verification:${runId} -->\n## previewlane verification: passed\n`);
+		expect(report).toStartWith(
+			`<!-- previewlane-verification:${runId} -->\n## previewlane verification: passed\n`,
+		);
 		expect(report).toContain(
 			'| hello.home | pass | - | recorder:screenshot:1, recorder:aria:2, recorder:http-response:3 |',
 		);
@@ -4108,7 +4125,12 @@ budgets:
 
 		test('a word someone registered is no credential, so it cannot stop a plan', async () => {
 			const t = await setup();
-			for (const word of ['hello.home', 'home-says-hello', '.previewlane/runners', 'curlimages/curl']) {
+			for (const word of [
+				'hello.home',
+				'home-says-hello',
+				'.previewlane/runners',
+				'curlimages/curl',
+			]) {
 				t.secrets.add(word);
 			}
 			expect((await t.plan()).points[0]?.id).toBe('hello.home');
@@ -4871,7 +4893,10 @@ budgets:
 		const told = new Map<string, unknown>();
 		t.docker.verifierScript = async (v) => {
 			const start = JSON.parse(await v.nextLine()) as { timeoutSeconds: unknown };
-			told.set(v.env.PREVIEWLANE_POINT_ID ?? '', [start.timeoutSeconds, v.env.PREVIEWLANE_TIMEOUT_SECONDS]);
+			told.set(v.env.PREVIEWLANE_POINT_ID ?? '', [
+				start.timeoutSeconds,
+				v.env.PREVIEWLANE_TIMEOUT_SECONDS,
+			]);
 			for (const line of supervisorExit(declaredSteps(v))) v.out(line);
 			return 0;
 		};
@@ -5445,7 +5470,9 @@ budgets:
 		expect(again.status.cleanup).toBe('failed');
 		expect(again.status.problems.map((p) => p.code)).toContain('teardown_failed');
 		expect((await u.network.record(again.accepted.runId))?.state).toBe('destroying');
-		expect(u.docker.containers.has(`previewlane-verify-${again.accepted.runId}-recorder`)).toBe(true);
+		expect(u.docker.containers.has(`previewlane-verify-${again.accepted.runId}-recorder`)).toBe(
+			true,
+		);
 		expect(u.calls.filter((c) => c.startsWith('release'))).toEqual([]);
 		expect(u.record.lease?.holder).toBe(runLeaseHolder(again.accepted.runId));
 	});

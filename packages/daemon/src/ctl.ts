@@ -92,7 +92,8 @@ export interface CtlIo {
 }
 
 export function socketFetch(socket: string): CtlIo['fetch'] {
-	return (path, init) => fetch(`http://previewlaned${path}`, { ...init, unix: socket } as RequestInit);
+	return (path, init) =>
+		fetch(`http://previewlaned${path}`, { ...init, unix: socket } as RequestInit);
 }
 
 export async function ctl(args: string[], io: CtlIo): Promise<number> {
@@ -181,14 +182,18 @@ export async function ctl(args: string[], io: CtlIo): Promise<number> {
 				return 2;
 		}
 	} catch (err) {
-		io.stderr(`previewlaned ctl: ${err instanceof Error ? err.message : String(err)}\n${CTL_USAGE}`);
+		io.stderr(
+			`previewlaned ctl: ${err instanceof Error ? err.message : String(err)}\n${CTL_USAGE}`,
+		);
 		return 2;
 	}
 	let res: Response;
 	try {
 		res = await io.fetch(path, init);
 	} catch (err) {
-		io.stderr(`previewlaned ctl: cannot reach previewlaned: ${err instanceof Error ? err.message : String(err)}\n`);
+		io.stderr(
+			`previewlaned ctl: cannot reach previewlaned: ${err instanceof Error ? err.message : String(err)}\n`,
+		);
 		return CTL_EXIT.unavailable;
 	}
 	const body = await res.text();

@@ -410,7 +410,9 @@ runner:
 			`ghcr.io/acme/${KEY}:1`,
 			`previewlane-${'a1b2c3d4'.repeat(3)}/runner:1`,
 		]) {
-			expect(await declared(image(reference), points)).toBe('.previewlane/verify.yaml, field runner.image');
+			expect(await declared(image(reference), points)).toBe(
+				'.previewlane/verify.yaml, field runner.image',
+			);
 		}
 		// The same text in any other field still reads as an assignment.
 		expect(

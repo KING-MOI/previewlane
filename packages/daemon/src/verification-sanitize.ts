@@ -1,4 +1,9 @@
-import { PREVIEWLANE_DIR, type ProofRecord, TEXT_MAX, type VerifyConfig } from '@previewlane/shared';
+import {
+	PREVIEWLANE_DIR,
+	type ProofRecord,
+	TEXT_MAX,
+	type VerifyConfig,
+} from '@previewlane/shared';
 import { holdsCredential, holdsCredentialShape, scrubWithin } from './redact.ts';
 
 // What a run's data may say once it leaves previewlaned (docs/verify.md, "Running a

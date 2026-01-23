@@ -59,7 +59,10 @@ function plan(over: Partial<PlanReply> = {}): PlanReply {
 		counts: { selected: 2, blocked: 1, uncovered: 1, required: 1 },
 		policy: {
 			source: 'none',
-			advisory: { path: '.previewlane/required.yaml', required: [{ id: 'hello.home', revision: 2 }] },
+			advisory: {
+				path: '.previewlane/required.yaml',
+				required: [{ id: 'hello.home', revision: 2 }],
+			},
 		},
 		limits,
 		runnerImage: 'curlimages/curl:8.11.1',
@@ -321,7 +324,9 @@ describe('previewlane verify run', () => {
 			`previewlane  plan ${PLAN}: 2 point(s) selected, 1 blocked, 1 uncovered change(s)\n`,
 		);
 		expect(r.stderr).toContain('previewlane  note: the verifier does not exist yet\n');
-		expect(r.stderr).toContain(`previewlane  run ${RUN} started; lease until 2026-10-06T12:12:00.000Z\n`);
+		expect(r.stderr).toContain(
+			`previewlane  run ${RUN} started; lease until 2026-10-06T12:12:00.000Z\n`,
+		);
 		expect(r.stderr).toContain('previewlane  hello.home: blocked\n');
 		expect(r.stderr).toContain('previewlane  app.search: blocked\n');
 	});
@@ -1286,7 +1291,9 @@ describe('previewlane verify evidence', () => {
 				);
 				expect(report.complete).toBe(false);
 				expect(report.missing).toHaveLength(1);
-				expect(report.missing[0]).toStartWith('events: the 3 lines previewlaned gave hash to sha256:');
+				expect(report.missing[0]).toStartWith(
+					'events: the 3 lines previewlaned gave hash to sha256:',
+				);
 				expect(report.missing[0]).toEndWith(`and the manifest says ${recordedEvents.sha256}`);
 			});
 

@@ -33,7 +33,9 @@ export function buildAdapters(config: Config, deps: AdapterDeps): Adapters {
 		};
 	}
 	if (config.spoolDir === undefined || config.spoolBudgetBytes === undefined) {
-		throw new Error('PREVIEWLANE_UPLOADS=spool needs PREVIEWLANE_SPOOL_DIR and PREVIEWLANE_SPOOL_BUDGET_BYTES');
+		throw new Error(
+			'PREVIEWLANE_UPLOADS=spool needs PREVIEWLANE_SPOOL_DIR and PREVIEWLANE_SPOOL_BUDGET_BYTES',
+		);
 	}
 	const spool = new UploadApi({
 		spoolDir: config.spoolDir,
@@ -51,6 +53,7 @@ function buildLive(config: Config): LiveList {
 			throw new Error('PREVIEWLANE_LIVE=ssm needs PREVIEWLANE_PREVIEWS_PARAM');
 		return ssmLiveList(config.previewsParam, new SSMClient({ region: config.region }));
 	}
-	if (config.liveFile === undefined) throw new Error('PREVIEWLANE_LIVE=file needs PREVIEWLANE_LIVE_FILE');
+	if (config.liveFile === undefined)
+		throw new Error('PREVIEWLANE_LIVE=file needs PREVIEWLANE_LIVE_FILE');
 	return fileLiveList(config.liveFile);
 }

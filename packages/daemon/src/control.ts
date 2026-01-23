@@ -350,7 +350,11 @@ async function verification(
 			{ status },
 		);
 	if (api === undefined) {
-		return error(404, 'verification_unavailable', 'this previewlaned has no verification controller');
+		return error(
+			404,
+			'verification_unavailable',
+			'this previewlaned has no verification controller',
+		);
 	}
 	const { method } = request;
 	try {

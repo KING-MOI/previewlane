@@ -581,14 +581,19 @@ describe('sshTransport ctl', () => {
 			const { t } = transport(() => scripted({ code: 255, stderr: text }));
 			const err = await t.ctl(['ping']).catch((e: unknown) => e);
 			expect(err).toBeInstanceOf(HostKeyError);
-			expect((err as Error).message).toContain('previewlane target trust team --fingerprint SHA256:...');
+			expect((err as Error).message).toContain(
+				'previewlane target trust team --fingerprint SHA256:...',
+			);
 			expect((err as Error).message).toContain('203.0.113.10');
 		}
 	});
 
 	test('a key the host refuses names the authorized keys file', async () => {
 		const { t } = transport(() =>
-			scripted({ code: 255, stderr: 'previewlane-connect@203.0.113.10: Permission denied (publickey).' }),
+			scripted({
+				code: 255,
+				stderr: 'previewlane-connect@203.0.113.10: Permission denied (publickey).',
+			}),
 		);
 		const err = await t.ctl(['ping']).catch((e: unknown) => e);
 		expect(err).not.toBeInstanceOf(BoxUnavailableError);
@@ -606,7 +611,9 @@ describe('sshTransport ctl', () => {
 			const { t } = transport(() => scripted({ code: 255, stderr: text }));
 			const err = await t.ctl(['ping']).catch((e: unknown) => e);
 			expect(err).toBeInstanceOf(BoxUnavailableError);
-			expect((err as Error).message).toContain('cannot connect to 203.0.113.10 as previewlane-connect');
+			expect((err as Error).message).toContain(
+				'cannot connect to 203.0.113.10 as previewlane-connect',
+			);
 		}
 	});
 
@@ -703,7 +710,10 @@ describe('sshTransport describe and ensureAwake', () => {
 			() =>
 				scripted(
 					calls++ < 2
-						? { code: CTL_EXIT.unavailable, stderr: 'previewlaned ctl: cannot reach previewlaned: ECONNREFUSED\n' }
+						? {
+								code: CTL_EXIT.unavailable,
+								stderr: 'previewlaned ctl: cannot reach previewlaned: ECONNREFUSED\n',
+							}
 						: { stdout: `${JSON.stringify(info)}\n` },
 				),
 			{
@@ -1099,7 +1109,10 @@ describe('sshTransport upload', () => {
 				describe: () =>
 					scripted(
 						calls++ === 0
-							? { code: CTL_EXIT.unavailable, stderr: 'previewlaned ctl: cannot reach previewlaned\n' }
+							? {
+									code: CTL_EXIT.unavailable,
+									stderr: 'previewlaned ctl: cannot reach previewlaned\n',
+								}
 							: { stdout: DESCRIPTOR },
 					),
 				progress: (m) => progress.push(m),
@@ -1154,7 +1167,11 @@ describe('sshTransport upload', () => {
 		try {
 			for (const [status, error, expected] of [
 				[409, 'request x was already uploaded with different content', 'already holds request'],
-				[413, 'the source is 5 bytes; previewlaned takes at most 2', 'refuses the source of hello-pr-7'],
+				[
+					413,
+					'the source is 5 bytes; previewlaned takes at most 2',
+					'refuses the source of hello-pr-7',
+				],
 				[507, 'the upload spool has 9 of its 10 bytes in use', 'has no room for the source'],
 				[418, 'teapot', 'answered POST /v1/uploads with 418: teapot'],
 			] as const) {
@@ -1311,7 +1328,9 @@ describe('sshTransport upload', () => {
 					'previewlane-ssh-gateway: cannot reach previewlaned at /run/previewlane/control.sock: ENOENT',
 					(e: unknown) => {
 						expect(e).toBeInstanceOf(BoxUnavailableError);
-						expect((e as Error).message).toContain('is not taking uploads: previewlane-ssh-gateway');
+						expect((e as Error).message).toContain(
+							'is not taking uploads: previewlane-ssh-gateway',
+						);
 					},
 				],
 				[

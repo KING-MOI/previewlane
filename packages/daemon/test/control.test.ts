@@ -149,7 +149,10 @@ describe('control API', () => {
 		const d = deps();
 		expect((await call(d, 'POST', '/up', { requestId: '../x' })).status).toBe(400);
 		expect((await call(d, 'POST', '/up', 'not json')).status).toBe(400);
-		const raw = await control(new Request('http://previewlaned/up', { method: 'POST', body: '{' }), d);
+		const raw = await control(
+			new Request('http://previewlaned/up', { method: 'POST', body: '{' }),
+			d,
+		);
 		expect(raw.status).toBe(400);
 		expect(d.calls).toEqual([]);
 	});
@@ -221,7 +224,9 @@ describe('control API', () => {
 	test('answers 507 with the reason when previewlaned has no room for another preview', async () => {
 		const d = deps({
 			up: async () => {
-				throw new CapacityError('previewlane has 63 live previews, and the list ... cannot take another');
+				throw new CapacityError(
+					'previewlane has 63 live previews, and the list ... cannot take another',
+				);
 			},
 		});
 		const res = await call(d, 'POST', '/up', { requestId: 'abcdefghij0123456' });

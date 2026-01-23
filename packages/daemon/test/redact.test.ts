@@ -249,7 +249,9 @@ describe('a scrub of a scrub changes nothing', () => {
 
 	test('a mask that opens the way for an earlier rule is followed through in one scrub', () => {
 		expect(redact(`${PREVIEWLANE_TOKEN}bearer abcdefghij`)).toBe('[redacted]bearer [redacted]');
-		expect(redact(`${PREVIEWLANE_TOKEN}authorization: abc`)).toBe('[redacted]authorization: [redacted]');
+		expect(redact(`${PREVIEWLANE_TOKEN}authorization: abc`)).toBe(
+			'[redacted]authorization: [redacted]',
+		);
 	});
 
 	test.each([
@@ -493,7 +495,9 @@ describe('LineScrubber', () => {
 		const registry = new SecretRegistry();
 		registry.add('supersecretvalue1');
 		const scrubber = new LineScrubber((text) => registry.redact(text));
-		const bytes = encode('a supersecretvalue1 b\nsecond previewlane_0123456789abcdefghijklmnopqrstuv\n');
+		const bytes = encode(
+			'a supersecretvalue1 b\nsecond previewlane_0123456789abcdefghijklmnopqrstuv\n',
+		);
 		let out = '';
 		for (let i = 0; i < bytes.length; i += 3) out += scrubber.push(bytes.subarray(i, i + 3));
 		out += scrubber.end();

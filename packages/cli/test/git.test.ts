@@ -3,7 +3,13 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { exec } from '../src/exec.ts';
-import { cliGit, FETCH_TIMEOUT_MS, finishTarball, previewlaneFiles, packWorkingTree } from '../src/git.ts';
+import {
+	cliGit,
+	FETCH_TIMEOUT_MS,
+	finishTarball,
+	packWorkingTree,
+	previewlaneFiles,
+} from '../src/git.ts';
 import { pullRequestOrigin, shallowCheckout } from './pulls.ts';
 
 async function repo() {
@@ -262,7 +268,10 @@ describe('finishTarball', () => {
 		const { dir } = await repo();
 		await mkdir(join(dir, '.previewlane'));
 		await writeFile(join(dir, '.previewlane', 'verify.yaml'), 'version: 1\n');
-		await writeFile(join(dir, '.previewlane', 'changed-files.txt'), 'the project may name a file so\n');
+		await writeFile(
+			join(dir, '.previewlane', 'changed-files.txt'),
+			'the project may name a file so\n',
+		);
 		const tar = join(await mkdtemp(join(tmpdir(), 'previewlane-pack-')), 'src.tar');
 		await exec(['tar', '-cf', tar, '-C', dir, 'Dockerfile', '.previewlane']);
 		const gz = await finishTarball(tar, { 'changed-files.txt': 'real\n' });

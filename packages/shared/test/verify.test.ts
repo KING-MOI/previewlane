@@ -12,7 +12,6 @@ import {
 	digest,
 	escapeControls,
 	ImageRefSchema,
-	PreviewlanePathSchema,
 	loadVerifyConfig,
 	MANIFEST_GLOBS_MAX,
 	MAX_VERIFY_FILE_BYTES,
@@ -21,6 +20,7 @@ import {
 	PlanSchema,
 	PointIdSchema,
 	PointSchema,
+	PreviewlanePathSchema,
 	type ProofRecord,
 	ProofRecordSchema,
 	RequiredPolicySchema,
@@ -433,7 +433,10 @@ describe('PointSchema', () => {
 		['a fixture with ..', { ...POINT, requires: { fixtures: ['../previewlane.yaml'] } }],
 		['an absolute fixture', { ...POINT, requires: { fixtures: ['/etc/passwd'] } }],
 		['an unknown provider', { ...POINT, requires: { provider: 'acme' } }],
-		['an unknown requirement', { ...POINT, requires: { credential: 'previewlane-token:anthropic' } }],
+		[
+			'an unknown requirement',
+			{ ...POINT, requires: { credential: 'previewlane-token:anthropic' } },
+		],
 		['a budget over an hour', { ...POINT, budgets: { timeoutSeconds: 3601 } }],
 	])('rejects %s', (_what, data) => {
 		expect(PointSchema.safeParse(data).success).toBe(false);
@@ -693,12 +696,17 @@ describe('the records previewlane writes', () => {
 		// A runner file is always under .previewlane/, and a point always says which.
 		const { runners: _runners, ...noRunners } = taken;
 		expect(PlanSchema.safeParse({ ...plan, points: [noRunners] }).success).toBe(false);
-		for (const path of ['runners/x.mjs', '/.previewlane/runners/x.mjs', '.previewlane/../x.mjs', '.previewlane']) {
+		for (const path of [
+			'runners/x.mjs',
+			'/.previewlane/runners/x.mjs',
+			'.previewlane/../x.mjs',
+			'.previewlane',
+		]) {
 			expect(RunnerFileSchema.safeParse({ path, digest: DIGEST }).success, path).toBe(false);
 		}
-		expect(RunnerFileSchema.safeParse({ path: '.previewlane/runners/x.mjs', digest: 'abc' }).success).toBe(
-			false,
-		);
+		expect(
+			RunnerFileSchema.safeParse({ path: '.previewlane/runners/x.mjs', digest: 'abc' }).success,
+		).toBe(false);
 	});
 
 	test('a runner file path follows the rule of a files entry: what PreviewlanePathSchema refuses, RunnerFileSchema refuses behind .previewlane/', () => {
@@ -965,7 +973,10 @@ describe('loadVerifyConfig', () => {
 		expect(home?.run.command[1]).toBe('.previewlane/runners/home.py');
 		expect(existsSync(join(HELLO, home?.run.command[1] ?? ''))).toBe(true);
 		expect(config.points[0]?.runners).toEqual([
-			{ path: '.previewlane/runners/home.py', digest: config.digests['.previewlane/runners/home.py'] ?? '' },
+			{
+				path: '.previewlane/runners/home.py',
+				digest: config.digests['.previewlane/runners/home.py'] ?? '',
+			},
 		]);
 		expect(Object.keys(config.digests).sort()).toEqual([
 			'.previewlane/points/home.yaml',
@@ -1007,7 +1018,10 @@ describe('loadVerifyConfig', () => {
 		const files = (command: string) => ({
 			'verify.yaml': prefixed(command),
 			'points/a.yaml': point('a.one'),
-			'points/b.yaml': point('a.two').replace('.previewlane/runners/x.sh', '.previewlane/runners/y.sh'),
+			'points/b.yaml': point('a.two').replace(
+				'.previewlane/runners/x.sh',
+				'.previewlane/runners/y.sh',
+			),
 			'runners/x.sh': 'true\n',
 			'runners/y.sh': 'true\n',
 			'runners/wrapper.py': 'print("wrapped")\n',
@@ -1056,7 +1070,11 @@ describe('loadVerifyConfig', () => {
 		});
 
 		test('refuses a path that leaves the project, or .previewlane/ by way of ..', async () => {
-			for (const arg of ['../wrapper.py', '.previewlane/../../wrapper.py', '.previewlane/runners/../x.sh']) {
+			for (const arg of [
+				'../wrapper.py',
+				'.previewlane/../../wrapper.py',
+				'.previewlane/runners/../x.sh',
+			]) {
 				const err = await failure(await tree(files(`[python3, "${arg}"]`)));
 				expect(err.message).toBe(
 					'.previewlane/verify.yaml: runner.command[1]: must not contain a .. segment',
@@ -1093,7 +1111,10 @@ describe('loadVerifyConfig', () => {
 		// digest. The tree is refused instead of the runner being skipped.
 		const root = await tree({
 			'verify.yaml': manifest(),
-			'points/a.yaml': point('a.one').replace('.previewlane/runners/x.sh', '.previewlane/alias/check.sh'),
+			'points/a.yaml': point('a.one').replace(
+				'.previewlane/runners/x.sh',
+				'.previewlane/alias/check.sh',
+			),
 			'runners/check.sh': 'echo one\n',
 		});
 		await symlink('runners', join(root, '.previewlane', 'alias'));
@@ -1118,13 +1139,18 @@ describe('loadVerifyConfig', () => {
 		});
 		const before = await loadVerifyConfig(root);
 		const runners = before.points[0]?.runners ?? [];
-		expect(runners.map((r) => r.path)).toEqual(['.previewlane/runners/lib.mjs', '.previewlane/runners/x.sh']);
+		expect(runners.map((r) => r.path)).toEqual([
+			'.previewlane/runners/lib.mjs',
+			'.previewlane/runners/x.sh',
+		]);
 		for (const r of runners) expect(before.digests[r.path]).toBe(r.digest);
 		expect(Object.keys(before.digests)).toHaveLength(4);
 		// Changing only the script changes its digest and nothing else.
 		await writeFile(join(root, '.previewlane/runners/x.sh'), 'echo two\n');
 		const after = await loadVerifyConfig(root);
-		expect(after.digests['.previewlane/points/a.yaml']).toBe(before.digests['.previewlane/points/a.yaml'] ?? '');
+		expect(after.digests['.previewlane/points/a.yaml']).toBe(
+			before.digests['.previewlane/points/a.yaml'] ?? '',
+		);
 		expect(after.points[0]?.runners[0]).toEqual(runners[0] ?? { path: '', digest: '' });
 		expect(after.points[0]?.runners[1]?.path).toBe('.previewlane/runners/x.sh');
 		expect(after.points[0]?.runners[1]?.digest).not.toBe(runners[1]?.digest);
@@ -1207,20 +1233,25 @@ describe('loadVerifyConfig', () => {
 		expect((err as Error).message).toBe(
 			'.previewlane/points/link.yaml: is a symlink; it was listed as a regular file',
 		);
-		const bytes = await readVerifyFile(join(root, '.previewlane/points/a.yaml'), '.previewlane/points/a.yaml');
-		expect(new TextDecoder().decode(bytes)).toBe(point('a.one'));
-		await expect(readVerifyFile(join(root, '.previewlane/points'), '.previewlane/points')).rejects.toThrow(
-			'.previewlane/points: is not a regular file',
+		const bytes = await readVerifyFile(
+			join(root, '.previewlane/points/a.yaml'),
+			'.previewlane/points/a.yaml',
 		);
+		expect(new TextDecoder().decode(bytes)).toBe(point('a.one'));
+		await expect(
+			readVerifyFile(join(root, '.previewlane/points'), '.previewlane/points'),
+		).rejects.toThrow('.previewlane/points: is not a regular file');
 		// The size comes from the open descriptor, before any byte is read.
 		await writeFile(join(root, '.previewlane/big'), 'x'.repeat(MAX_VERIFY_FILE_BYTES + 1));
-		await expect(readVerifyFile(join(root, '.previewlane/big'), '.previewlane/big')).rejects.toThrow(
+		await expect(
+			readVerifyFile(join(root, '.previewlane/big'), '.previewlane/big'),
+		).rejects.toThrow(
 			`.previewlane/big: is ${MAX_VERIFY_FILE_BYTES + 1} bytes; the most previewlane reads is ${MAX_VERIFY_FILE_BYTES}`,
 		);
 		await writeFile(join(root, '.previewlane/edge'), 'x'.repeat(MAX_VERIFY_FILE_BYTES));
-		expect((await readVerifyFile(join(root, '.previewlane/edge'), '.previewlane/edge')).length).toBe(
-			MAX_VERIFY_FILE_BYTES,
-		);
+		expect(
+			(await readVerifyFile(join(root, '.previewlane/edge'), '.previewlane/edge')).length,
+		).toBe(MAX_VERIFY_FILE_BYTES);
 	});
 
 	test('rejects two points with one id, naming both files', async () => {
@@ -1232,7 +1263,9 @@ describe('loadVerifyConfig', () => {
 		const err = await failure(root);
 		expect(err.file).toBe('.previewlane/points/b.yaml');
 		expect(err.field).toBe('id');
-		expect(err.message).toBe('.previewlane/points/b.yaml: id: a.one is also the id of .previewlane/points/a.yaml');
+		expect(err.message).toBe(
+			'.previewlane/points/b.yaml: id: a.one is also the id of .previewlane/points/a.yaml',
+		);
 	});
 
 	test('rejects a skill path that is absolute, has .., or names no file', async () => {
@@ -1365,7 +1398,9 @@ describe('loadVerifyConfig', () => {
 			'verify.yaml': manifest('required: [a.one]\n'),
 			'points/a.yaml': point('a.one'),
 		});
-		expect((await failure(unknown)).message).toBe('.previewlane/verify.yaml: Unrecognized key: "required"');
+		expect((await failure(unknown)).message).toBe(
+			'.previewlane/verify.yaml: Unrecognized key: "required"',
+		);
 	});
 
 	test('rejects YAML that does not parse, naming the file', async () => {

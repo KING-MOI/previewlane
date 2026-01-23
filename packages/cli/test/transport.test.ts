@@ -28,7 +28,14 @@ import {
 	verifiedTransport,
 } from '../src/transport.ts';
 import { awsTransport } from '../src/transports/aws.ts';
-import { hostInfoFor, previewlanedClients, previewlanedDeps, previewRecord, s3Stub, settings } from './previewlaned.ts';
+import {
+	hostInfoFor,
+	previewlanedClients,
+	previewlanedDeps,
+	previewRecord,
+	s3Stub,
+	settings,
+} from './previewlaned.ts';
 
 const AWS_TARGET = {
 	domain: 'previews.example.net',
@@ -116,7 +123,9 @@ async function home(config?: unknown): Promise<string> {
 	const dir = await mkdtemp(join(tmpdir(), 'previewlane-home-'));
 	if (config !== undefined) {
 		await mkdir(join(dir, '.config', 'previewlane'), { recursive: true, mode: 0o700 });
-		await writeFile(join(dir, '.config', 'previewlane', 'config.yaml'), toYaml(config), { mode: 0o600 });
+		await writeFile(join(dir, '.config', 'previewlane', 'config.yaml'), toYaml(config), {
+			mode: 0o600,
+		});
 	}
 	return dir;
 }
@@ -154,7 +163,9 @@ describe('openHost on the legacy AWS path', () => {
 			],
 		});
 		expect(n.lines).toHaveLength(1);
-		expect(n.lines[0]).toContain(`no previewlane config file at ${join(h, '.config/previewlane/config.yaml')}`);
+		expect(n.lines[0]).toContain(
+			`no previewlane config file at ${join(h, '.config/previewlane/config.yaml')}`,
+		);
 		expect(n.lines[0]).toContain(
 			'aws-ssm to i-0abc in us-east-1, previews under previews.example.net',
 		);
@@ -1112,7 +1123,8 @@ describe('awsTransport streamLogs', () => {
 			{ type: 'line', cursor: '0:2', text: 'step 2' },
 			{
 				type: 'gap',
-				reason: 'previewlaned is building hello-pr-7 again; its new build log follows from the start',
+				reason:
+					'previewlaned is building hello-pr-7 again; its new build log follows from the start',
 			},
 			{ type: 'line', cursor: '0:1', text: 'b 1' },
 			{ type: 'end' },
@@ -1350,7 +1362,9 @@ describe('awsTransport ctl with options', () => {
 			.ctl(['down', 'hello-pr-7'], { signal: stop.signal })
 			.catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(UnknownOutcomeError);
-		expect((err as Error).message).toContain('previewlaned ctl down was sent to the box (SSM command c-1)');
+		expect((err as Error).message).toContain(
+			'previewlaned ctl down was sent to the box (SSM command c-1)',
+		);
 		expect(p.sent).toEqual(['SendCommandCommand']);
 	});
 
@@ -1409,7 +1423,9 @@ describe('awsTransport ctl with options', () => {
 		const began = Date.now();
 		const err = await t.ctl(['down', 'hello-pr-7'], { timeoutMs: 100 }).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(UnknownOutcomeError);
-		expect((err as Error).message).toContain('previewlaned ctl down was sent to the box (SSM command c-1)');
+		expect((err as Error).message).toContain(
+			'previewlaned ctl down was sent to the box (SSM command c-1)',
+		);
 		expect(Date.now() - began).toBeGreaterThanOrEqual(90);
 		expect(Date.now() - began).toBeLessThan(5000);
 		expect(h.sent).toEqual(['SendCommandCommand', 'GetCommandInvocationCommand']);

@@ -73,7 +73,8 @@ export async function loadHostId(
 	await mkdir(dirname(path), { recursive: true });
 	if (await createFileExclusive(path, `${id}\n`)) return id;
 	const won = await readHostId(path);
-	if (won.kind === 'absent') throw new Error(`${path} was created and removed while previewlaned started`);
+	if (won.kind === 'absent')
+		throw new Error(`${path} was created and removed while previewlaned started`);
 	if (won.kind === 'empty') {
 		throw new Error(`${path} was created and left empty again while previewlaned started`);
 	}

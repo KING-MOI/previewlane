@@ -2,7 +2,10 @@ import { describe, expect, test } from 'bun:test';
 import { loadConfig } from '../src/config.ts';
 
 // What previewlaned cannot guess: the upload bucket and the operator's domain.
-const REQUIRED = { PREVIEWLANE_UPLOADS_BUCKET: 'previewlane-uploads-123', PREVIEWLANE_DOMAIN: 'previews.example.net' };
+const REQUIRED = {
+	PREVIEWLANE_UPLOADS_BUCKET: 'previewlane-uploads-123',
+	PREVIEWLANE_DOMAIN: 'previews.example.net',
+};
 
 // A plain host: uploads through the control socket, no bucket.
 const SPOOL = { PREVIEWLANE_UPLOADS: 'spool', PREVIEWLANE_DOMAIN: 'previews.example.net' };
@@ -80,18 +83,28 @@ describe('loadConfig', () => {
 		for (const image of ['previewlane-verifier:1', 'sha256:abc']) {
 			expect(() => loadConfig({ ...REQUIRED, PREVIEWLANE_VERIFIER_IMAGE: image })).toThrow();
 		}
-		expect(() => loadConfig({ ...REQUIRED, PREVIEWLANE_VERIFIER_IMAGES: 'not an image!' })).toThrow();
-		expect(loadConfig({ ...REQUIRED, PREVIEWLANE_VERIFIER_IMAGES: '  ' }).verifierImages).toEqual([]);
+		expect(() =>
+			loadConfig({ ...REQUIRED, PREVIEWLANE_VERIFIER_IMAGES: 'not an image!' }),
+		).toThrow();
+		expect(loadConfig({ ...REQUIRED, PREVIEWLANE_VERIFIER_IMAGES: '  ' }).verifierImages).toEqual(
+			[],
+		);
 	});
 
 	test('takes the recorder image by local id or by registry digest, nothing less pinned', () => {
 		expect(loadConfig(REQUIRED).recorderImage).toBeUndefined();
 		const digest = `sha256:${'0f'.repeat(32)}`;
 		expect(
-			loadConfig({ ...REQUIRED, PREVIEWLANE_RECORDER_IMAGE: `ghcr.io/acme/previewlane-recorder@${digest}` })
-				.recorderImage,
+			loadConfig({
+				...REQUIRED,
+				PREVIEWLANE_RECORDER_IMAGE: `ghcr.io/acme/previewlane-recorder@${digest}`,
+			}).recorderImage,
 		).toBe(`ghcr.io/acme/previewlane-recorder@${digest}`);
-		for (const image of ['previewlane-recorder:1', 'previewlane-recorder@sha256:abc', 'sha256:ABC']) {
+		for (const image of [
+			'previewlane-recorder:1',
+			'previewlane-recorder@sha256:abc',
+			'sha256:ABC',
+		]) {
 			expect(() => loadConfig({ ...REQUIRED, PREVIEWLANE_RECORDER_IMAGE: image })).toThrow();
 		}
 	});
@@ -102,15 +115,24 @@ describe('loadConfig', () => {
 		['a port that is not a number', { ...REQUIRED, PREVIEWLANED_PORT: 'http' }],
 		['a relative state directory', { ...REQUIRED, PREVIEWLANE_STATE_DIR: 'var/lib/previewlane' }],
 		['a domain with a slash', { ...REQUIRED, PREVIEWLANE_DOMAIN: 'previews.example.net/x' }],
-		['a network name with a space', { ...REQUIRED, PREVIEWLANE_PREVIEW_NETWORK: 'previewlane previews' }],
+		[
+			'a network name with a space',
+			{ ...REQUIRED, PREVIEWLANE_PREVIEW_NETWORK: 'previewlane previews' },
+		],
 		[
 			'a parameter name without a leading slash',
 			{ ...REQUIRED, PREVIEWLANE_PREVIEWS_PARAM: 'previewlane/previews' },
 		],
 		['an empty parameter name', { ...REQUIRED, PREVIEWLANE_PREVIEWS_PARAM: '' }],
 		['an empty parameter name with the spool', { ...SPOOL, PREVIEWLANE_PREVIEWS_PARAM: '' }],
-		['a caddy admin address that is not a URL', { ...REQUIRED, PREVIEWLANE_CADDY_ADMIN: '127.0.0.1:2019' }],
-		['a relative spool directory', { ...SPOOL, PREVIEWLANE_SPOOL_DIR: 'var/lib/previewlane/uploads' }],
+		[
+			'a caddy admin address that is not a URL',
+			{ ...REQUIRED, PREVIEWLANE_CADDY_ADMIN: '127.0.0.1:2019' },
+		],
+		[
+			'a relative spool directory',
+			{ ...SPOOL, PREVIEWLANE_SPOOL_DIR: 'var/lib/previewlane/uploads' },
+		],
 		['a spool budget that is not a number', { ...SPOOL, PREVIEWLANE_SPOOL_BUDGET_BYTES: 'lots' }],
 		['a spool budget of 0', { ...SPOOL, PREVIEWLANE_SPOOL_BUDGET_BYTES: '0' }],
 		['a relative live file', { ...SPOOL, PREVIEWLANE_LIVE_FILE: 'live.json' }],
@@ -123,7 +145,9 @@ describe('loadConfig', () => {
 			{ PREVIEWLANE_UPLOADS_BUCKET: 'previewlane-uploads-123' },
 			{ ...REQUIRED, PREVIEWLANE_DOMAIN: '' },
 		]) {
-			expect(() => loadConfig(env)).toThrow(/PREVIEWLANE_DOMAIN is not set.*\/etc\/previewlane\/env/);
+			expect(() => loadConfig(env)).toThrow(
+				/PREVIEWLANE_DOMAIN is not set.*\/etc\/previewlane\/env/,
+			);
 		}
 	});
 
@@ -147,9 +171,10 @@ describe('loadConfig', () => {
 		expect(loadConfig({ ...REQUIRED, PREVIEWLANE_VERIFY_POOL: '10.213.0.0/20' }).verifyPool).toBe(
 			'10.213.0.0/20',
 		);
-		expect(loadConfig({ ...REQUIRED, PREVIEWLANE_VERIFY_HELPER: '/opt/previewlane/verify-net' }).verifyHelper).toBe(
-			'/opt/previewlane/verify-net',
-		);
+		expect(
+			loadConfig({ ...REQUIRED, PREVIEWLANE_VERIFY_HELPER: '/opt/previewlane/verify-net' })
+				.verifyHelper,
+		).toBe('/opt/previewlane/verify-net');
 	});
 
 	// A wrong pool makes verification unavailable (host.ts names it as the
@@ -165,7 +190,9 @@ describe('loadConfig', () => {
 	});
 
 	test('refuses a relative helper path', () => {
-		expect(() => loadConfig({ ...REQUIRED, PREVIEWLANE_VERIFY_HELPER: 'previewlane-verify-net' })).toThrow();
+		expect(() =>
+			loadConfig({ ...REQUIRED, PREVIEWLANE_VERIFY_HELPER: 'previewlane-verify-net' }),
+		).toThrow();
 	});
 
 	describe('upload store and live list', () => {
@@ -193,9 +220,9 @@ describe('loadConfig', () => {
 			expect(loadConfig({ ...SPOOL, PREVIEWLANE_STATE_DIR: '/srv/previewlane' }).liveFile).toBe(
 				'/srv/previewlane/live-previews.json',
 			);
-			expect(loadConfig({ ...SPOOL, PREVIEWLANE_LIVE_FILE: '/run/previewlane/live.json' }).liveFile).toBe(
-				'/run/previewlane/live.json',
-			);
+			expect(
+				loadConfig({ ...SPOOL, PREVIEWLANE_LIVE_FILE: '/run/previewlane/live.json' }).liveFile,
+			).toBe('/run/previewlane/live.json');
 		});
 
 		test('reads the spool directory and budget from the environment, the budget as a number', () => {
@@ -225,7 +252,9 @@ describe('loadConfig', () => {
 
 		test('PREVIEWLANE_UPLOADS=s3 may be said outright', () => {
 			expect(loadConfig({ ...REQUIRED, PREVIEWLANE_UPLOADS: 's3' }).uploads).toBe('s3');
-			expect(loadConfig({ ...REQUIRED, PREVIEWLANE_UPLOADS: 's3', PREVIEWLANE_LIVE: 'ssm' }).live).toBe('ssm');
+			expect(
+				loadConfig({ ...REQUIRED, PREVIEWLANE_UPLOADS: 's3', PREVIEWLANE_LIVE: 'ssm' }).live,
+			).toBe('ssm');
 		});
 
 		test.each([
@@ -266,7 +295,11 @@ describe('loadConfig', () => {
 			],
 			[
 				'a parameter with a file live list',
-				{ ...REQUIRED, PREVIEWLANE_LIVE: 'file', PREVIEWLANE_PREVIEWS_PARAM: '/previewlane/previews' },
+				{
+					...REQUIRED,
+					PREVIEWLANE_LIVE: 'file',
+					PREVIEWLANE_PREVIEWS_PARAM: '/previewlane/previews',
+				},
 				/PREVIEWLANE_LIVE=file but PREVIEWLANE_PREVIEWS_PARAM is set/,
 			],
 			[

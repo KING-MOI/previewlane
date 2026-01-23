@@ -301,7 +301,9 @@ describe('configPath', () => {
 			path: '/home/u/k.yaml',
 			explicit: true,
 		});
-		expect(configPath({}, { HOME: '/home/u', PREVIEWLANE_CONFIG: '~/.config/previewlane/config.yaml' })).toEqual({
+		expect(
+			configPath({}, { HOME: '/home/u', PREVIEWLANE_CONFIG: '~/.config/previewlane/config.yaml' }),
+		).toEqual({
 			path: '/home/u/.config/previewlane/config.yaml',
 			explicit: true,
 		});
@@ -547,9 +549,14 @@ describe('resolveTarget', () => {
 			return r.kind === 'target' ? r.target.domain : undefined;
 		};
 		expect(
-			await domainOf({ domain: 'flag.example.com' }, { HOME: h, PREVIEWLANE_DOMAIN: 'env.example.com' }),
+			await domainOf(
+				{ domain: 'flag.example.com' },
+				{ HOME: h, PREVIEWLANE_DOMAIN: 'env.example.com' },
+			),
 		).toBe('flag.example.com');
-		expect(await domainOf({}, { HOME: h, PREVIEWLANE_DOMAIN: 'env.example.com' })).toBe('env.example.com');
+		expect(await domainOf({}, { HOME: h, PREVIEWLANE_DOMAIN: 'env.example.com' })).toBe(
+			'env.example.com',
+		);
 		expect(await domainOf({}, { HOME: h })).toBe('default.example.com');
 		// On any target, SSH included: it changes the expected domain, not the host.
 		const ssh = await resolveTarget({
@@ -562,9 +569,9 @@ describe('resolveTarget', () => {
 		expect(ssh.kind === 'target' && ssh.target.transport).toEqual(
 			TargetSchema.parse(SSH_TARGET).transport,
 		);
-		await expect(domainOf({}, { HOME: h, PREVIEWLANE_DOMAIN: 'https://x.example.com' })).rejects.toThrow(
-			/overrides applied is not valid: domain/,
-		);
+		await expect(
+			domainOf({}, { HOME: h, PREVIEWLANE_DOMAIN: 'https://x.example.com' }),
+		).rejects.toThrow(/overrides applied is not valid: domain/);
 	});
 
 	test('the AWS variables override an AWS target, and are refused on an SSH one', async () => {

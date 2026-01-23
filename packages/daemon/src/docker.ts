@@ -305,7 +305,8 @@ const MOUNTS_FORMAT =
 
 // `docker events`, one line per event: the container's name and its
 // previewlane.preview label, which Docker puts among the event's attributes.
-const DEATH_FORMAT = '{{.Actor.Attributes.name}}\t{{index .Actor.Attributes "previewlane.preview"}}';
+const DEATH_FORMAT =
+	'{{.Actor.Attributes.name}}\t{{index .Actor.Attributes "previewlane.preview"}}';
 
 // `docker container inspect` for one container, as JSON with only what
 // parseInspect reads.

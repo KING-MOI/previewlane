@@ -731,14 +731,20 @@ describe('the browser port proxy', () => {
 			expect(messages[0]).toBe(`echo:${allowed}`);
 			expect(JSON.parse(messages[1] ?? '')).toEqual({
 				id: 2,
-				error: { code: METHOD_NOT_FOUND, message: 'previewlane recorder: Tracing.start is not permitted' },
+				error: {
+					code: METHOD_NOT_FOUND,
+					message: 'previewlane recorder: Tracing.start is not permitted',
+				},
 			});
 			// A refusal on a session carries that session id, so the client
 			// routes it to the session that asked.
 			expect(JSON.parse(messages[2] ?? '')).toEqual({
 				id: 3,
 				sessionId: 'S1',
-				error: { code: METHOD_NOT_FOUND, message: 'previewlane recorder: Fetch.enable is not permitted' },
+				error: {
+					code: METHOD_NOT_FOUND,
+					message: 'previewlane recorder: Fetch.enable is not permitted',
+				},
 			});
 			expect(JSON.parse((messages[3] ?? '').slice('echo:'.length))).toEqual({
 				id: 4,

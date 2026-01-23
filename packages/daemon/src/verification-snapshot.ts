@@ -6,9 +6,9 @@ import {
 	canonicalDigest,
 	type InputSnapshot,
 	InputSnapshotSchema,
-	PREVIEWLANE_DIR,
 	loadVerifyConfig,
 	MAX_VERIFY_FILE_BYTES,
+	PREVIEWLANE_DIR,
 	type UpRequest,
 	type VerifyConfig,
 	VerifyConfigError,
@@ -216,7 +216,10 @@ async function build(
 		}
 		const previewlaneYaml = `${PREVIEWLANE_DIR}/previewlane.yaml`;
 		if ((await lstat(join(input.source, previewlaneYaml)).catch(() => undefined))?.isFile()) {
-			other.push({ path: previewlaneYaml, ...(await copy(previewlaneYaml, SNAPSHOT_LIMITS.fixtureBytes)) });
+			other.push({
+				path: previewlaneYaml,
+				...(await copy(previewlaneYaml, SNAPSHOT_LIMITS.fixtureBytes)),
+			});
 		}
 		// The tree's own required policy and proof records, for the planner
 		// to show. Advisory: a pull request cannot make its own checks
@@ -403,7 +406,9 @@ export async function readFileNoFollow(
 		const info = await handle.stat();
 		if (!info.isFile()) throw new SnapshotError(`${name} is not a regular file`);
 		if (info.size > max)
-			throw new SnapshotError(`${name} is ${info.size} bytes; the most previewlane keeps is ${max}`);
+			throw new SnapshotError(
+				`${name} is ${info.size} bytes; the most previewlane keeps is ${max}`,
+			);
 		const chunks: Buffer[] = [];
 		let length = 0;
 		for (;;) {

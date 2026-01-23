@@ -10,7 +10,13 @@ import { cliGit, type Git } from '../src/git.ts';
 import type { GitHub } from '../src/github.ts';
 import { ghCli, ownerRepoFor } from '../src/github.ts';
 import { builtFrom, type UpDeps, type UpResult, up } from '../src/up.ts';
-import { previewlanedClients, previewlanedDeps, previewRecord, s3Stub, settings } from './previewlaned.ts';
+import {
+	previewlanedClients,
+	previewlanedDeps,
+	previewRecord,
+	s3Stub,
+	settings,
+} from './previewlaned.ts';
 import { asGitHub, pullRequestOrigin, shallowCheckout } from './pulls.ts';
 
 const COMMIT = 'c'.repeat(40);
@@ -88,7 +94,12 @@ function fakeBox(statuses: Array<{ record: PreviewRecord; log: string[] }>, upRe
 					.filter((l) => l !== '')
 					.sort(),
 			);
-			const changed = await exec(['tar', '-xzOf', tarball, '.previewlane-runtime/changed-files.txt']);
+			const changed = await exec([
+				'tar',
+				'-xzOf',
+				tarball,
+				'.previewlane-runtime/changed-files.txt',
+			]);
 			tarballs.push([`changed:${changed.stdout.trim()}`]);
 		},
 		ensureAwake: async () => {
@@ -387,7 +398,9 @@ describe('up from the working tree', () => {
 		const { d, lines } = deps(git, fb.box);
 		const err = (await up({ comment: false }, d).catch((e: unknown) => e)) as Error;
 		expect(err).toBeInstanceOf(Error);
-		expect(err.message).toMatch(/^superseded by a newer previewlane up for hello-feature-x-[a-z]{8}$/);
+		expect(err.message).toMatch(
+			/^superseded by a newer previewlane up for hello-feature-x-[a-z]{8}$/,
+		);
 		expect(lines).toEqual(['a']);
 		expect(fb.calls.filter((c) => c[0] === 'status')).toHaveLength(3);
 	});
@@ -414,7 +427,9 @@ describe('up from the working tree', () => {
 				k.record = { ...k.record, requestId: 'n'.repeat(16), attempt: newer, status: 'running' };
 			},
 		);
-		expect(r.error?.message).toMatch(/^superseded by a newer previewlane up for hello-feature-x-[a-z]{8}$/);
+		expect(r.error?.message).toMatch(
+			/^superseded by a newer previewlane up for hello-feature-x-[a-z]{8}$/,
+		);
 		expect(r.lines).toEqual(['mine 1', 'mine 2']);
 		// The reply previewlaned was making when the newer request finished still has
 		// this request's record; the one after shows the newer request.
@@ -516,11 +531,18 @@ describe('up from the working tree', () => {
 
 	test("keeps the project's .previewlane/ files in the upload", async () => {
 		const git = await fakeGit({
-			files: async () => ['.previewlane/previewlane.yaml', '.previewlane/verify.yaml', 'Dockerfile'],
+			files: async () => [
+				'.previewlane/previewlane.yaml',
+				'.previewlane/verify.yaml',
+				'Dockerfile',
+			],
 		});
 		const root = await git.root();
 		await mkdir(join(root, '.previewlane'));
-		await writeFile(join(root, '.previewlane', 'previewlane.yaml'), 'port: 8080\nbuild:\n  kind: dockerfile\n');
+		await writeFile(
+			join(root, '.previewlane', 'previewlane.yaml'),
+			'port: 8080\nbuild:\n  kind: dockerfile\n',
+		);
 		await writeFile(join(root, '.previewlane', 'verify.yaml'), 'version: 1\n');
 		await rm(join(root, 'previewlane.yaml'));
 		const fb = fakeBox([{ record: record({ status: 'running' }), log: [] }]);
@@ -553,7 +575,9 @@ describe('up from the working tree', () => {
 	});
 
 	test('refuses a working tree with an initialized submodule before uploading anything', async () => {
-		const git = await fakeGit({ files: async () => ['Dockerfile', 'previewlane.yaml', 'vendor/lib'] });
+		const git = await fakeGit({
+			files: async () => ['Dockerfile', 'previewlane.yaml', 'vendor/lib'],
+		});
 		const root = await git.root();
 		await mkdir(join(root, 'vendor', 'lib'), { recursive: true });
 		await writeFile(join(root, 'vendor', 'lib', '.git'), 'gitdir: ../../.git/modules/vendor/lib\n');
@@ -636,7 +660,8 @@ describe('up from the working tree', () => {
 				if (args[0] !== 'status') return fb.box.ctl(args);
 				reads += 1;
 				if (reads === 2) throw new BoxUnavailableError('Rate exceeded');
-				if (reads === 3) return { code: 3, stdout: '', stderr: 'previewlaned ctl: cannot reach previewlaned' };
+				if (reads === 3)
+					return { code: 3, stdout: '', stderr: 'previewlaned ctl: cannot reach previewlaned' };
 				return fb.box.ctl(args);
 			},
 		};

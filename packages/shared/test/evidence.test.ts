@@ -61,7 +61,9 @@ const status: RunStatus = {
 describe('ArtifactSchema', () => {
 	test("accepts the design's manifest entry and nothing more", () => {
 		expect(ArtifactSchema.parse(artifact)).toEqual(artifact);
-		expect(ArtifactSchema.safeParse({ ...artifact, path: '/var/lib/previewlane/x' }).success).toBe(false);
+		expect(ArtifactSchema.safeParse({ ...artifact, path: '/var/lib/previewlane/x' }).success).toBe(
+			false,
+		);
 		expect(ArtifactSchema.safeParse({ ...artifact, origin: 'runner' }).success).toBe(false);
 		expect(ArtifactSchema.safeParse({ ...artifact, kind: 'video' }).success).toBe(false);
 		expect(

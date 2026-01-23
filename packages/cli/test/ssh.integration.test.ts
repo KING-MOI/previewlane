@@ -882,7 +882,9 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		);
 		// The installer's checks take it: the later block sets no AcceptEnv,
 		// and sshd -T shows the block's value in force for each keyword.
-		expect((await sshdLib('previewlane_check_match_blocks', jailConfig, blockFile, dir)).code).toBe(0);
+		expect((await sshdLib('previewlane_check_match_blocks', jailConfig, blockFile, dir)).code).toBe(
+			0,
+		);
 		expect((await sshdLib('previewlane_check_global', SSHD as string, jailConfig)).code).toBe(0);
 		const effective = await sshdLib(
 			'previewlane_check_effective',
@@ -968,7 +970,9 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		const t = transport({ knownHostsFile: join(dir, 'known_hosts.none') });
 		const err = await t.ctl(['ping']).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(HostKeyError);
-		expect((err as Error).message).toContain(`previewlane target trust ${ALIAS} --fingerprint SHA256:...`);
+		expect((err as Error).message).toContain(
+			`previewlane target trust ${ALIAS} --fingerprint SHA256:...`,
+		);
 		expect(await t.ensureAwake(() => {}).catch((e: unknown) => e)).toBeInstanceOf(HostKeyError);
 	});
 
@@ -1014,7 +1018,13 @@ describe.skipIf(!available)('the SSH transport against a throwaway sshd', () => 
 		expect(wrong.stderr).toContain(hostKeyFingerprint);
 		expect(existsSync(join(dir, 'known_hosts'))).toBe(false);
 
-		const right = await previewlane(['target', 'trust', ALIAS, '--fingerprint', hostKeyFingerprint]);
+		const right = await previewlane([
+			'target',
+			'trust',
+			ALIAS,
+			'--fingerprint',
+			hostKeyFingerprint,
+		]);
 		expect(right.stderr).toBe('');
 		expect(right.code).toBe(0);
 		expect(right.stdout).toBe(

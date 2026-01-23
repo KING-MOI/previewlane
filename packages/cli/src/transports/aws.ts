@@ -141,7 +141,9 @@ export async function resolveSettings(
 		if (instanceId === undefined) {
 			const ids = instances.map((i) => i.InstanceId ?? '');
 			if (ids.length !== 1 || ids[0] === '') {
-				throw new Error(`expected one previewlane box, found ${ids.length}; set PREVIEWLANE_INSTANCE_ID`);
+				throw new Error(
+					`expected one previewlane box, found ${ids.length}; set PREVIEWLANE_INSTANCE_ID`,
+				);
 			}
 			instanceId = ids[0] as string;
 		}

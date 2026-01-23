@@ -135,7 +135,9 @@ export async function run(
 				io.stdout(USAGE);
 				return 0;
 			case 'version':
-				io.stdout(cli.json ? `${JSON.stringify({ version: VERSION })}\n` : `previewlane ${VERSION}\n`);
+				io.stdout(
+					cli.json ? `${JSON.stringify({ version: VERSION })}\n` : `previewlane ${VERSION}\n`,
+				);
 				return 0;
 			case 'up': {
 				const { box, domain } = await connect();
@@ -326,7 +328,9 @@ export async function run(
 	} catch (err) {
 		// A verify error can quote previewlaned, and through it what a pull request named. Other
 		// commands' errors can be several lines on purpose, a build's for one.
-		io.stderr(`previewlane: ${cli.command === 'verify' ? escapeControls(message(err)) : message(err)}\n`);
+		io.stderr(
+			`previewlane: ${cli.command === 'verify' ? escapeControls(message(err)) : message(err)}\n`,
+		);
 		return 1;
 	} finally {
 		if (host !== undefined) {

@@ -29,7 +29,10 @@ const req = (path: string, host = 'hello.previews.example.net') =>
 describe('health', () => {
 	test('reports the box healthy for a non-preview host', async () => {
 		const { opts } = options({ kind: 'unknown' });
-		const res = await handle(req('/__previewlane/health', 'origin.previews.example.net.evil'), opts);
+		const res = await handle(
+			req('/__previewlane/health', 'origin.previews.example.net.evil'),
+			opts,
+		);
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({ ok: true, version: DAEMON_VERSION });
 	});
@@ -40,9 +43,9 @@ describe('health', () => {
 		const stopped = options({ kind: 'stopped' });
 		expect((await handle(req('/__previewlane/health'), stopped.opts)).status).toBe(503);
 		expect(stopped.started).toEqual(['hello']);
-		expect((await handle(req('/__previewlane/health'), options({ kind: 'unknown' }).opts)).status).toBe(
-			404,
-		);
+		expect(
+			(await handle(req('/__previewlane/health'), options({ kind: 'unknown' }).opts)).status,
+		).toBe(404);
 	});
 });
 

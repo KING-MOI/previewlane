@@ -263,7 +263,10 @@ function relay(client: Socket, browser: Socket, first: Uint8Array, options: Prox
 						textFrame(
 							JSON.stringify({
 								id: verdict.id,
-								error: { code: METHOD_NOT_FOUND, message: `previewlane recorder: ${verdict.denied}` },
+								error: {
+									code: METHOD_NOT_FOUND,
+									message: `previewlane recorder: ${verdict.denied}`,
+								},
 								...(verdict.sessionId !== undefined ? { sessionId: verdict.sessionId } : {}),
 							}),
 						),

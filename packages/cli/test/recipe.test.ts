@@ -2,7 +2,12 @@ import { describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { MAX_PROJECT_NAME, previewHostLabel, RecipeSchema, repoIdFromRemote } from '@previewlane/shared';
+import {
+	MAX_PROJECT_NAME,
+	previewHostLabel,
+	RecipeSchema,
+	repoIdFromRemote,
+} from '@previewlane/shared';
 import { BUILTIN_RECIPES } from '../src/builtins.ts';
 import { projectForBuiltin, projectFromRepo, resolveRecipe } from '../src/recipe.ts';
 import { RECIPES_DIR, readRecipeFiles } from '../src/recipe-files.ts';

@@ -200,7 +200,10 @@ export function configPath(flags: TargetFlags, env: Env): { path: string; explic
 		return { path: expandHome(nonEmpty(flags.config, '--config'), home), explicit: true };
 	}
 	if (env.PREVIEWLANE_CONFIG !== undefined) {
-		return { path: expandHome(nonEmpty(env.PREVIEWLANE_CONFIG, 'PREVIEWLANE_CONFIG'), home), explicit: true };
+		return {
+			path: expandHome(nonEmpty(env.PREVIEWLANE_CONFIG, 'PREVIEWLANE_CONFIG'), home),
+			explicit: true,
+		};
 	}
 	const xdg = env.XDG_CONFIG_HOME;
 	const base = xdg !== undefined && isAbsolute(xdg) ? xdg : join(home, '.config');
@@ -243,9 +246,11 @@ export async function loadUserConfig(
 		);
 	}
 	const raw = parseYaml(await readFile(path, 'utf8'), path);
-	if (!isRecord(raw)) throw new Error(`${path} is not a previewlane config file: expected a mapping`);
+	if (!isRecord(raw))
+		throw new Error(`${path} is not a previewlane config file: expected a mapping`);
 	const parsed = UserConfigSchema.safeParse(raw);
-	if (!parsed.success) throw new Error(`${path} is not a previewlane config file: ${issues(parsed.error)}`);
+	if (!parsed.success)
+		throw new Error(`${path} is not a previewlane config file: ${issues(parsed.error)}`);
 	return { path, config: parsed.data, raw };
 }
 
@@ -292,7 +297,9 @@ export async function loadRepoAlias(
 			length += bytesRead;
 		}
 		if (length > MAX_REPO_ALIAS_BYTES) {
-			throw new Error(`${path} is over ${MAX_REPO_ALIAS_BYTES} bytes; it grew while previewlane read it`);
+			throw new Error(
+				`${path} is over ${MAX_REPO_ALIAS_BYTES} bytes; it grew while previewlane read it`,
+			);
 		}
 		text = buffer.toString('utf8', 0, length);
 	} finally {
@@ -423,11 +430,13 @@ function withOverrides(target: Target, name: string, domain: string | undefined,
 	}
 	if (env.PREVIEWLANE_AWS_PROFILE !== undefined)
 		aws.profile = nonEmpty(env.PREVIEWLANE_AWS_PROFILE, 'PREVIEWLANE_AWS_PROFILE');
-	if (env.PREVIEWLANE_AWS_REGION !== undefined) aws.region = nonEmpty(env.PREVIEWLANE_AWS_REGION, 'PREVIEWLANE_AWS_REGION');
+	if (env.PREVIEWLANE_AWS_REGION !== undefined)
+		aws.region = nonEmpty(env.PREVIEWLANE_AWS_REGION, 'PREVIEWLANE_AWS_REGION');
 	if (env.PREVIEWLANE_INSTANCE_ID !== undefined) {
 		aws.instanceId = nonEmpty(env.PREVIEWLANE_INSTANCE_ID, 'PREVIEWLANE_INSTANCE_ID');
 	}
-	if (env.PREVIEWLANE_BUCKET !== undefined) aws.uploadsBucket = nonEmpty(env.PREVIEWLANE_BUCKET, 'PREVIEWLANE_BUCKET');
+	if (env.PREVIEWLANE_BUCKET !== undefined)
+		aws.uploadsBucket = nonEmpty(env.PREVIEWLANE_BUCKET, 'PREVIEWLANE_BUCKET');
 	const merged = {
 		...target,
 		...(domain !== undefined ? { domain } : {}),

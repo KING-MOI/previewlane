@@ -209,7 +209,10 @@ describe('egress', () => {
 	});
 
 	test('config reads the egress settings, or leaves them out', () => {
-		const base = { PREVIEWLANE_UPLOADS_BUCKET: 'previewlane-uploads-1', PREVIEWLANE_DOMAIN: 'previews.example.net' };
+		const base = {
+			PREVIEWLANE_UPLOADS_BUCKET: 'previewlane-uploads-1',
+			PREVIEWLANE_DOMAIN: 'previews.example.net',
+		};
 		expect(loadConfig(base).egressProxy).toBeUndefined();
 		const c = loadConfig({
 			...base,

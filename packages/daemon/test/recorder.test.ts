@@ -1284,7 +1284,10 @@ describe('events', () => {
 		t.api.lost = 7;
 		expect(await session.drainEvents()).toBe(3);
 		expect(t.run.status.problems).toMatchObject([
-			{ code: 'observation_gap', detail: 'the recorder dropped 7 events before previewlaned read them' },
+			{
+				code: 'observation_gap',
+				detail: 'the recorder dropped 7 events before previewlaned read them',
+			},
 		]);
 		await session.drainEvents();
 		expect(t.run.status.problems).toHaveLength(1);

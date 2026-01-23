@@ -376,8 +376,8 @@ describe('scrubUrl', () => {
 				registry(),
 			),
 		).toBe('http://app.x.invalid/?key=[redacted]');
-		expect(scrubUrl('not a url with previewlane_0123456789abcdefghijklmnopqrstuv', registry())).toBe(
-			'not a url with [redacted]',
-		);
+		expect(
+			scrubUrl('not a url with previewlane_0123456789abcdefghijklmnopqrstuv', registry()),
+		).toBe('not a url with [redacted]');
 	});
 });

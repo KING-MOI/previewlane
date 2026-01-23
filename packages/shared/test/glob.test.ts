@@ -309,7 +309,8 @@ describe('the same results as Bun.Glob on the supported grammar', () => {
 				const theirs = expected(name);
 				checked += 1;
 				if (theirs) matched += 1;
-				if (ours !== theirs) differences.push(`${glob} on ${name}: previewlane ${ours}, Bun ${theirs}`);
+				if (ours !== theirs)
+					differences.push(`${glob} on ${name}: previewlane ${ours}, Bun ${theirs}`);
 			}
 		}
 		expect(differences.slice(0, 20)).toEqual([]);

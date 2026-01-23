@@ -45,7 +45,8 @@ export async function openHost(o: OpenHostOptions): Promise<OpenedHost> {
 	if (resolved.kind === 'legacy') {
 		// --domain stands in for PREVIEWLANE_DOMAIN here; the legacy resolver reads
 		// only the environment.
-		const env = resolved.domain === undefined ? o.env : { ...o.env, PREVIEWLANE_DOMAIN: resolved.domain };
+		const env =
+			resolved.domain === undefined ? o.env : { ...o.env, PREVIEWLANE_DOMAIN: resolved.domain };
 		const { settings, clients: c } = await resolveSettings(env, make);
 		// What previewlane is about to use, before anything is sent: here the host and
 		// domain are known only once discovery has run.

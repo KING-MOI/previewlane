@@ -17,7 +17,7 @@ import {
 } from '@previewlane/shared';
 import { type Box, BoxUnavailableError, type CtlResult, ctlErrorText } from './box.ts';
 import { ExecError } from './exec.ts';
-import { finishTarball, type Git, previewlaneFiles, packWorkingTree } from './git.ts';
+import { finishTarball, type Git, packWorkingTree, previewlaneFiles } from './git.ts';
 import {
 	commentBody,
 	commentMarker,
@@ -524,7 +524,8 @@ async function follow(
 			next = log.next;
 			// previewlaned recorded this request before accepting it, so another id means a
 			// newer previewlane up for the label replaced it.
-			if (record.requestId !== id) throw new Error(`superseded by a newer previewlane up for ${label}`);
+			if (record.requestId !== id)
+				throw new Error(`superseded by a newer previewlane up for ${label}`);
 			if (record.attempt !== attempt) {
 				if (attempt !== undefined) {
 					deps.progress(

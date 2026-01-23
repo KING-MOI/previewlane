@@ -40,11 +40,9 @@ const recorderIp = '198.51.100.3';
 const image = `previewlane-it-recorder:${run}`;
 const appName = `previewlane-it-rec-app-${run}`;
 const recorderName = `previewlane-verify-${runId}-recorder`;
-const probeNames = ['ok', 'nochroot', 'noclone'].map((p) => `previewlane-sandbox-probe-it${run}${p}`) as [
-	string,
-	string,
-	string,
-];
+const probeNames = ['ok', 'nochroot', 'noclone'].map(
+	(p) => `previewlane-sandbox-probe-it${run}${p}`,
+) as [string, string, string];
 const repo = resolve(import.meta.dir, '../../..');
 const docker = cliDocker({ builder: 'unused' });
 const tokens = newRecorderTokens();
@@ -147,7 +145,11 @@ test.skipIf(!enabled)(
 			runId,
 			appHost: { name: appHost, ip: appIp },
 			dns: gateway,
-			env: { PREVIEWLANE_RUN_ID: runId, PREVIEWLANE_PREVIEW_URL: `http://${appHost}:8080`, ...recorderEnv(tokens) },
+			env: {
+				PREVIEWLANE_RUN_ID: runId,
+				PREVIEWLANE_PREVIEW_URL: `http://${appHost}:8080`,
+				...recorderEnv(tokens),
+			},
 			seccompProfile: seccomp,
 		});
 		await docker.start(recorderName);
@@ -208,7 +210,9 @@ test.skipIf(!enabled)(
 			response: { status: number; bodyBase64: string };
 		};
 		expect(state.response.status).toBe(200);
-		expect(Buffer.from(state.response.bodyBase64, 'base64').toString()).toContain('hello from previewlane');
+		expect(Buffer.from(state.response.bodyBase64, 'base64').toString()).toContain(
+			'hello from previewlane',
+		);
 		await api.acknowledge(read.captureId);
 
 		// The verifier's path.

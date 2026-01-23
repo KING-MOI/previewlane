@@ -25,7 +25,9 @@ const DOMAIN = 'previews.example.net';
 describe('wake handler', () => {
 	test('serves the wake page uncached', async () => {
 		const { deps } = fakeDeps('stopped', []);
-		const res = await createHandler(deps, { domain: DOMAIN })(get('/__previewlane-wake/index.html'));
+		const res = await createHandler(deps, { domain: DOMAIN })(
+			get('/__previewlane-wake/index.html'),
+		);
 		expect(res.statusCode).toBe(200);
 		expect(res.headers['cache-control']).toBe('no-store');
 		expect(res.body).toBe(wakePage());
@@ -91,10 +93,12 @@ describe('wake handler', () => {
 	test('rejects hosts outside the domain or with bad labels', async () => {
 		const { deps, calls } = fakeDeps('stopped', ['hello']);
 		const h = createHandler(deps, { domain: DOMAIN });
-		expect((await h(get('/__previewlane-wake/wake', 'host=hello.evil.example'))).statusCode).toBe(400);
-		expect((await h(get('/__previewlane-wake/wake', 'host=Hello.previews.example.net'))).statusCode).toBe(
+		expect((await h(get('/__previewlane-wake/wake', 'host=hello.evil.example'))).statusCode).toBe(
 			400,
 		);
+		expect(
+			(await h(get('/__previewlane-wake/wake', 'host=Hello.previews.example.net'))).statusCode,
+		).toBe(400);
 		expect((await h(get('/__previewlane-wake/wake'))).statusCode).toBe(400);
 		expect(calls.started).toBe(0);
 	});
@@ -119,8 +123,12 @@ describe('wake handler', () => {
 		const { deps } = fakeDeps('running', []);
 		const h = createHandler(deps, { domain: DOMAIN });
 		expect(
-			(await h({ rawPath: '/__previewlane-wake/wake', requestContext: { http: { method: 'POST' } } }))
-				.statusCode,
+			(
+				await h({
+					rawPath: '/__previewlane-wake/wake',
+					requestContext: { http: { method: 'POST' } },
+				})
+			).statusCode,
 		).toBe(405);
 		expect((await h(get('/anything'))).statusCode).toBe(404);
 	});
@@ -160,7 +168,9 @@ describe('awsDeps', () => {
 
 	test('reads the instance state of the configured box', async () => {
 		const c = clients({ ec2: { Reservations: [{ Instances: [{ State: { Name: 'stopped' } }] }] } });
-		expect(await awsDeps('i-0abc', '/previewlane/previews', c.clients).instanceState()).toBe('stopped');
+		expect(await awsDeps('i-0abc', '/previewlane/previews', c.clients).instanceState()).toBe(
+			'stopped',
+		);
 		expect(c.sent).toEqual([
 			{ name: 'DescribeInstancesCommand', input: { InstanceIds: ['i-0abc'] } },
 		]);
@@ -188,7 +198,9 @@ describe('awsDeps', () => {
 			'hello',
 			'storefront-pr-7',
 		]);
-		expect(c.sent).toEqual([{ name: 'GetParameterCommand', input: { Name: '/previewlane/previews' } }]);
+		expect(c.sent).toEqual([
+			{ name: 'GetParameterCommand', input: { Name: '/previewlane/previews' } },
+		]);
 	});
 
 	test('rejects a malformed live preview list', async () => {

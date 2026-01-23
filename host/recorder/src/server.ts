@@ -70,7 +70,8 @@ function settings(env: NodeJS.ProcessEnv): Settings {
 		controlToken: take('PREVIEWLANE_RECORDER_CONTROL_TOKEN'),
 		browserToken: take('PREVIEWLANE_RECORDER_BROWSER_TOKEN'),
 	};
-	for (const name of ['PREVIEWLANE_RECORDER_CONTROL_TOKEN', 'PREVIEWLANE_RECORDER_BROWSER_TOKEN']) delete env[name];
+	for (const name of ['PREVIEWLANE_RECORDER_CONTROL_TOKEN', 'PREVIEWLANE_RECORDER_BROWSER_TOKEN'])
+		delete env[name];
 	if (!/^[0-9a-f]{32,128}$/.test(result.controlToken)) {
 		throw new Error('PREVIEWLANE_RECORDER_CONTROL_TOKEN is not a hex token');
 	}

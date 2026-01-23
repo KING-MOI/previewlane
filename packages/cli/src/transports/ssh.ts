@@ -171,7 +171,9 @@ export function sshTransport(
 					);
 				}
 				if (r.code !== CTL_EXIT.unavailable) {
-					throw new Error(ctlErrorText(r) || `previewlaned ctl describe exited ${r.code} on ${where}`);
+					throw new Error(
+						ctlErrorText(r) || `previewlaned ctl describe exited ${r.code} on ${where}`,
+					);
 				}
 				// previewlaned is starting, or restarting after a deploy.
 				last = ctlErrorText(r);
@@ -377,7 +379,9 @@ async function uploadSource(
 			const text = ((await stderr) ?? '').trim();
 			if (code === SSH_FAILED && !sshFailureIsTransient(text)) throw sshFailure(target, text);
 			if (code === CTL_EXIT.unavailable) {
-				throw new BoxUnavailableError(`previewlaned on ${target.host} is not taking uploads: ${text}`);
+				throw new BoxUnavailableError(
+					`previewlaned on ${target.host} is not taking uploads: ${text}`,
+				);
 			}
 			if (code === CTL_EXIT.usage) {
 				throw new Error(

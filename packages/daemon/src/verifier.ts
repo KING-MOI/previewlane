@@ -10,8 +10,8 @@ import {
 	INPUT_VOLUME_ROLE,
 	type InputVolumePart,
 	inputVolumeName,
-	PREVIEWLANE_DIR,
 	type Point,
+	PREVIEWLANE_DIR,
 	RECORDER_BROWSER_PORT,
 	RUNNER_PROTOCOL_VERSION,
 	type RunNetworkRecord,
@@ -909,7 +909,9 @@ export class OutputReader {
 		const cost = bytes + LINE_COST;
 		const { queueBytes } = this.budget.limits;
 		if (this.queued + cost > queueBytes) {
-			this.limit(`the runner's output outran previewlaned: over ${queueBytes} bytes waited to be handled`);
+			this.limit(
+				`the runner's output outran previewlaned: over ${queueBytes} bytes waited to be handled`,
+			);
 			return;
 		}
 		this.queued += cost;

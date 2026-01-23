@@ -64,7 +64,9 @@ assertions:
 `;
 
 // A source tree as a build extracts it, with or without verification files.
-async function source(options: { previewlane?: boolean; broken?: boolean; changed?: boolean } = {}) {
+async function source(
+	options: { previewlane?: boolean; broken?: boolean; changed?: boolean } = {},
+) {
 	const root = await mkdtemp(join(tmpdir(), 'previewlaned-snapshot-'));
 	const src = join(root, 'src');
 	await mkdir(src, { recursive: true });
@@ -76,7 +78,10 @@ async function source(options: { previewlane?: boolean; broken?: boolean; change
 		for (const dir of ['points', 'runners', 'fixtures', 'skills/hello']) {
 			await mkdir(join(src, '.previewlane', dir), { recursive: true });
 		}
-		await writeFile(join(src, '.previewlane/verify.yaml'), options.broken ? 'version: 2\n' : MANIFEST);
+		await writeFile(
+			join(src, '.previewlane/verify.yaml'),
+			options.broken ? 'version: 2\n' : MANIFEST,
+		);
 		await writeFile(join(src, '.previewlane/points/home.yaml'), POINT);
 		await writeFile(join(src, '.previewlane/runners/home.sh'), 'curl "$PREVIEWLANE_PREVIEW_URL"\n');
 		await writeFile(join(src, '.previewlane/runners/lib.sh'), 'true\n');
@@ -87,7 +92,10 @@ async function source(options: { previewlane?: boolean; broken?: boolean; change
 	}
 	if (options.changed !== false) {
 		await mkdir(join(src, '.previewlane-runtime'), { recursive: true });
-		await writeFile(join(src, '.previewlane-runtime/changed-files.txt'), 'Dockerfile\nsrc/app.ts\n\n');
+		await writeFile(
+			join(src, '.previewlane-runtime/changed-files.txt'),
+			'Dockerfile\nsrc/app.ts\n\n',
+		);
 	}
 	const inputs = join(root, 'state', 'verification', 'inputs', DEPLOYMENT);
 	return { root, src, tarball, inputs };
@@ -185,7 +193,9 @@ describe('snapshotInputs', () => {
 			now,
 		);
 		if (snapshot.verify.status !== 'present') throw new Error(snapshot.verify.status);
-		expect(snapshot.verify.digests['.previewlane/runners/wrapper.py']).toBe(sha('print("wrapped")\n'));
+		expect(snapshot.verify.digests['.previewlane/runners/wrapper.py']).toBe(
+			sha('print("wrapped")\n'),
+		);
 		expect(await readFile(join(t.inputs, 'source/.previewlane/runners/wrapper.py'), 'utf8')).toBe(
 			'print("wrapped")\n',
 		);
@@ -207,7 +217,8 @@ describe('snapshotInputs', () => {
 		);
 		expect(snapshot.verify).toEqual({
 			status: 'invalid',
-			error: '.previewlane/verify.yaml: runner.command[1]: no file runners/wrapper.py under .previewlane/',
+			error:
+				'.previewlane/verify.yaml: runner.command[1]: no file runners/wrapper.py under .previewlane/',
 		});
 	});
 
@@ -284,7 +295,8 @@ describe('snapshotInputs', () => {
 		const u = await source();
 		await mkdir(join(u.src, '.previewlane', 'big'), { recursive: true });
 		const chunk = Buffer.alloc(16 * 1024 ** 2, 1);
-		for (let i = 0; i < 5; i++) await writeFile(join(u.src, '.previewlane', 'big', `${i}.bin`), chunk);
+		for (let i = 0; i < 5; i++)
+			await writeFile(join(u.src, '.previewlane', 'big', `${i}.bin`), chunk);
 		const over = await snapshotInputs(
 			u.inputs,
 			{ deploymentId: DEPLOYMENT, request: request(), source: u.src, tarball: u.tarball },
@@ -300,7 +312,10 @@ describe('snapshotInputs', () => {
 		// The loader's per-file bound covers every file it opens, a runner
 		// file a point names included; nothing of the tree is copied.
 		const t = await source();
-		await writeFile(join(t.src, '.previewlane/runners/lib.sh'), `#${'x'.repeat(MAX_VERIFY_FILE_BYTES)}\n`);
+		await writeFile(
+			join(t.src, '.previewlane/runners/lib.sh'),
+			`#${'x'.repeat(MAX_VERIFY_FILE_BYTES)}\n`,
+		);
 		const snapshot = await snapshotInputs(
 			t.inputs,
 			{ deploymentId: DEPLOYMENT, request: request(), source: t.src, tarball: t.tarball },

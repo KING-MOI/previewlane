@@ -1,6 +1,11 @@
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { PreviewLabelSchema, type PreviewRecord, PreviewRecordSchema, randomId } from '@previewlane/shared';
+import {
+	PreviewLabelSchema,
+	type PreviewRecord,
+	PreviewRecordSchema,
+	randomId,
+} from '@previewlane/shared';
 import { KeyedLock } from './lock.ts';
 
 // Preview records, one JSON file per label under <stateDir>/previews. Writes go

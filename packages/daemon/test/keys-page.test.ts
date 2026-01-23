@@ -280,7 +280,8 @@ const T1 = `previewlane_${'1'.repeat(32)}`;
 const T2 = `previewlane_${'2'.repeat(32)}`;
 const T3 = `previewlane_${'3'.repeat(32)}`;
 const MINUTE = 60_000;
-const AGAIN = 'Keys registered again, in case the previewlane box slept. Your tokens are unchanged.';
+const AGAIN =
+	'Keys registered again, in case the previewlane box slept. Your tokens are unchanged.';
 const FORGOTTEN = 'Forgotten. This browser and the previewlane box no longer hold your keys.';
 const FORGOTTEN_ELSEWHERE =
 	'Your keys were forgotten in another tab. This browser no longer holds them.';
@@ -505,7 +506,9 @@ describe('registering again on its own', () => {
 		b.now += MINUTE + 1;
 		b.visible();
 		await settle();
-		expect(b.status()).toContain('Could not register your keys again: the previewlane box sent no tokens');
+		expect(b.status()).toContain(
+			'Could not register your keys again: the previewlane box sent no tokens',
+		);
 		expect(b.saved().previews[LABEL].tokens).toEqual({ openai: T1 });
 		b.answer = accept;
 		b.now += MINUTE + 1;
@@ -1141,7 +1144,10 @@ describe('registering and forgetting, one at a time', () => {
 		const call = b.calls[0] as Call;
 		reply.give({ status: 200, body: { tokens: b.tokensFor(call) } });
 		await settle();
-		expect(b.forgotten().sort()).toEqual([`previewlane_${'0'.repeat(31)}1`, `previewlane_${'0'.repeat(31)}2`]);
+		expect(b.forgotten().sort()).toEqual([
+			`previewlane_${'0'.repeat(31)}1`,
+			`previewlane_${'0'.repeat(31)}2`,
+		]);
 		expect(b.saved()).toBeUndefined();
 		expect(b.inputs.every((i) => i.value === '')).toBe(true);
 		expect(b.status()).toBe(FORGOTTEN);

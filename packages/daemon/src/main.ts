@@ -380,7 +380,9 @@ async function sweepEvidence(evidence: EvidenceStore): Promise<void> {
 // CLI, through SSM.
 const args = process.argv.slice(2);
 if (args[0] === 'ctl' || args[0] === 'ctl-b64') {
-	const config = { socket: process.env.PREVIEWLANED_CONTROL_SOCKET ?? '/run/previewlane/control.sock' };
+	const config = {
+		socket: process.env.PREVIEWLANED_CONTROL_SOCKET ?? '/run/previewlane/control.sock',
+	};
 	const io: CtlIo = {
 		stdout: (t) => process.stdout.write(t),
 		stderr: (t) => process.stderr.write(t),

@@ -92,7 +92,9 @@ export function parseAttestation(text: string): VerifyAttestation {
 		const fields = result.error.issues.map(
 			(i) => `${i.path.join('.') || 'the output'}: ${i.message}`,
 		);
-		throw new Error(`previewlane-verify-net attest printed what previewlaned cannot read: ${fields.join('; ')}`);
+		throw new Error(
+			`previewlane-verify-net attest printed what previewlaned cannot read: ${fields.join('; ')}`,
+		);
 	}
 	return result.data;
 }
@@ -278,7 +280,8 @@ export function runNetworkProblems(
 	if (network.subnets.join(' ') !== record.subnet) {
 		problems.push(`has subnets ${network.subnets.join(' ') || '(none)'}, not ${record.subnet}`);
 	}
-	if (network.run !== record.runId) problems.push(`is not labelled previewlane.run=${record.runId}`);
+	if (network.run !== record.runId)
+		problems.push(`is not labelled previewlane.run=${record.runId}`);
 	return problems.map((p) => `network ${record.network} ${p}`);
 }
 

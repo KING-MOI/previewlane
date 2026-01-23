@@ -110,7 +110,10 @@ describe('image policy', () => {
 
 	test('the default image resolves by its name, whatever the allowlist says', async () => {
 		expect(
-			await resolveRunnerImage(docker, 'previewlane-verifier', { defaultImageId: DEFAULT, allowed: [] }),
+			await resolveRunnerImage(docker, 'previewlane-verifier', {
+				defaultImageId: DEFAULT,
+				allowed: [],
+			}),
 		).toEqual({ ok: true, digest: DEFAULT });
 		expect(
 			await resolveRunnerImage(docker, 'previewlane-verifier', {
@@ -1087,7 +1090,11 @@ describe('VerifierRunner', () => {
 		const v = created as FakeVerifier;
 		expect(v.options.image).toBe(CURL);
 		expect(v.options.entrypoint).toBe('python3');
-		expect(v.options.command).toEqual(['-I', '/previewlane/supervisor.py', '/previewlane/point.json']);
+		expect(v.options.command).toEqual([
+			'-I',
+			'/previewlane/supervisor.py',
+			'/previewlane/point.json',
+		]);
 		expect(v.options.workdir).toBe('/workspace');
 		expect(v.options.ip).toBe('10.213.0.4');
 		expect(v.options.appHost).toEqual({ name: `app.${RUN}.invalid`, ip: '10.213.0.2' });
@@ -1111,7 +1118,9 @@ describe('VerifierRunner', () => {
 		// the verifier, whose root is read-only.
 		const verifier = `previewlane-verify-${RUN}-verifier`;
 		const staging = `previewlane-verify-${RUN}-staging`;
-		const volumes = ['previewlane', 'workspace', 'fixtures'].map((p) => `previewlane-verify-${RUN}-inputs-${p}`);
+		const volumes = ['previewlane', 'workspace', 'fixtures'].map(
+			(p) => `previewlane-verify-${RUN}-inputs-${p}`,
+		);
 		expect(v.options.volumes).toEqual([
 			{ name: volumes[0] as string, destination: '/previewlane' },
 			{ name: volumes[1] as string, destination: '/workspace' },
@@ -2193,7 +2202,9 @@ describe('VerifierRunner', () => {
 			name: volumes.find((v) => v.destination === destination)?.name,
 			readOnly: true,
 		});
-		expect(mountProblems(['/previewlane', '/workspace', '/fixtures'].map(read), volumes)).toEqual([]);
+		expect(mountProblems(['/previewlane', '/workspace', '/fixtures'].map(read), volumes)).toEqual(
+			[],
+		);
 		expect(
 			mountProblems(
 				[read('/previewlane'), read('/workspace'), { ...read('/fixtures'), readOnly: false }],

@@ -122,7 +122,13 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	if (!enabled) return;
-	const containers = await exec(['docker', 'ps', '-aq', '--filter', `label=previewlane.preview=${label}`]);
+	const containers = await exec([
+		'docker',
+		'ps',
+		'-aq',
+		'--filter',
+		`label=previewlane.preview=${label}`,
+	]);
 	for (const id of containers.stdout.split('\n').filter(Boolean)) {
 		await exec(['docker', 'rm', '--force', '--volumes', id]);
 	}
@@ -140,7 +146,13 @@ afterAll(async () => {
 	}
 	for (const volume of volumes) await exec(['docker', 'volume', 'rm', volume]);
 	await exec(['docker', 'buildx', 'rm', '--force', builder]);
-	const helpers = await exec(['docker', 'ps', '-aq', '--filter', `label=previewlane.run=${verifyRun}`]);
+	const helpers = await exec([
+		'docker',
+		'ps',
+		'-aq',
+		'--filter',
+		`label=previewlane.run=${verifyRun}`,
+	]);
 	for (const id of helpers.stdout.split('\n').filter(Boolean)) {
 		await exec(['docker', 'rm', '--force', '--volumes', id]);
 	}

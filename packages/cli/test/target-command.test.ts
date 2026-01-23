@@ -29,9 +29,13 @@ const SCAN_ROTATED = `[203.0.113.10]:22 ssh-ed25519 ${ROTATED}\n`;
 async function home(targets: Record<string, unknown>) {
 	const dir = await mkdtemp(join(tmpdir(), 'previewlane-home-'));
 	await mkdir(join(dir, '.config', 'previewlane'), { recursive: true, mode: 0o700 });
-	await writeFile(join(dir, '.config', 'previewlane', 'config.yaml'), toYaml({ version: 1, targets }), {
-		mode: 0o600,
-	});
+	await writeFile(
+		join(dir, '.config', 'previewlane', 'config.yaml'),
+		toYaml({ version: 1, targets }),
+		{
+			mode: 0o600,
+		},
+	);
 	return dir;
 }
 
@@ -485,7 +489,9 @@ describe('previewlane target trust', () => {
 			{ HOME: '/nonexistent' },
 			async () => SCAN,
 		);
-		expect(noFile.stderr).toContain('no config file at /nonexistent/.config/previewlane/config.yaml');
+		expect(noFile.stderr).toContain(
+			'no config file at /nonexistent/.config/previewlane/config.yaml',
+		);
 	});
 
 	test('--json says what was written', async () => {
@@ -531,7 +537,9 @@ describe('previewlane target show', () => {
 		);
 		expect(before.stdout).toContain('    host: 203.0.113.10\n');
 		expect(before.stdout).toContain('    port: 2222\n');
-		expect(before.stdout).toContain('    identityFile: /home/operator/.ssh/previewlane_team_ed25519\n');
+		expect(before.stdout).toContain(
+			'    identityFile: /home/operator/.ssh/previewlane_team_ed25519\n',
+		);
 		expect(before.stdout).toContain(
 			`  host key: none trusted for team in ${join(dir, 'known_hosts')}; run previewlane target trust team --fingerprint SHA256:...`,
 		);

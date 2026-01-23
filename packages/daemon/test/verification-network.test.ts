@@ -199,7 +199,10 @@ describe('addresses', () => {
 		// previewlane.preview set to nothing, as previewlaned creates every helper so that
 		// its image's value does not reach it, is no preview.
 		expect(
-			helperOf({ name: helperName(RUN, 'recorder'), labels: { ...labels, 'previewlane.preview': '' } }),
+			helperOf({
+				name: helperName(RUN, 'recorder'),
+				labels: { ...labels, 'previewlane.preview': '' },
+			}),
 		).toEqual({ name: helperName(RUN, 'recorder'), runId: RUN, role: 'recorder' });
 		expect(helperOf({ name, labels })).toBeUndefined();
 		expect(
@@ -212,7 +215,10 @@ describe('addresses', () => {
 		expect(helperOf({ name: `previewlane-verify-${RUN}-app`, labels })).toBeUndefined();
 		// A label with a line break or a tab is a value, never another row.
 		expect(
-			helperOf({ name, labels: { 'previewlane.role': 'verifier', 'previewlane.run': `${RUN}\n${OTHER}\t` } }),
+			helperOf({
+				name,
+				labels: { 'previewlane.role': 'verifier', 'previewlane.run': `${RUN}\n${OTHER}\t` },
+			}),
 		).toBeUndefined();
 	});
 
@@ -233,7 +239,9 @@ describe('addresses', () => {
 		expect(runNetworkOf({ ...network, name: 'previewlane-previews' })).toBeUndefined();
 		const { run: _r, ...unlabelled } = network;
 		expect(runNetworkOf(unlabelled)).toBeUndefined();
-		expect(runNetworkOf({ ...network, name: 'previewlane-v-Not A Run', run: 'Not A Run' })).toBeUndefined();
+		expect(
+			runNetworkOf({ ...network, name: 'previewlane-v-Not A Run', run: 'Not A Run' }),
+		).toBeUndefined();
 	});
 });
 
@@ -284,7 +292,9 @@ describe('runNetworkProblems', () => {
 			`network previewlane-v-${RUN} has bridge (automatic), not kv0123456789ab`,
 			`network previewlane-v-${RUN} is not labelled previewlane.run=${RUN}`,
 		]);
-		expect(runNetworkProblems(undefined, record)).toEqual([`network previewlane-v-${RUN} does not exist`]);
+		expect(runNetworkProblems(undefined, record)).toEqual([
+			`network previewlane-v-${RUN} does not exist`,
+		]);
 	});
 });
 
@@ -516,7 +526,11 @@ describe('create', () => {
 		for (const role of ['recorder', 'verifier'] as const) {
 			const c = t.docker.containers.get(`previewlane-verify-${RUN}-${role}`);
 			expect(c?.running).toBe(false);
-			expect(c?.labels).toEqual({ 'previewlane.preview': '', 'previewlane.role': role, 'previewlane.run': RUN });
+			expect(c?.labels).toEqual({
+				'previewlane.preview': '',
+				'previewlane.role': role,
+				'previewlane.run': RUN,
+			});
 		}
 		expect(await t.docker.list()).toEqual([{ name: APP, label: 'hello-pr-7' }]);
 		// The app keeps its preview address.
@@ -767,7 +781,9 @@ describe('failures while making a network', () => {
 		const t = await setup();
 		t.docker.helperMounts = [{ type: 'volume', destination: '/data' }];
 		t.helper.revokeError = 'sudo -n exited 1: xtables lock';
-		await expect(t.networks.create(t.request())).rejects.toThrow('mounts previewlane did not ask for');
+		await expect(t.networks.create(t.request())).rejects.toThrow(
+			'mounts previewlane did not ask for',
+		);
 		expect(await t.records()).toEqual([`${RUN}.json`]);
 		expect((await t.networks.list())[0]?.state).toBe('destroying');
 		expect(t.logs.join('\n')).toContain(
@@ -914,7 +930,10 @@ describe('cleanupOrphans', () => {
 			}));
 		for (const run of [RUN, OTHER]) {
 			for (const v of inputs(run)) {
-				await t.docker.createVolume(v.name, { 'previewlane.run': run, 'previewlane.role': INPUT_VOLUME_ROLE });
+				await t.docker.createVolume(v.name, {
+					'previewlane.run': run,
+					'previewlane.role': INPUT_VOLUME_ROLE,
+				});
 			}
 			await t.docker.createStaging({
 				name: stagingName(run),
@@ -1093,7 +1112,11 @@ describe('cleanupOrphans', () => {
 			network: 'previewlane-previews',
 			user: '65534:65534',
 			env: {},
-			labels: { 'previewlane.preview': 'forged-pr-9', 'previewlane.run': OTHER, 'previewlane.role': 'recorder' },
+			labels: {
+				'previewlane.preview': 'forged-pr-9',
+				'previewlane.run': OTHER,
+				'previewlane.role': 'recorder',
+			},
 		});
 		// And one with a helper's name but a preview's label.
 		await t.docker.run({
@@ -1102,7 +1125,11 @@ describe('cleanupOrphans', () => {
 			network: 'previewlane-previews',
 			user: '65534:65534',
 			env: {},
-			labels: { 'previewlane.preview': 'forged-pr-9', 'previewlane.run': OTHER, 'previewlane.role': 'verifier' },
+			labels: {
+				'previewlane.preview': 'forged-pr-9',
+				'previewlane.run': OTHER,
+				'previewlane.role': 'verifier',
+			},
 		});
 		t.docker.events.length = 0;
 		expect(await t.networks.cleanupOrphans()).toEqual([]);

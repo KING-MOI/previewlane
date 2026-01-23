@@ -494,7 +494,9 @@ describe('up', () => {
 		expect(t.logs).toContain(
 			'build aaaaaaaaaaaaaaaa1 for hello-pr-7: superseded before it started',
 		);
-		expect(t.docker.builds.filter((b) => b.labels['previewlane.preview'] === 'hello-pr-7')).toHaveLength(1);
+		expect(
+			t.docker.builds.filter((b) => b.labels['previewlane.preview'] === 'hello-pr-7'),
+		).toHaveLength(1);
 		expect((await t.store.get('hello-pr-7'))?.status).toBe('running');
 	});
 

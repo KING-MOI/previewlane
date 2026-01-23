@@ -101,7 +101,10 @@ describe('builderProblems', () => {
 				spec.builder,
 				builderOutput
 					.replace('Driver:        docker-container', 'Driver:        docker')
-					.replace('cpu-quota="300000" memory="8g" network="previewlane-build"', 'network="bridge"'),
+					.replace(
+						'cpu-quota="300000" memory="8g" network="previewlane-build"',
+						'network="bridge"',
+					),
 			),
 		).toEqual([
 			'buildx builder previewlane-builder does not use the docker-container driver',
@@ -122,8 +125,10 @@ describe('verifyHost', () => {
 
 	test('passes when every network and the builder are as provisioning made them', async () => {
 		const problems = await verifyHost(spec, async (cmd) => {
-			if (cmd.includes('previewlane-previews')) return answer(0, network(true, confined('previewlane-previews0')));
-			if (cmd.includes('previewlane-build')) return answer(0, network(false, confined('previewlane-build0')));
+			if (cmd.includes('previewlane-previews'))
+				return answer(0, network(true, confined('previewlane-previews0')));
+			if (cmd.includes('previewlane-build'))
+				return answer(0, network(false, confined('previewlane-build0')));
 			return answer(0, builderOutput);
 		});
 		expect(problems).toEqual([]);
@@ -134,7 +139,11 @@ describe('verifyHost', () => {
 		const containers = Object.fromEntries(
 			Array.from({ length: 2000 }, (_, i) => [
 				`${i}`.padStart(64, '0'),
-				{ Name: `previewlane-preview-${i}`, IPv4Address: '172.19.0.2/16', MacAddress: '02:42:ac:13:00:02' },
+				{
+					Name: `previewlane-preview-${i}`,
+					IPv4Address: '172.19.0.2/16',
+					MacAddress: '02:42:ac:13:00:02',
+				},
 			]),
 		);
 		const dir = await mkdtemp(join(tmpdir(), 'previewlaned-host-'));
@@ -152,7 +161,8 @@ describe('verifyHost', () => {
 				expect(text.length).toBeGreaterThan(256 * 1024);
 				return printed(text, options);
 			}
-			if (cmd.includes('previewlane-build')) return answer(0, network(false, confined('previewlane-build0')));
+			if (cmd.includes('previewlane-build'))
+				return answer(0, network(false, confined('previewlane-build0')));
 			return answer(0, builderOutput);
 		});
 		expect(problems).toEqual([]);
@@ -197,7 +207,8 @@ describe('the slice', () => {
 			if (line === 'docker info --format {{.CgroupDriver}}') return answer(0, 'systemd\n');
 			if (line === 'systemctl show --property=ActiveState,MemoryMax previewlane.slice')
 				return answer(0, 'MemoryMax=13369344000\nActiveState=active\n');
-			if (line === 'docker buildx inspect --bootstrap previewlane-builder') return answer(0, builderOutput);
+			if (line === 'docker buildx inspect --bootstrap previewlane-builder')
+				return answer(0, builderOutput);
 			if (line.endsWith('buildx_buildkit_previewlane-builder0')) return answer(0, `${id} true\n`);
 			if (line === `systemctl show --property=Slice --value docker-${id}.scope`)
 				return answer(0, 'previewlane.slice\n');
@@ -273,7 +284,9 @@ describe('the slice', () => {
 
 	test('reads the builder node from buildx inspect', () => {
 		expect(builderNode(builderOutput, 'previewlane-builder')).toBe('previewlane-builder0');
-		expect(builderNode('Name: previewlane-builder\n', 'previewlane-builder')).toBe('previewlane-builder0');
+		expect(builderNode('Name: previewlane-builder\n', 'previewlane-builder')).toBe(
+			'previewlane-builder0',
+		);
 	});
 });
 
@@ -906,7 +919,8 @@ describe('verificationCapability', () => {
 		};
 		expect(await verificationCapability(spec, box(), unreadable)).toEqual({
 			available: false,
-			reason: 'checking /usr/local/share/previewlane/recorder-seccomp.json: EACCES: permission denied',
+			reason:
+				'checking /usr/local/share/previewlane/recorder-seccomp.json: EACCES: permission denied',
 		});
 		const noDocker = box((line) => {
 			if (line.startsWith('docker image inspect')) throw new Error('spawn docker ENOENT');
@@ -1127,7 +1141,8 @@ describe('verificationCapability', () => {
 			);
 		expect(await verificationCapability({ ...spec, cleanup }, hung(''), installed)).toEqual({
 			available: false,
-			reason: 'sudo -n /usr/local/libexec/previewlane-verify-net attest gave no answer in 60 seconds',
+			reason:
+				'sudo -n /usr/local/libexec/previewlane-verify-net attest gave no answer in 60 seconds',
 		});
 		expect(
 			await verificationCapability(
@@ -1232,17 +1247,23 @@ describe('host/cloud-init.sh', () => {
 			const check = script.indexOf('visudo -cf /etc/sudoers.d/.previewlane-verify-net.new');
 			expect(check).toBeGreaterThan(0);
 			expect(check).toBeLessThan(
-				script.indexOf('mv -f /etc/sudoers.d/.previewlane-verify-net.new /etc/sudoers.d/previewlane-verify-net'),
+				script.indexOf(
+					'mv -f /etc/sudoers.d/.previewlane-verify-net.new /etc/sudoers.d/previewlane-verify-net',
+				),
 			);
 			expect(script).toContain('chmod 0440 /etc/sudoers.d/.previewlane-verify-net.new');
 		});
 
 		test("writes the pool where previewlaned and the helper read it, with a default outside Docker's pools", () => {
-			expect(script).toMatch(/^PREVIEWLANE_VERIFY_POOL=\$\{PREVIEWLANE_VERIFY_POOL:-10\.213\.0\.0\/20\}$/m);
+			expect(script).toMatch(
+				/^PREVIEWLANE_VERIFY_POOL=\$\{PREVIEWLANE_VERIFY_POOL:-10\.213\.0\.0\/20\}$/m,
+			);
 			expect(script).toContain(
 				`printf 'PREVIEWLANE_VERIFY_POOL=%s\\n' "$PREVIEWLANE_VERIFY_POOL" > /etc/previewlane/verify/env`,
 			);
-			expect(unit('previewlaned.service')).toContain('EnvironmentFile=-/etc/previewlane/verify/env');
+			expect(unit('previewlaned.service')).toContain(
+				'EnvironmentFile=-/etc/previewlane/verify/env',
+			);
 			// The infra variable and the provisioning script hand it over like the domain.
 			const box = readFileSync(resolve(import.meta.dir, '../../../infra/box.tf'), 'utf8');
 			expect(box).toContain(['"PREVIEWLANE_VERIFY_POOL=$', '{var.verify_pool}",'].join(''));
@@ -1265,7 +1286,9 @@ describe('host/cloud-init.sh', () => {
 		});
 
 		test('loads br_netfilter and keeps the bridge sysctls on across boots', () => {
-			expect(script).toContain("printf 'br_netfilter\\n' > /etc/modules-load.d/previewlane-verify.conf");
+			expect(script).toContain(
+				"printf 'br_netfilter\\n' > /etc/modules-load.d/previewlane-verify.conf",
+			);
 			expect(script).toContain('net.bridge.bridge-nf-call-iptables = 1');
 			expect(script).toContain('net.bridge.bridge-nf-call-ip6tables = 1');
 			// A VLAN-tagged frame reaches iptables only with this one on.
@@ -1273,7 +1296,9 @@ describe('host/cloud-init.sh', () => {
 			expect(script).toContain('sysctl -q -p /etc/sysctl.d/90-previewlane-verify.conf');
 			// And in the firewall unit, which runs before previewlaned.
 			const firewall =
-				/cat > \/usr\/local\/sbin\/previewlane-firewall <<'FW'\n([\s\S]*?)\nFW\n/.exec(script)?.[1] ?? '';
+				/cat > \/usr\/local\/sbin\/previewlane-firewall <<'FW'\n([\s\S]*?)\nFW\n/.exec(
+					script,
+				)?.[1] ?? '';
 			expect(firewall).toContain('modprobe br_netfilter');
 			expect(firewall).toContain(
 				'sysctl -q -w net.bridge.bridge-nf-call-iptables=1 net.bridge.bridge-nf-call-ip6tables=1 net.bridge.bridge-nf-filter-vlan-tagged=1',
@@ -1282,9 +1307,13 @@ describe('host/cloud-init.sh', () => {
 
 		test('the firewall leaves the kv+ chains, their denies and their jumps to the helper', () => {
 			const firewall =
-				/cat > \/usr\/local\/sbin\/previewlane-firewall <<'FW'\n([\s\S]*?)\nFW\n/.exec(script)?.[1] ?? '';
+				/cat > \/usr\/local\/sbin\/previewlane-firewall <<'FW'\n([\s\S]*?)\nFW\n/.exec(
+					script,
+				)?.[1] ?? '';
 			// Called when installed; a box before its first deploy says so instead.
-			expect(firewall).toContain('PREVIEWLANE_VERIFY_NET=/usr/local/libexec/previewlane-verify-net');
+			expect(firewall).toContain(
+				'PREVIEWLANE_VERIFY_NET=/usr/local/libexec/previewlane-verify-net',
+			);
 			expect(firewall).toContain(
 				'if [ -x "$PREVIEWLANE_VERIFY_NET" ]; then\n\t"$PREVIEWLANE_VERIFY_NET" provision',
 			);
@@ -1338,7 +1367,8 @@ describe('host/cloud-init.sh', () => {
 describe('previewlane-firewall, run in bash', () => {
 	const script = readFileSync(resolve(import.meta.dir, '../../../host/cloud-init.sh'), 'utf8');
 	const firewall =
-		/cat > \/usr\/local\/sbin\/previewlane-firewall <<'FW'\n([\s\S]*?)\nFW\n/.exec(script)?.[1] ?? '';
+		/cat > \/usr\/local\/sbin\/previewlane-firewall <<'FW'\n([\s\S]*?)\nFW\n/.exec(script)?.[1] ??
+		'';
 	const helperLine = 'PREVIEWLANE_VERIFY_NET=/usr/local/libexec/previewlane-verify-net';
 
 	// `helper` is the body of the fake helper, undefined for none installed.
@@ -1512,7 +1542,10 @@ describe('provisioning steps, run in bash', () => {
 			'systemctl() { echo "systemctl $*" >> "$calls"; return 1; }',
 		);
 		expect(failing.code).not.toBe(0);
-		expect(await daemonJson(dir)).toEqual({ 'cgroup-parent': 'previewlane.slice', 'log-driver': 'local' });
+		expect(await daemonJson(dir)).toEqual({
+			'cgroup-parent': 'previewlane.slice',
+			'log-driver': 'local',
+		});
 		expect(await pending(dir)).toBe(true);
 		const again = await provision(dir, 'configure_docker\nrestart_docker_if_pending');
 		expect(again.calls).toEqual(['systemctl restart docker.service']);
@@ -1563,12 +1596,18 @@ systemctl() {
 			'buildx_buildkit_previewlane-builder0': 'true system.slice builder',
 			'previewlane-a': 'true system.slice preview',
 		});
-		const run = await provision(dir, 'starts_in=previewlane.slice\nmove_builder_into_slice', containers);
+		const run = await provision(
+			dir,
+			'starts_in=previewlane.slice\nmove_builder_into_slice',
+			containers,
+		);
 		expect(run.stderr).toBe('');
 		expect(run.code).toBe(0);
 		const changes = run.calls.filter((c) => /^docker (restart|stop)/.test(c));
 		expect(changes).toEqual(['docker restart buildx_buildkit_previewlane-builder0']);
-		expect(await stateOf(dir, 'buildx_buildkit_previewlane-builder0')).toBe('true previewlane.slice builder');
+		expect(await stateOf(dir, 'buildx_buildkit_previewlane-builder0')).toBe(
+			'true previewlane.slice builder',
+		);
 		// previewlaned takes a preview out of Caddy's routes before it stops one.
 		expect(await stateOf(dir, 'previewlane-a')).toBe('true system.slice preview');
 		expect(run.stdout).toContain(
@@ -1579,14 +1618,20 @@ systemctl() {
 	test('changes nothing when the builder is in the slice, or not running', async () => {
 		for (const builder of ['true previewlane.slice builder', 'false system.slice builder']) {
 			const dir = await boxWith({ 'buildx_buildkit_previewlane-builder0': builder });
-			const run = await provision(dir, 'starts_in=previewlane.slice\nmove_builder_into_slice', containers);
+			const run = await provision(
+				dir,
+				'starts_in=previewlane.slice\nmove_builder_into_slice',
+				containers,
+			);
 			expect(run.code).toBe(0);
 			expect(run.calls.filter((c) => /^docker (restart|stop)/.test(c))).toEqual([]);
 		}
 	});
 
 	test('stops provisioning when Docker still starts the builder outside the slice', async () => {
-		const dir = await boxWith({ 'buildx_buildkit_previewlane-builder0': 'true system.slice builder' });
+		const dir = await boxWith({
+			'buildx_buildkit_previewlane-builder0': 'true system.slice builder',
+		});
 		const run = await provision(dir, 'starts_in=system.slice\nmove_builder_into_slice', containers);
 		expect(run.code).not.toBe(0);
 		expect(run.stderr).toContain(
@@ -1597,6 +1642,8 @@ systemctl() {
 	test('provisioning moves the builder into the slice after Docker and the builder are set up', () => {
 		const at = (text: string) => script.lastIndexOf(text);
 		expect(at('\nmove_builder_into_slice\n')).toBeGreaterThan(at('\nrestart_docker_if_pending\n'));
-		expect(at('\nmove_builder_into_slice\n')).toBeGreaterThan(at('as_previewlane docker buildx create'));
+		expect(at('\nmove_builder_into_slice\n')).toBeGreaterThan(
+			at('as_previewlane docker buildx create'),
+		);
 	});
 });

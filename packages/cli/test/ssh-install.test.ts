@@ -119,11 +119,15 @@ describe('host/ssh/install.sh and the password of previewlane-connect', () => {
 		const b = await box('!');
 		expect((await b.run()).code).toBe(0);
 		const once = await b.log();
-		expect(once.filter((l) => l.startsWith('usermod -p'))).toEqual(['usermod -p * previewlane-connect']);
+		expect(once.filter((l) => l.startsWith('usermod -p'))).toEqual([
+			'usermod -p * previewlane-connect',
+		]);
 		expect((await b.run()).code).toBe(0);
 		expect(await b.field()).toBe('*');
 		const twice = await b.log();
-		expect(twice.filter((l) => l.startsWith('usermod -p'))).toEqual(['usermod -p * previewlane-connect']);
+		expect(twice.filter((l) => l.startsWith('usermod -p'))).toEqual([
+			'usermod -p * previewlane-connect',
+		]);
 		expect(twice.length).toBeGreaterThan(once.length);
 	});
 

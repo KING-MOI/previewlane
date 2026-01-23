@@ -88,7 +88,9 @@ describe('HttpRelayClient', () => {
 		const big = relay();
 		const large = new HttpRelayClient(big, 100).request({ method: 'GET', path: '/a' });
 		big.reply('HTTP/1.1 200 OK\r\nContent-Length: 101\r\n\r\n');
-		await expect(large).rejects.toThrow('an HTTP reply of 101 bytes; previewlane takes at most 100');
+		await expect(large).rejects.toThrow(
+			'an HTTP reply of 101 bytes; previewlane takes at most 100',
+		);
 	});
 
 	test('a streamed body goes out a chunk at a time, and stops once the host has answered', async () => {

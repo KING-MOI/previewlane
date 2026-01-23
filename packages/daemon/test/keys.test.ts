@@ -101,7 +101,10 @@ describe('register and forget', () => {
 		);
 		expect(res.status).toBe(200);
 		expect(await res.json()).toEqual({
-			tokens: { openai: `previewlane_${'0'.repeat(31)}1`, anthropic: `previewlane_${'0'.repeat(31)}2` },
+			tokens: {
+				openai: `previewlane_${'0'.repeat(31)}1`,
+				anthropic: `previewlane_${'0'.repeat(31)}2`,
+			},
 		});
 		expect(calls).toEqual([
 			{
@@ -127,7 +130,9 @@ describe('register and forget', () => {
 		expect(res.status).toBe(200);
 		// The keys as sent and the tokens the proxy made, so the evidence
 		// sanitizers know both.
-		expect(seen).toEqual([['sk-1', 'sk-2', `previewlane_${'0'.repeat(31)}1`, `previewlane_${'0'.repeat(31)}2`]]);
+		expect(seen).toEqual([
+			['sk-1', 'sk-2', `previewlane_${'0'.repeat(31)}1`, `previewlane_${'0'.repeat(31)}2`],
+		]);
 		// A proxy failure registers nothing.
 		const failing = fakeEgress(true);
 		const refused = await handleKeys(
@@ -192,7 +197,9 @@ describe('register and forget', () => {
 		for (const body of bad)
 			expect((await page(post('/api/register', body), egress)).status).toBe(400);
 		expect((await page(post('/api/register', '{not json'), egress)).status).toBe(400);
-		expect((await page(post('/api/forget', { token: 'previewlane_short' }), egress)).status).toBe(400);
+		expect((await page(post('/api/forget', { token: 'previewlane_short' }), egress)).status).toBe(
+			400,
+		);
 		expect(calls).toEqual([]);
 	});
 
@@ -360,7 +367,9 @@ describe('the page', () => {
 
 describe('provider lists', () => {
 	test('the egress proxy intercepts exactly the providers the keys page offers', async () => {
-		const py = await Bun.file(join(import.meta.dir, '../../../host/egress/previewlane_egress.py')).text();
+		const py = await Bun.file(
+			join(import.meta.dir, '../../../host/egress/previewlane_egress.py'),
+		).text();
 		const block = py.slice(
 			py.indexOf('PROVIDERS = {'),
 			py.indexOf('}', py.indexOf('PROVIDERS = {')),
@@ -370,7 +379,9 @@ describe('provider lists', () => {
 	});
 
 	test('the egress proxy takes tokens after the same provider prefixes the keys page shows', async () => {
-		const py = await Bun.file(join(import.meta.dir, '../../../host/egress/previewlane_egress.py')).text();
+		const py = await Bun.file(
+			join(import.meta.dir, '../../../host/egress/previewlane_egress.py'),
+		).text();
 		const line = /^TOKEN_PREFIXES = (\{.*\})$/m.exec(py)?.[1] ?? '';
 		expect(JSON.parse(line)).toEqual(TOKEN_PREFIXES);
 	});
@@ -383,7 +394,9 @@ describe('provider lists', () => {
 	});
 
 	test('the egress proxy checks preview labels with the same pattern', async () => {
-		const py = await Bun.file(join(import.meta.dir, '../../../host/egress/previewlane_egress.py')).text();
+		const py = await Bun.file(
+			join(import.meta.dir, '../../../host/egress/previewlane_egress.py'),
+		).text();
 		const pattern = /^LABEL_RE = re\.compile\(r"([^"]+)"\)$/m.exec(py)?.[1];
 		expect(`^${pattern}$`).toBe(PREVIEW_LABEL.source);
 	});

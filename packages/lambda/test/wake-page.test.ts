@@ -120,7 +120,9 @@ describe('wake page script', () => {
 			return { ok: n >= 3 };
 		});
 		await h.advance(WAKE_POLL_MS * 6);
-		expect(h.calls.filter((c) => c === '/__previewlane-wake/wake').length).toBeGreaterThanOrEqual(4);
+		expect(h.calls.filter((c) => c === '/__previewlane-wake/wake').length).toBeGreaterThanOrEqual(
+			4,
+		);
 		expect(h.reloads()).toBe(1);
 		expect(h.els.title?.textContent).toBe('');
 	});
@@ -163,7 +165,9 @@ describe('wake page script', () => {
 				: { ok: false };
 		});
 		await h.advance(WAKE_FETCH_TIMEOUT_MS + WAKE_POLL_MS + 10);
-		expect(h.calls.filter((c) => c === '/__previewlane-wake/wake').length).toBeGreaterThanOrEqual(2);
+		expect(h.calls.filter((c) => c === '/__previewlane-wake/wake').length).toBeGreaterThanOrEqual(
+			2,
+		);
 		expect(h.els.title?.textContent).toBe('');
 	});
 

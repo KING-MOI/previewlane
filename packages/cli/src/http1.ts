@@ -253,7 +253,9 @@ export class HttpRelayClient {
 	}
 
 	private tooLarge(bytes: number): Error {
-		return new Error(`an HTTP reply of ${bytes} bytes; previewlane takes at most ${this.maxReplyBytes}`);
+		return new Error(
+			`an HTTP reply of ${bytes} bytes; previewlane takes at most ${this.maxReplyBytes}`,
+		);
 	}
 
 	// Starts the idle clock over, while a read is waiting on it.
@@ -341,7 +343,11 @@ export class HttpRelayClient {
 }
 
 function head(req: RelayRequest): string {
-	const lines = [`${req.method} ${req.path} HTTP/1.1`, 'Host: previewlaned', 'Connection: keep-alive'];
+	const lines = [
+		`${req.method} ${req.path} HTTP/1.1`,
+		'Host: previewlaned',
+		'Connection: keep-alive',
+	];
 	for (const [name, value] of Object.entries(req.headers ?? {})) {
 		if (/[\r\n]/.test(name) || /[\r\n]/.test(value)) throw new Error('a header with a line break');
 		lines.push(`${name}: ${value}`);
