@@ -326,7 +326,6 @@ commands:
   up              build the working tree (or --pr N) and run it as a preview
   list            list previews on the box
   logs NAME       a preview's container log (--build for its last build log)
-  down NAME       remove a preview
   config show     print the target previewlane would use, and where it comes from
   config import-aws --name NAME [--domain D] [--replace]
                   write the existing AWS deployment to the config file as a target
