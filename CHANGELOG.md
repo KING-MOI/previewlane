@@ -122,3 +122,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - follow up on type narrowing
 - flaky test observed while testing
 - edge case observed while testing
+- double-check type narrowing behavior
