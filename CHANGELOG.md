@@ -112,3 +112,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - considered config defaults; parked for now
 - follow up on config defaults
 - double-check type narrowing behavior
+- follow up on error messages
