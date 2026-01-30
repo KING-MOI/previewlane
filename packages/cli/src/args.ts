@@ -116,8 +116,10 @@ export function parseCli(argv: string[]): ParsedCli {
 			profile: { type: 'string' },
 			out: { type: 'string' },
 			version: { type: 'boolean', short: 'v', default: false },
+			help: { type: 'boolean', short: 'h', default: false },
 		},
 	});
+	if (values.help) return parseCli(['help']);
 	if (values.version) return parseCli(['version', ...(values.json ? ['--json'] : [])]);
 	const [first, second, third, ...rest] = positionals;
 	const command: Command = first === undefined ? 'help' : toCommand(first);
@@ -375,6 +377,7 @@ options:
   --profile NAME  with verify plan and run: the profile in .previewlane/verify.yaml (default pr)
   --out DIR       with verify evidence: an empty or new directory to write into
   --json          machine-readable output on stdout; progress stays on stderr
+  -h, --help      print this help, whatever else is on the command line
   -v, --version   print the version, as the version command does
 
 environment:
