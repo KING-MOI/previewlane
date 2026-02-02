@@ -6,6 +6,20 @@ describe('parseCli', () => {
 		expect(parseCli([]).command).toBe('help');
 	});
 
+	test('--version and -v mean the version command, and keep --json', () => {
+		for (const argv of [['--version'], ['-v'], ['up', '--version'], ['logs', '-v']]) {
+			expect(parseCli(argv).command).toBe('version');
+		}
+		expect(parseCli(['--version', '--json']).json).toBe(true);
+		expect(parseCli(['-v']).json).toBe(false);
+	});
+
+	test('--help and -h mean the help command, whatever else is given', () => {
+		for (const argv of [['--help'], ['-h'], ['logs', '--help'], ['release', '-h'], ['-h', '-v']]) {
+			expect(parseCli(argv).command).toBe('help');
+		}
+	});
+
 	test('parses a command with flags', () => {
 		const cli = parseCli(['up', '--pr', '2518', '--comment', '--json']);
 		expect(cli.command).toBe('up');
