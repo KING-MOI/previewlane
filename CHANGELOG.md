@@ -108,3 +108,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - follow up on exit codes
 - double-check docs example behavior
 - double-check ci caching behavior
+- double-check link checker behavior
