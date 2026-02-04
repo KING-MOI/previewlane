@@ -23,6 +23,7 @@ export const COMMANDS = [
 	'config',
 	'target',
 	'version',
+	'completion',
 	'help',
 ] as const;
 export type Command = (typeof COMMANDS)[number];
@@ -46,6 +47,9 @@ export type ConfigSubcommand = (typeof CONFIG_SUBCOMMANDS)[number];
 
 export const TARGET_SUBCOMMANDS = ['show', 'trust'] as const;
 export type TargetSubcommand = (typeof TARGET_SUBCOMMANDS)[number];
+
+export const SHELLS = ['bash', 'zsh'] as const;
+export type Shell = (typeof SHELLS)[number];
 
 // A host key fingerprint as ssh-keygen -l prints it: SHA256: and the digest
 // in base64 without padding.
@@ -90,6 +94,8 @@ export interface ParsedCli {
 	force: boolean;
 	// With verify: the subcommand and its arguments.
 	verify: VerifyArgs | undefined;
+	// With completion: the shell to print a completion script for.
+	shell: Shell | undefined;
 }
 
 export const OPTIONS = {
@@ -138,6 +144,7 @@ export function parseCli(argv: string[]): ParsedCli {
 		if (values.out !== undefined) throw new Error('--out is for verify evidence');
 	}
 
+	let shell: Shell | undefined;
 	let label: string | undefined;
 	let sub: ConfigSubcommand | TargetSubcommand | undefined;
 	let name = values.name;
@@ -164,6 +171,9 @@ export function parseCli(argv: string[]): ParsedCli {
 			);
 		}
 		name = given;
+	} else if (command === 'completion') {
+		shell = SHELLS.find((s) => s === second);
+		if (shell === undefined) throw new Error(`completion needs a shell: ${SHELLS.join(' or ')}`);
 	} else if (second !== undefined && command !== 'verify') {
 		throw new Error(`${command} takes no arguments`);
 	}
@@ -274,6 +284,7 @@ export function parseCli(argv: string[]): ParsedCli {
 		holder: values.holder,
 		force: values.force,
 		verify,
+		shell,
 	};
 }
 
@@ -357,6 +368,9 @@ commands:
   verify cancel RUN
                   stop a run
   version         print the version
+  completion SHELL
+                  print a completion script for bash or zsh, for example
+                  previewlane completion bash > ~/.local/share/bash-completion/completions/previewlane
 
 options:
   --pr N          preview pull request N instead of the working tree: GitHub's

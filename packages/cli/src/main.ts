@@ -12,6 +12,7 @@ import {
 import { parseCli, USAGE } from './args.ts';
 import { type Box, ctlErrorText } from './box.ts';
 import { BUILTIN_RECIPES } from './builtins.ts';
+import { completionScript } from './completion.ts';
 import type { Env, TargetFlags } from './config.ts';
 import { configCommand } from './config-command.ts';
 import { refuseAutoloadedCheckout } from './environ.ts';
@@ -138,6 +139,10 @@ export async function run(
 				io.stdout(
 					cli.json ? `${JSON.stringify({ version: VERSION })}\n` : `previewlane ${VERSION}\n`,
 				);
+				return 0;
+			case 'completion':
+				if (cli.shell === undefined) return 2;
+				io.stdout(completionScript(cli.shell));
 				return 0;
 			case 'up': {
 				const { box, domain } = await connect();
