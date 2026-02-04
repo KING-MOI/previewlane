@@ -1,4 +1,4 @@
-import { parseArgs } from 'node:util';
+import { type ParseArgsOptionsConfig, parseArgs } from 'node:util';
 import {
 	LEASE_MAX_SECONDS,
 	LeaseHolderSchema,
@@ -92,32 +92,34 @@ export interface ParsedCli {
 	verify: VerifyArgs | undefined;
 }
 
+export const OPTIONS = {
+	json: { type: 'boolean', default: false },
+	pr: { type: 'string' },
+	comment: { type: 'boolean', default: false },
+	head: { type: 'boolean', default: false },
+	build: { type: 'boolean', default: false },
+	tail: { type: 'string' },
+	target: { type: 'string' },
+	config: { type: 'string' },
+	domain: { type: 'string' },
+	name: { type: 'string' },
+	replace: { type: 'boolean', default: false },
+	fingerprint: { type: 'string' },
+	minutes: { type: 'string' },
+	holder: { type: 'string' },
+	force: { type: 'boolean', default: false },
+	profile: { type: 'string' },
+	out: { type: 'string' },
+	version: { type: 'boolean', short: 'v', default: false },
+	help: { type: 'boolean', short: 'h', default: false },
+} as const satisfies ParseArgsOptionsConfig;
+
 export function parseCli(argv: string[]): ParsedCli {
 	const { values, positionals } = parseArgs({
 		args: argv,
 		allowPositionals: true,
 		strict: true,
-		options: {
-			json: { type: 'boolean', default: false },
-			pr: { type: 'string' },
-			comment: { type: 'boolean', default: false },
-			head: { type: 'boolean', default: false },
-			build: { type: 'boolean', default: false },
-			tail: { type: 'string' },
-			target: { type: 'string' },
-			config: { type: 'string' },
-			domain: { type: 'string' },
-			name: { type: 'string' },
-			replace: { type: 'boolean', default: false },
-			fingerprint: { type: 'string' },
-			minutes: { type: 'string' },
-			holder: { type: 'string' },
-			force: { type: 'boolean', default: false },
-			profile: { type: 'string' },
-			out: { type: 'string' },
-			version: { type: 'boolean', short: 'v', default: false },
-			help: { type: 'boolean', short: 'h', default: false },
-		},
+		options: OPTIONS,
 	});
 	if (values.help) return parseCli(['help']);
 	if (values.version) return parseCli(['version', ...(values.json ? ['--json'] : [])]);
