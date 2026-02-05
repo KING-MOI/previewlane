@@ -371,7 +371,7 @@ describe('a scrub of a scrub changes nothing', () => {
 		expect(scrub(out)).toBe(out);
 		// A value that the cut makes whole is scrubbed too, within the limit.
 		const key = `${'y'.repeat(70)} previewlane-${'a1'.repeat(12)}zzzz`;
-		const cut = scrubWithin(scrub, key, 99);
+		const cut = scrubWithin(scrub, key, key.length - 'zzzz'.length);
 		expect(cut).toBe(`${'y'.repeat(70)} [redacted]`);
 		expect(scrub(cut)).toBe(cut);
 		// A mask that ends right at the limit stays.
