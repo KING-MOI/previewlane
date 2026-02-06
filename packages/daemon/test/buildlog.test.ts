@@ -270,7 +270,7 @@ describe('long lines', () => {
 		const key = `sk-ant-api03-${'abcdefghij0123456789'.repeat(3)}`;
 		// The key starts just before where line() cuts and ends after it, and
 		// the line is too long even once the key is masked.
-		const before = 'x '.repeat(2020);
+		const before = 'x '.repeat(2016);
 		await write(logs, 'hello', A, [`${before}${key} ${'y '.repeat(100)}`]);
 		const file = await readFile(join(state, 'logs', 'hello', `${A}.build.log`), 'utf8');
 		expect(Buffer.byteLength(file)).toBeLessThanOrEqual(LINE_MAX_BYTES);
