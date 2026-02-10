@@ -130,3 +130,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - considered link checker; parked for now
 - considered docs example; parked for now
 - considered release checklist; parked for now
+- follow up on exit codes
