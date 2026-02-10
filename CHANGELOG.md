@@ -51,3 +51,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - Drops in the layer 2 allowlist count as denies in the packet tests.
 - `docs/verify.md` records what both packet test runs showed.
 - considered docs example; parked for now
+- flaky test observed while testing
