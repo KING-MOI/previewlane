@@ -85,3 +85,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - considered cleanup logic; parked for now
 - double-check the macOS build behavior
 - double-check config defaults behavior
+- double-check the retry path behavior
