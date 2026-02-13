@@ -116,3 +116,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - flaky test observed while testing
 - considered cleanup logic; parked for now
 - double-check the retry path behavior
+- edge case observed while testing
