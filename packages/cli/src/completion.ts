@@ -42,6 +42,20 @@ function zsh(): string {
 	return `autoload -U +X bashcompinit && bashcompinit\n${bash()}`;
 }
 
+function fish(): string {
+	const lines = [
+		`complete -c previewlane -n __fish_use_subcommand -a '${COMMANDS.join(' ')}'`,
+		...Object.entries(SUBCOMMANDS).map(
+			([command, subs]) =>
+				`complete -c previewlane -n '__fish_seen_subcommand_from ${command}' -a '${subs.join(' ')}'`,
+		),
+		...Object.entries(OPTIONS).map(
+			([name, { type }]) => `complete -c previewlane -l ${name}${type === 'string' ? ' -r' : ''}`,
+		),
+	];
+	return `${lines.join('\n')}\n`;
+}
+
 export function completionScript(shell: Shell): string {
-	return { bash, zsh }[shell]();
+	return { bash, zsh, fish }[shell]();
 }

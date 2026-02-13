@@ -48,7 +48,7 @@ export type ConfigSubcommand = (typeof CONFIG_SUBCOMMANDS)[number];
 export const TARGET_SUBCOMMANDS = ['show', 'trust'] as const;
 export type TargetSubcommand = (typeof TARGET_SUBCOMMANDS)[number];
 
-export const SHELLS = ['bash', 'zsh'] as const;
+export const SHELLS = ['bash', 'zsh', 'fish'] as const;
 export type Shell = (typeof SHELLS)[number];
 
 // A host key fingerprint as ssh-keygen -l prints it: SHA256: and the digest
@@ -369,7 +369,7 @@ commands:
                   stop a run
   version         print the version
   completion SHELL
-                  print a completion script for bash or zsh, for example
+                  print a completion script for bash, zsh or fish, for example
                   previewlane completion bash > ~/.local/share/bash-completion/completions/previewlane
 
 options:
