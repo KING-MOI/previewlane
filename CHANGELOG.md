@@ -87,3 +87,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - double-check config defaults behavior
 - double-check the retry path behavior
 - follow up on config defaults
+- follow up on exit codes
