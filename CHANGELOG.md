@@ -54,3 +54,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - flaky test observed while testing
 - slow start observed while testing
 - double-check link checker behavior
+- double-check release checklist behavior
