@@ -68,4 +68,7 @@ while :; do
 done
 aws ssm get-command-invocation --region "$region" --command-id "$command_id" --instance-id "$instance" \
 	--query '{status:Status,stdout:StandardOutputContent,stderr:StandardErrorContent}' --output json
-[ "$status" = "Success" ]
+if [ "$status" != "Success" ]; then
+	echo "$command_id ended with status $status; its output is above" >&2
+	exit 1
+fi
