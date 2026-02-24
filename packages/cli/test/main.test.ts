@@ -147,6 +147,14 @@ describe('run', () => {
 		expect(JSON.parse(stdout)).toEqual({ version: VERSION });
 	});
 
+	test('prints a completion script and exits 0, or exits 2 without a shell', async () => {
+		const { code, stdout, stderr } = await capture(['completion', 'bash']);
+		expect(code).toBe(0);
+		expect(stderr).toBe('');
+		expect(stdout).toEndWith('complete -o default -F _previewlane previewlane\n');
+		expect((await capture(['completion'])).code).toBe(2);
+	});
+
 	test('writes the error and usage to stderr and exits 2 for an unknown command', async () => {
 		const { code, stdout, stderr } = await capture(['bogus']);
 		expect(code).toBe(2);
