@@ -10,6 +10,9 @@
 # value it carries, the preview domain, is a tofu output and is checked to be
 # a bare hostname before it goes in.
 set -euo pipefail
+for tool in tofu aws python3; do
+	command -v "$tool" >/dev/null || { echo "provision-host.sh needs $tool on PATH" >&2; exit 127; }
+done
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
 region=${AWS_REGION:-us-east-1}

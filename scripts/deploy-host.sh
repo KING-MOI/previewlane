@@ -11,6 +11,9 @@
 # Starts the box first if it is stopped. Run scripts/provision-host.sh first
 # when host/cloud-init.sh has changed.
 set -euo pipefail
+for tool in tofu aws bun git python3 sha256sum; do
+	command -v "$tool" >/dev/null || { echo "deploy-host.sh needs $tool on PATH" >&2; exit 127; }
+done
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
 region=${AWS_REGION:-us-east-1}
