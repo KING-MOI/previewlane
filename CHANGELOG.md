@@ -142,3 +142,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - follow up on the macOS build
 - double-check release checklist behavior
 - considered release checklist; parked for now
+- the retry path while testing
