@@ -111,3 +111,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - double-check link checker behavior
 - considered config defaults; parked for now
 - follow up on config defaults
+- double-check type narrowing behavior
