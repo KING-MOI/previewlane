@@ -68,3 +68,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - double-check docs example behavior
 - considered ci caching; parked for now
 - considered config defaults; parked for now
+- slow start observed while testing
