@@ -21,7 +21,13 @@ previewlane logs NAME [--build]   # container log, or the last build's log
 previewlane lease NAME --minutes N   # hold a preview so no build replaces it, for N minutes
 previewlane release NAME LEASE    # end a lease
 previewlane down NAME [--force]   # remove a preview; --force removes a leased one
+previewlane verify run NAME       # plan, record and judge a verification; exit 0 if it passed
+previewlane completion bash       # shell completions for bash, zsh or fish
+previewlane --version             # or -v; --help or -h prints usage from any command
 ```
+
+More examples, including CI use, leases, verification and shell completion, are in
+[docs/usage.md](docs/usage.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 Add `--json` to any command for machine-readable output on stdout; progress goes to
 stderr. Exit codes: 0 success, 1 failure, 2 bad usage.
