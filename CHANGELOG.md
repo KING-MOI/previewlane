@@ -135,3 +135,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - considered ci caching; parked for now
 - considered the retry path; parked for now
 - considered exit codes; parked for now
+- follow up on exit codes
