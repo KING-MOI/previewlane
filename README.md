@@ -169,6 +169,34 @@ are its limits, each with the file that decides it.
   comment and `previewlane list` are trusted because the host and the person running the CLI
   are trusted. There is no evidence that can be checked outside the host.
 
+## Troubleshooting
+
+Each entry starts with the error as previewlane prints it.
+
+- **`GitHub has no merge of pull request N`** or **`GitHub's merge of pull request N ... is
+  out of date`**: the pull request conflicts with its base, or GitHub has not recomputed
+  the merge yet. Rebase or merge the base and push, wait a minute, or build the head as
+  pushed with `previewlane up --pr N --head`.
+- **`checking GitHub's merge of pull request N against its base branch needs gh`**: install
+  gh and run `gh auth login`, or use `--head`, which needs no gh.
+- **`previewlane was started from source in a checkout that has dotenv or bunfig files`**:
+  Bun loaded `.env` or `bunfig.toml` before previewlane could check them. Use the compiled
+  binary (`bun run --filter @previewlane/cli build`), run from another directory, or
+  `export PREVIEWLANE_TRUST_CHECKOUT=1` in a checkout you trust.
+- **`another previewlane config holds the lock ...`**: a previous `config import-aws` or
+  `target trust` may have crashed. Check none is running, then remove the `.lock`
+  directory the message names.
+- **`the box did not come online within ten minutes`**: check the instance in the EC2
+  console; a box stuck in `pending` or `stopping` needs to settle before a retry.
+- **The wrong host answers**: `previewlane config show` prints the target in use and which
+  of `--target`, `PREVIEWLANE_TARGET`, `.previewlane/target.yaml` or `defaultTarget` chose it.
+- **`deploy-host.sh needs tofu on PATH`** (exit 127): the host scripts check for `tofu`,
+  `aws`, `bun`, `git`, `python3` and `sha256sum` before they start. Install the one named.
+- **`<command id> ended with status Failed`** from `deploy-host.sh` or `provision-host.sh`:
+  the SSM output is printed just above. If previewlaned says the box is not provisioned,
+  run `scripts/provision-host.sh`, then deploy again.
+- **Exit code 2**: the command line was not understood; the usage text follows the error.
+
 ## Layout
 
 | Path | What it is |
