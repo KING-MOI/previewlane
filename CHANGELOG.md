@@ -66,3 +66,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - follow up on cleanup logic
 - considered error messages; parked for now
 - double-check docs example behavior
+- considered ci caching; parked for now
