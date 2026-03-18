@@ -158,8 +158,6 @@ export const RepoTargetSchema = z.strictObject({
 
 export type UserConfig = z.infer<typeof UserConfigSchema>;
 export type Target = z.infer<typeof TargetSchema>;
-export type Transport = z.infer<typeof TransportSchema>;
-export type AwsContext = z.infer<typeof AwsContextSchema>;
 export type SshEndpoint = z.infer<typeof SshEndpointSchema>;
 
 export const REPO_TARGET_FILE = '.previewlane/target.yaml';
