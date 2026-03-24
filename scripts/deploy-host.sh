@@ -16,6 +16,7 @@ for tool in tofu aws bun git python3 sha256sum; do
 done
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
+. "$repo/scripts/ssm-wait.sh"
 region=${AWS_REGION:-us-east-1}
 out() { tofu -chdir="$repo/infra" output -raw "$1"; }
 instance=$(out box_instance_id)
@@ -162,20 +163,5 @@ command_id=$(aws ssm send-command --region "$region" --instance-ids "$instance" 
 	--document-name AWS-RunShellScript --comment "previewlane: deploy previewlaned $version" \
 	--parameters "$params" --query 'Command.CommandId' --output text)
 echo "sent $command_id; waiting"
-# `aws ssm wait` gives up after about 100 seconds; poll to the command's own limit.
-deadline=$(( $(date +%s) + 960 ))
-status=Pending
-while :; do
-	status=$(aws ssm get-command-invocation --region "$region" --command-id "$command_id" --instance-id "$instance" \
-		--query Status --output text 2>/dev/null || echo Pending)
-	case "$status" in Pending | InProgress | Delayed) ;; *) break ;; esac
-	if [ "$(date +%s)" -ge "$deadline" ]; then echo "gave up waiting for $command_id" >&2; exit 1; fi
-	sleep 5
-done
-aws ssm get-command-invocation --region "$region" --command-id "$command_id" --instance-id "$instance" \
-	--query '{status:Status,stdout:StandardOutputContent,stderr:StandardErrorContent}' --output json
-if [ "$status" != "Success" ]; then
-	echo "$command_id ended with status $status; its output is above" >&2
-	exit 1
-fi
+wait_for_command "$command_id" 960 5
 echo "previewlaned $version is running"
