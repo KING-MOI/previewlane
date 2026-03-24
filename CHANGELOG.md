@@ -104,3 +104,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - double-check link checker behavior
 - follow up on error messages
 - follow up on the retry path
+- considered the macOS build; parked for now
