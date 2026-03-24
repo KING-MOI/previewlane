@@ -61,3 +61,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - double-check error messages behavior
 - considered link checker; parked for now
 - edge case observed while testing
+- considered cleanup logic; parked for now
