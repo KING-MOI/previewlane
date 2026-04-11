@@ -52,3 +52,4 @@ All notable changes to previewlane. The CLI version is `version` in
 - `docs/verify.md` records what both packet test runs showed.
 - considered docs example; parked for now
 - flaky test observed while testing
+- slow start observed while testing
