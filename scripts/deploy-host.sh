@@ -41,26 +41,22 @@ tar -czf "$work/recipes.tar.gz" -C "$repo/recipes" .
 tar -czf "$work/egress.tar.gz" -C "$repo/host/egress" --exclude=test --exclude=__pycache__ .
 tar -czf "$work/ssh.tar.gz" -C "$repo/host/ssh" --exclude=test .
 tar -czf "$work/verify.tar.gz" -C "$repo/host/verify" --exclude=test --exclude=__pycache__ .
-previewlaned_sha=$(sha256sum "$work/previewlaned" | cut -d' ' -f1)
-gateway_sha=$(sha256sum "$work/previewlane-ssh-gateway" | cut -d' ' -f1)
-recipes_sha=$(sha256sum "$work/recipes.tar.gz" | cut -d' ' -f1)
-egress_sha=$(sha256sum "$work/egress.tar.gz" | cut -d' ' -f1)
-ssh_sha=$(sha256sum "$work/ssh.tar.gz" | cut -d' ' -f1)
-verify_sha=$(sha256sum "$work/verify.tar.gz" | cut -d' ' -f1)
-
+# NAME:FILE for each file the box downloads. Every file is uploaded before any
+# URL is signed, so the URLs' 15 minutes start as late as they can.
+artifacts="previewlaned:previewlaned gateway:previewlane-ssh-gateway recipes:recipes.tar.gz
+egress:egress.tar.gz ssh:ssh.tar.gz verify:verify.tar.gz"
 echo "uploading host/$version"
-aws s3 cp --region "$region" --only-show-errors "$work/previewlaned" "s3://$bucket/host/$version/previewlaned"
-aws s3 cp --region "$region" --only-show-errors "$work/previewlane-ssh-gateway" "s3://$bucket/host/$version/previewlane-ssh-gateway"
-aws s3 cp --region "$region" --only-show-errors "$work/recipes.tar.gz" "s3://$bucket/host/$version/recipes.tar.gz"
-aws s3 cp --region "$region" --only-show-errors "$work/egress.tar.gz" "s3://$bucket/host/$version/egress.tar.gz"
-aws s3 cp --region "$region" --only-show-errors "$work/ssh.tar.gz" "s3://$bucket/host/$version/ssh.tar.gz"
-aws s3 cp --region "$region" --only-show-errors "$work/verify.tar.gz" "s3://$bucket/host/$version/verify.tar.gz"
-previewlaned_url=$(aws s3 presign --region "$region" --expires-in 900 "s3://$bucket/host/$version/previewlaned")
-gateway_url=$(aws s3 presign --region "$region" --expires-in 900 "s3://$bucket/host/$version/previewlane-ssh-gateway")
-recipes_url=$(aws s3 presign --region "$region" --expires-in 900 "s3://$bucket/host/$version/recipes.tar.gz")
-egress_url=$(aws s3 presign --region "$region" --expires-in 900 "s3://$bucket/host/$version/egress.tar.gz")
-ssh_url=$(aws s3 presign --region "$region" --expires-in 900 "s3://$bucket/host/$version/ssh.tar.gz")
-verify_url=$(aws s3 presign --region "$region" --expires-in 900 "s3://$bucket/host/$version/verify.tar.gz")
+for artifact in $artifacts; do
+	file=${artifact#*:}
+	sha=$(sha256sum "$work/$file" | cut -d' ' -f1)
+	printf -v "${artifact%%:*}_sha" '%s' "$sha"
+	aws s3 cp --region "$region" --only-show-errors "$work/$file" "s3://$bucket/host/$version/$file"
+done
+for artifact in $artifacts; do
+	file=${artifact#*:}
+	url=$(aws s3 presign --region "$region" --expires-in 900 "s3://$bucket/host/$version/$file")
+	printf -v "${artifact%%:*}_url" '%s' "$url"
+done
 
 state=$(aws ec2 describe-instances --region "$region" --instance-ids "$instance" \
 	--query 'Reservations[0].Instances[0].State.Name' --output text)
