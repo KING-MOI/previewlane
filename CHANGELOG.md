@@ -25,6 +25,14 @@ All notable changes to previewlane. The CLI version is `VERSION` in
 - Two redaction tests whose arithmetic assumed the old, shorter name: the
   login key prefix and the build log's cut marker both grew.
 
+### Changed
+
+- `scripts/deploy-host.sh` and `scripts/provision-host.sh` share one SSM wait
+  (`scripts/ssm-wait.sh`), and `deploy-host.sh` uploads its six artifacts from
+  one list.
+- CI runs the verification firewall helper's pytest suite (`host/verify/test`).
+- Removed the unused `Transport` and `AwsContext` type aliases from the CLI.
+
 ### Tests
 
 - `withFileLock` (`packages/cli/src/lock.ts`) and the bounded body reader
