@@ -9,6 +9,7 @@ import {
 	type PreviewSummary,
 	randomId,
 } from '@previewlane/shared';
+import pkg from '../package.json' with { type: 'json' };
 import { parseCli, USAGE } from './args.ts';
 import { type Box, ctlErrorText } from './box.ts';
 import { BUILTIN_RECIPES } from './builtins.ts';
@@ -34,7 +35,7 @@ import {
 	type VerifyDeps,
 } from './verify.ts';
 
-export const VERSION = '0.1.0';
+export const VERSION = pkg.version;
 
 export interface Io {
 	stdout: (s: string) => void;

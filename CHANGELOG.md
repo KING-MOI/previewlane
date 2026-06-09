@@ -1,7 +1,7 @@
 # Changelog
 
-All notable changes to previewlane. The CLI version is `VERSION` in
-`packages/cli/src/main.ts`.
+All notable changes to previewlane. The CLI version is `version` in
+`packages/cli/package.json`.
 
 ## Unreleased
 
