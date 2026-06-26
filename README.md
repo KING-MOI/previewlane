@@ -221,7 +221,10 @@ uv run --with pytest pytest host/verify/test   # the verification firewall helpe
 uv run --with pytest pytest host/verifier      # the verifier's supervisor and runner clients
 ```
 
-CI and a Greptile review run on every pull request. Greptile's configuration is in `.greptile/`.
+CI runs the typecheck, lint and Bun tests, builds and runs the compiled CLI, checks the
+OpenTofu, and runs `host/verify/test`. The egress proxy and verifier suites above are not
+in CI; run them locally when you change `host/egress` or `host/verifier`. A Greptile
+review runs on every pull request. Greptile's configuration is in `.greptile/`.
 
 ## License
 
